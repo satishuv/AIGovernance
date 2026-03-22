@@ -1,4 +1,6 @@
 *.docx
+*.tmp
+~$*
 __pycache__/
 .env
 cdk.out/
