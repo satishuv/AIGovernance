@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_s3\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AccessGrantReference', 'AccessPointReference', 'BucketReference', 'BucketReference(%s)', 'IAccessGrantRef', 'IAccessPointRef', 'IBucketPolicyRef', 'IBucketRef', 'IStorageLensGroupRef', 'IStorageLensRef', 'StorageLensReference', '__jsii_proxy_class__', '__jsii_type__', 'accessGrantArn', 'accessGrantId', 'accessGrantRef', 'accessPointArn', 'accessPointName', 'accessPointRef', 'access_grant_arn', 'access_grant_id', 'access_point_arn', 'access_point_name', 'argument bucket', 'argument bucket_arn', 'argument bucket_name', 'argument mrap_name', 'bucket', 'bucketArn', 'bucketName', 'bucketPolicyRef', 'bucketRef', 'bucket_arn', 'bucket_name', 'mrapName', 'mrap_name', 'storageLensGroupArn', 'storageLensGroupName', 'storageLensGroupRef', 'storageLensId', 'storageLensRef', 'storage_lens_id', 'typeguard']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_kendra\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DataSourceReference', 'FaqReference', 'FaqReference(%s)', 'IDataSourceRef', 'IFaqRef', 'IIndexRef', 'IndexReference', 'IndexReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument faq_arn', 'argument faq_id', 'argument index_arn', 'argument index_id', 'dataSourceArn', 'dataSourceId', 'dataSourceRef', 'data_source_arn', 'data_source_id', 'faqArn', 'faqId', 'faqRef', 'faq_arn', 'faq_id', 'indexArn', 'indexId', 'indexRef', 'index_arn', 'index_id', 'typeguard']

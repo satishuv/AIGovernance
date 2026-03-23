@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_config\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ConfigRuleReference', 'IConfigRuleRef', 'IConformancePackRef', 'IDeliveryChannelRef', 'IStoredQueryRef', 'StoredQueryReference', '__jsii_proxy_class__', '__jsii_type__', 'argument query_name', 'authorizedAccountId', 'authorizedAwsRegion', 'configRuleArn', 'configRuleName', 'configRuleRef', 'config_rule_arn', 'config_rule_name', 'conformancePackName', 'conformancePackRef', 'deliveryChannelId', 'deliveryChannelRef', 'delivery_channel_id', 'queryName', 'query_name', 'storedQueryRef', 'typeguard']

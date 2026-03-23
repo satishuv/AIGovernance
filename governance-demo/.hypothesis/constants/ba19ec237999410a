@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_launchwizard\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnDeployment', 'CfnDeploymentProps', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument id', 'argument inspector', 'argument name', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForDeployment', 'attrArn', 'attrCreatedAt', 'attrDeletedAt', 'attrDeploymentId', 'attrResourceGroup', 'attrStatus', 'cdkTagManager', 'cfnProperties', 'deploymentRef', 'id', 'inspect', 'inspector', 'isCfnDeployment', 'name', 'props', 'renderProperties', 'resource', 'scope', 'specifications', 'tags', 'typeguard', 'value', 'workloadName', 'workload_name', 'x']

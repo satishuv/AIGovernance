@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_budgets\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'BudgetReference', 'BudgetReference(%s)', 'IBudgetRef', 'IBudgetsActionRef', '__jsii_proxy_class__', '__jsii_type__', 'actionId', 'action_id', 'argument action_id', 'argument budget_id', 'argument budget_name', 'budgetId', 'budgetName', 'budgetRef', 'budget_id', 'budget_name', 'budgetsActionRef', 'typeguard']

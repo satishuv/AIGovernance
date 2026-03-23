@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_amplifyuibuilder\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ComponentReference', 'FormReference', 'FormReference(%s)', 'IComponentRef', 'IFormRef', 'IThemeRef', 'ThemeReference', 'ThemeReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'appId', 'app_id', 'argument app_id', 'argument form_id', 'argument theme_id', 'componentId', 'componentRef', 'component_id', 'environmentName', 'environment_name', 'formId', 'formRef', 'form_id', 'themeId', 'themeRef', 'theme_id', 'typeguard']

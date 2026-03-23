@@ -1,0 +1,10 @@
+{
+  "build_id": "build-46",
+  "version": "2.3.0",
+  "deployed_at": "2024-01-10T14:00:00Z",
+  "environment": "production",
+  "status": "healthy",
+  "uptime_hours": 120,
+  "error_rate_percent": 0.02,
+  "rollback_artifact": "governance-demo-service-2.3.0.zip"
+}

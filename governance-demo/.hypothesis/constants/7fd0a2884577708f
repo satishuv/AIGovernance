@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_pcaconnectorscep\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ChallengeReference', 'ConnectorReference', 'IChallengeRef', 'IConnectorRef', '__jsii_proxy_class__', '__jsii_type__', 'challengeArn', 'challengeRef', 'challenge_arn', 'connectorArn', 'connectorRef', 'connector_arn', 'typeguard']

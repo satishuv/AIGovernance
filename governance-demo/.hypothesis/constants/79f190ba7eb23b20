@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_sqs\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IQueuePolicyRef', 'IQueueRef', 'QueuePolicyReference', 'QueueReference', 'QueueReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument queue', 'argument queue_arn', 'argument queue_url', 'queue', 'queueArn', 'queueInlinePolicyRef', 'queuePolicyId', 'queuePolicyRef', 'queueRef', 'queueUrl', 'queue_arn', 'queue_policy_id', 'queue_url', 'typeguard']

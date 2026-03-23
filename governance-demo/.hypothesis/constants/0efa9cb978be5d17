@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_identitystore\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnGroup', 'CfnGroupMembership', 'CfnGroupProps', 'CfnGroupProps(%s)', 'MemberIdProperty(%s)', '_IGroupRef_28a5ba9a', 'argument description', 'argument group_id', 'argument id', 'argument inspector', 'argument member_id', 'argument props', 'argument resource', 'argument scope', 'argument user_id', 'argument value', 'argument x', 'arnForGroup', 'attrGroupId', 'attrMembershipId', 'cfnProperties', 'description', 'displayName', 'display_name', 'groupId', 'groupMembershipRef', 'groupRef', 'group_id', 'id', 'identityStoreId', 'identity_store_id', 'inspect', 'inspector', 'isCfnGroup', 'isCfnGroupMembership', 'memberId', 'member_id', 'props', 'renderProperties', 'resource', 'scope', 'typeguard', 'userId', 'user_id', 'value', 'x']

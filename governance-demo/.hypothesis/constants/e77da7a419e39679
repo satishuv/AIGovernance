@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_route53\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DNSSECReference', 'DNSSECReference(%s)', 'HealthCheckReference', 'HostedZoneReference', 'ICidrCollectionRef', 'IDNSSECRef', 'IHealthCheckRef', 'IHostedZoneRef', 'IKeySigningKeyRef', 'IRecordSetGroupRef', 'IRecordSetRef', 'RecordSetReference', '__jsii_proxy_class__', '__jsii_type__', 'cidrCollectionArn', 'cidrCollectionId', 'cidrCollectionRef', 'cidr_collection_arn', 'cidr_collection_id', 'dnssecRef', 'healthCheckId', 'healthCheckRef', 'health_check_id', 'hostedZoneId', 'hostedZoneRef', 'hosted_zone_id', 'keySigningKeyName', 'keySigningKeyRef', 'key_signing_key_name', 'recordSetGroupId', 'recordSetGroupRef', 'recordSetName', 'recordSetRef', 'record_set_group_id', 'record_set_name', 'typeguard']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_route53profiles\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnProfile', 'CfnProfileProps', 'CfnProfileProps(%s)', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument arn', 'argument id', 'argument inspector', 'argument name', 'argument profile_id', 'argument props', 'argument resource', 'argument resource_id', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arn', 'arnForProfile', 'attrArn', 'attrClientToken', 'attrId', 'attrResourceType', 'attrShareStatus', 'cdkTagManager', 'cfnProperties', 'id', 'inspect', 'inspector', 'isCfnProfile', 'name', 'profileId', 'profileRef', 'profile_id', 'props', 'renderProperties', 'resource', 'resourceArn', 'resourceId', 'resourceProperties', 'resource_arn', 'resource_id', 'resource_properties', 'scope', 'tags', 'typeguard', 'value', 'x']

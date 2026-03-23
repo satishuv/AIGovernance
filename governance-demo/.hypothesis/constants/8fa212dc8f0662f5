@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\utils.py
+# hypothesis_version: 6.151.9
+
+['\x08', "'string'", '...', '123', '123.0', 'AWS', 'Amazon', 'DocumentedShape', 'True|False', '[...]', '\\b', '\\f', '\\n', '\\r', '\\t', "b'bytes'", 'blob', 'boolean', 'bytes', 'character', 'datetime', 'datetime(2015, 1, 1)', 'dict', 'docs.request-example', 'docs.request-params', 'documentation', 'double', 'float', 'integer', 'is-required', 'list', 'long', 'map', 'members', 'metadata', 'name', 'param-documentation', 'required_members', 'serviceAbbreviation', 'serviceFullName', 'string', 'structure', 'structure-value', 'timestamp', 'type_name', '{...}', '|']

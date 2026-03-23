@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_ssm\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AssociationReference', 'DocumentReference', 'IAssociationRef', 'IDocumentRef', 'IParameterRef', 'IPatchBaselineRef', 'IResourceDataSyncRef', 'IResourcePolicyRef', 'ParameterReference', '__jsii_proxy_class__', '__jsii_type__', 'argument policy_id', 'argument sync_name', 'argument window_id', 'associationId', 'associationRef', 'association_id', 'documentName', 'documentRef', 'document_name', 'maintenanceWindowRef', 'parameterName', 'parameterRef', 'parameter_name', 'patchBaselineId', 'patchBaselineRef', 'patch_baseline_id', 'policyId', 'policy_id', 'resourceArn', 'resourceDataSyncRef', 'resourcePolicyRef', 'resource_arn', 'syncName', 'sync_name', 'typeguard', 'windowId', 'windowTargetId', 'windowTaskId', 'window_id', 'window_target_id', 'window_task_id']

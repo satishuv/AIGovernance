@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_smsvoice\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IConfigurationSetRef', 'IOptOutListRef', 'IPhoneNumberRef', 'IPoolRef', 'IResourcePolicyRef', 'ISenderIdRef', 'OptOutListReference', 'PhoneNumberReference', 'PoolReference', 'PoolReference(%s)', 'SenderIdReference', '__jsii_proxy_class__', '__jsii_type__', 'argument pool_arn', 'argument pool_id', 'argument sender_id', 'configurationSetArn', 'configurationSetName', 'configurationSetRef', 'isoCountryCode', 'iso_country_code', 'optOutListArn', 'optOutListName', 'optOutListRef', 'opt_out_list_arn', 'opt_out_list_name', 'phoneNumberArn', 'phoneNumberId', 'phoneNumberRef', 'phone_number_arn', 'phone_number_id', 'poolArn', 'poolId', 'poolRef', 'pool_arn', 'pool_id', 'resourceArn', 'resourcePolicyRef', 'resource_arn', 'senderId', 'senderIdArn', 'senderIdRef', 'sender_id', 'sender_id_arn', 'typeguard']

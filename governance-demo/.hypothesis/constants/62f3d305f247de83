@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_s3objectlambda\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AccessPointReference', 'IAccessPointRef', '__jsii_proxy_class__', '__jsii_type__', 'accessPointArn', 'accessPointName', 'accessPointPolicyRef', 'accessPointRef', 'access_point_arn', 'access_point_name', 'typeguard']

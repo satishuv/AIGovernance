@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_ivschat\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IRoomRef', 'RoomReference', 'RoomReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument room_arn', 'roomArn', 'roomRef', 'room_arn', 'typeguard']

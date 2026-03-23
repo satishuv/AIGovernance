@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_inspector\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AssessmentTemplate', 'CfnAssessmentTarget', 'CfnResourceGroup', 'IAssessmentTemplate', '_CfnTag_f6864754', '__jsii_proxy_class__', '__jsii_type__', 'argument id', 'argument inspector', 'argument props', 'argument resource', 'argument scope', 'argument template', 'argument value', 'argument x', 'arnForResourceGroup', 'assessmentTargetArn', 'assessmentTargetName', 'assessmentTargetRef', 'attrArn', 'cfnProperties', 'durationInSeconds', 'duration_in_seconds', 'id', 'inspect', 'inspector', 'isCfnResourceGroup', 'props', 'renderProperties', 'resource', 'resourceGroupArn', 'resourceGroupRef', 'resourceGroupTags', 'resource_group_arn', 'resource_group_tags', 'rulesPackageArns', 'rules_package_arns', 'scope', 'template', 'typeguard', 'value', 'x']

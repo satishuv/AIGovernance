@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\retries\throttling.py
+# hypothesis_version: 6.151.9
+
+[0.4, 0.7, 3.0, 'CubicParams', 'k', 'last_fail', 'w_max']

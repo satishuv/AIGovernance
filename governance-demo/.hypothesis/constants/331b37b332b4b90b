@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_mediapackage\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AssetReference', 'AssetReference(%s)', 'ChannelReference', 'ChannelReference(%s)', 'IAssetRef', 'IChannelRef', 'IOriginEndpointRef', 'IPackagingGroupRef', '__jsii_proxy_class__', '__jsii_type__', 'argument asset_arn', 'argument asset_id', 'argument channel_arn', 'argument channel_id', 'assetArn', 'assetId', 'assetRef', 'asset_arn', 'asset_id', 'channelArn', 'channelId', 'channelRef', 'channel_arn', 'channel_id', 'originEndpointArn', 'originEndpointId', 'originEndpointRef', 'origin_endpoint_arn', 'origin_endpoint_id', 'packagingGroupArn', 'packagingGroupId', 'packagingGroupRef', 'packaging_group_arn', 'packaging_group_id', 'typeguard']

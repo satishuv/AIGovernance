@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_route53recoverycontrol\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ClusterReference', 'ClusterReference(%s)', 'IClusterRef', 'IControlPanelRef', 'IRoutingControlRef', 'ISafetyRuleRef', 'SafetyRuleReference', '__jsii_proxy_class__', '__jsii_type__', 'argument cluster_arn', 'clusterArn', 'clusterRef', 'cluster_arn', 'controlPanelArn', 'controlPanelRef', 'control_panel_arn', 'routingControlArn', 'routingControlRef', 'routing_control_arn', 'safetyRuleArn', 'safetyRuleRef', 'safety_rule_arn', 'typeguard']

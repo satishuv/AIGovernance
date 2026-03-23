@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\boto3\resources\response.py
+# hypothesis_version: 6.151.9
+
+['$', '.', '[0123456789]$', 'client', 'data', 'identifier', 'input', 'list', 'map', 'requestParameter', 'response', 'structure']

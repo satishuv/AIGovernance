@@ -1,0 +1,15 @@
+{
+  "build_id": "build-47",
+  "test_suite": "integration",
+  "timestamp": "2024-01-15T08:45:00Z",
+  "total": 142,
+  "passed": 142,
+  "failed": 0,
+  "skipped": 3,
+  "duration_seconds": 324,
+  "results": [
+    {"name": "test_api_health", "status": "passed", "duration_ms": 120},
+    {"name": "test_auth_flow", "status": "passed", "duration_ms": 450},
+    {"name": "test_data_pipeline", "status": "passed", "duration_ms": 890}
+  ]
+}

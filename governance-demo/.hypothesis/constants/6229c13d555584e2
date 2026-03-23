@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_xray\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'GroupReference', 'GroupReference(%s)', 'IGroupRef', 'IResourcePolicyRef', 'ISamplingRuleRef', '__jsii_proxy_class__', '__jsii_type__', 'accountId', 'account_id', 'argument account_id', 'argument group_arn', 'argument policy_name', 'argument rule_arn', 'groupArn', 'groupRef', 'group_arn', 'policyName', 'policy_name', 'resourcePolicyRef', 'ruleArn', 'rule_arn', 'samplingRuleRef', 'typeguard']

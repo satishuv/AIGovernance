@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_iottwinmaker\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'EntityReference', 'EntityReference(%s)', 'IComponentTypeRef', 'IEntityRef', 'ISceneRef', 'ISyncJobRef', 'IWorkspaceRef', 'SceneReference', 'SceneReference(%s)', 'SyncJobReference', 'SyncJobReference(%s)', 'WorkspaceReference', '__jsii_proxy_class__', '__jsii_type__', 'argument entity_arn', 'argument entity_id', 'argument scene_arn', 'argument scene_id', 'argument sync_source', 'componentTypeArn', 'componentTypeId', 'componentTypeRef', 'component_type_arn', 'component_type_id', 'entityArn', 'entityId', 'entityRef', 'entity_arn', 'entity_id', 'sceneArn', 'sceneId', 'sceneRef', 'scene_arn', 'scene_id', 'syncJobArn', 'syncJobRef', 'syncSource', 'sync_job_arn', 'sync_source', 'typeguard', 'workspaceArn', 'workspaceId', 'workspaceRef', 'workspace_arn', 'workspace_id']

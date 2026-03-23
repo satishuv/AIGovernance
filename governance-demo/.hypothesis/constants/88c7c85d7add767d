@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_sam\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ApiReference', 'ApiReference(%s)', 'ApplicationReference', 'FunctionReference', 'HttpApiReference', 'HttpApiReference(%s)', 'IApiRef', 'IApplicationRef', 'IFunctionRef', 'IHttpApiRef', 'ILayerVersionRef', 'ISimpleTableRef', 'IStateMachineRef', 'SimpleTableReference', '__jsii_proxy_class__', '__jsii_type__', 'apiRef', 'applicationRef', 'functionRef', 'httpApiRef', 'layerVersionRef', 'simpleTableRef', 'stateMachineRef', 'typeguard']

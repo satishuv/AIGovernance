@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_batch\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IJobDefinitionRef', 'IJobQueueRef', 'ISchedulingPolicyRef', 'JobQueueReference', '__jsii_proxy_class__', '__jsii_type__', 'jobDefinitionArn', 'jobDefinitionRef', 'jobQueueArn', 'jobQueueRef', 'job_definition_arn', 'job_queue_arn', 'schedulingPolicyArn', 'schedulingPolicyRef', 'typeguard']

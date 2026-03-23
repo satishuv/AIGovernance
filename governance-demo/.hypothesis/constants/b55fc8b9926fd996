@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_cloud9\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnEnvironmentEC2', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument description', 'argument id', 'argument image_id', 'argument inspector', 'argument name', 'argument owner_arn', 'argument props', 'argument resource', 'argument scope', 'argument subnet_id', 'argument tags', 'argument value', 'argument x', 'arnForEnvironmentEC2', 'attrArn', 'attrId', 'attrName', 'cfnProperties', 'connectionType', 'connection_type', 'description', 'environmentEc2Ref', 'id', 'imageId', 'image_id', 'inspect', 'inspector', 'instanceType', 'instance_type', 'isCfnEnvironmentEC2', 'name', 'ownerArn', 'owner_arn', 'pathComponent', 'path_component', 'props', 'renderProperties', 'repositories', 'repositoryUrl', 'repository_url', 'resource', 'scope', 'subnetId', 'subnet_id', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

@@ -7,3 +7,17 @@ cdk.out/
 node_modules/
 *.pyc
 .kiro/
+
+# Python virtual environment
+.venv/
+governance-demo/.venv/
+
+# Lambda test output files
+governance-demo/output.json
+governance-demo/payload.json
+governance-demo/kill_payload.json
+governance-demo/kill_output.json
+
+# Pytest cache
+.pytest_cache/
+governance-demo/.pytest_cache/

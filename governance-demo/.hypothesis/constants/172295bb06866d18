@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\session.py
+# hypothesis_version: 6.151.9
+
+[' exec-env/{}', ',', ', ', '=', 'AWS_EXECUTION_ENV', 'Botocore', 'CREDENTIALS_CODE', 'DISABLED', 'Unknown', 'api_versions', 'aws', 'aws_access_key_id', 'aws_account_id', 'aws_session_token', 'botocore', 'ca_bundle', 'config', 'config_file', 'config_property_name', 'config_store', 'conversion_func', 'credential_provider', 'credentials_file', 'csm_client_id', 'csm_enabled', 'csm_host', 'csm_port', 'data_loader', 'data_path', 'default', 'defaults_mode', 'endpointPrefix', 'endpoint_resolver', 'endpoint_url', 'endpoints', 'env', 'env_var_names', 'event_emitter', 'exceptions_factory', 'explicit', 'instance', 'instance_name', 'legacy', 'metadata', 'method', 'monitor', 'paginators-1', 'profile', 'profiles', 'region', 'service-2', 'signing_name', 'token_provider', 'user_agent_creator', 'waiters-2']

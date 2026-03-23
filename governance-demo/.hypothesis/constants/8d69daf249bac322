@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_redshift\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ClusterReference', 'ClusterReference(%s)', 'IClusterRef', 'IEndpointAccessRef', 'IIntegrationRef', 'IScheduledActionRef', 'IntegrationReference', '__jsii_proxy_class__', '__jsii_type__', 'account', 'argument account', 'clusterIdentifier', 'clusterRef', 'cluster_identifier', 'endpointAccessRef', 'endpointName', 'endpoint_name', 'eventSubscriptionRef', 'integrationArn', 'integrationRef', 'integration_arn', 'parameterGroupName', 'parameter_group_name', 'scheduledActionName', 'scheduledActionRef', 'subscriptionName', 'subscription_name', 'typeguard']

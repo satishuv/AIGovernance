@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\endpoint_provider.py
+# hypothesis_version: 6.151.9
+
+[100, '#', '(\\w*)\\[(\\d+)\\]', '.', '/', ':', '\\{[a-zA-Z#]+\\}', '_', 'account', 'accountId', 'argv', 'arn:', 'ascii', 'assign', 'authority', 'builtIn', 'default', 'deprecated', 'documentation', 'fn', 'headers', 'http', 'https', 'id', 'isIp', 'message', 'name', 'normalizedPath', 'not', 'outputs', 'partition', 'partitions', 'path', 'properties', 'ref', 'regionRegex', 'regions', 'required', 'resource', 'resourceId', 'scheme', 'service', 'since', 'type', 'url']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_panorama\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IPackageRef', 'IPackageVersionRef', 'PackageReference', 'PackageReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument package_arn', 'argument package_id', 'packageArn', 'packageId', 'packageRef', 'packageVersion', 'packageVersionRef', 'package_arn', 'package_id', 'package_version', 'patchVersion', 'patch_version', 'typeguard']

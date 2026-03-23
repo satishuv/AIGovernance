@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_paymentcryptography\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AliasReference', 'AliasReference(%s)', 'IAliasRef', 'IKeyRef', 'KeyReference', 'KeyReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'aliasName', 'aliasRef', 'alias_name', 'argument alias_name', 'keyIdentifier', 'keyRef', 'key_identifier', 'typeguard']

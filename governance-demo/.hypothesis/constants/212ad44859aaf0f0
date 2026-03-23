@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_kinesisvideo\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ISignalingChannelRef', 'IStreamRef', 'StreamReference', 'StreamReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument stream_arn', 'argument stream_name', 'signalingChannelArn', 'signalingChannelName', 'signalingChannelRef', 'streamArn', 'streamName', 'streamRef', 'stream_arn', 'stream_name', 'typeguard']

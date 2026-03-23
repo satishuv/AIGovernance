@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\boto3\session.py
+# hypothesis_version: 6.151.9
+
+[', ', 'Boto3', 'Botocore', 'Resource', 'api_version', 'aws', 'aws_access_key_id', 'aws_account_id', 'aws_session_token', 'config', 'data', 'data_loader', 'default', 'endpoint_url', 'event_emitter', 'high-level-dynamodb', 'profile', 'region', 'region_name', 'resources', 'resources-1', 'service', 'use_ssl', 'verify', '{}(region_name={})']

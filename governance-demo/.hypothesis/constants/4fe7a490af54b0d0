@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_datasync\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AgentReference', 'AgentReference(%s)', 'IAgentRef', 'ILocationEFSRef', 'ILocationFSxONTAPRef', 'ILocationHDFSRef', 'ILocationNFSRef', 'ILocationS3Ref', 'ILocationSMBRef', 'ITaskRef', 'LocationEFSReference', 'LocationNFSReference', 'LocationS3Reference', 'LocationSMBReference', 'TaskReference', 'TaskReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'agentArn', 'agentRef', 'agent_arn', 'argument agent_arn', 'argument task_arn', 'locationArn', 'locationAzureBlobRef', 'locationEfsRef', 'locationFSxLustreRef', 'locationFSxOntapRef', 'locationHdfsRef', 'locationNfsRef', 'locationS3Ref', 'locationSmbRef', 'location_arn', 'taskArn', 'taskRef', 'task_arn', 'typeguard']

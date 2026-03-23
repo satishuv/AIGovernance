@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_licensemanager\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'GrantReference', 'GrantReference(%s)', 'IGrantRef', 'ILicenseRef', 'LicenseReference', 'LicenseReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument grant_arn', 'argument license_arn', 'grantArn', 'grantRef', 'grant_arn', 'licenseArn', 'licenseRef', 'license_arn', 'typeguard']

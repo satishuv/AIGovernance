@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_servicediscovery\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IHttpNamespaceRef', 'IInstanceRef', 'IServiceRef', 'InstanceReference', 'ServiceReference', 'ServiceReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument instance_id', 'argument service_arn', 'argument service_id', 'httpNamespaceArn', 'httpNamespaceId', 'httpNamespaceRef', 'http_namespace_arn', 'http_namespace_id', 'instanceId', 'instanceRef', 'instance_id', 'publicDnsNamespaceId', 'serviceArn', 'serviceId', 'serviceRef', 'service_arn', 'service_id', 'typeguard']

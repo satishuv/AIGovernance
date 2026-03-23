@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_codebuild\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'FleetReference', 'FleetReference(%s)', 'IFleetRef', 'IProjectRef', 'IReportGroupRef', 'ISourceCredentialRef', 'ProjectReference', 'ProjectReference(%s)', 'ReportGroupReference', '__jsii_proxy_class__', '__jsii_type__', 'argument fleet_arn', 'argument project_arn', 'fleetArn', 'fleetRef', 'fleet_arn', 'projectArn', 'projectName', 'projectRef', 'project_arn', 'project_name', 'reportGroupArn', 'reportGroupRef', 'report_group_arn', 'sourceCredentialId', 'sourceCredentialRef', 'source_credential_id', 'typeguard']

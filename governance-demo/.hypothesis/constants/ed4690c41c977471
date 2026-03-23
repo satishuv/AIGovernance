@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_s3outposts\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AccessPointReference', 'BucketReference', 'BucketReference(%s)', 'EndpointReference', 'IAccessPointRef', 'IBucketPolicyRef', 'IBucketRef', 'IEndpointRef', '__jsii_proxy_class__', '__jsii_type__', 'accessPointArn', 'accessPointRef', 'access_point_arn', 'argument bucket', 'argument bucket_arn', 'bucket', 'bucketArn', 'bucketPolicyRef', 'bucketRef', 'bucket_arn', 'endpointArn', 'endpointRef', 'endpoint_arn', 'typeguard']

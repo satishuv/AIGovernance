@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_frauddetector\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DetectorReference', 'EntityTypeReference', 'EventTypeReference', 'IDetectorRef', 'IEntityTypeRef', 'IEventTypeRef', 'ILabelRef', 'IListRef', 'IOutcomeRef', 'IVariableRef', 'LabelReference', 'LabelReference(%s)', 'ListReference', 'ListReference(%s)', 'OutcomeReference', 'OutcomeReference(%s)', 'VariableReference', '__jsii_proxy_class__', '__jsii_type__', 'argument label_arn', 'argument list_arn', 'argument outcome_arn', 'detectorArn', 'detectorRef', 'detector_arn', 'entityTypeArn', 'entityTypeRef', 'entity_type_arn', 'eventTypeArn', 'eventTypeRef', 'event_type_arn', 'labelArn', 'labelRef', 'label_arn', 'listArn', 'listRef', 'list_arn', 'outcomeArn', 'outcomeRef', 'outcome_arn', 'typeguard', 'variableArn', 'variableRef', 'variable_arn']

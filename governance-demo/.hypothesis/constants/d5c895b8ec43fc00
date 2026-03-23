@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_codeconnections\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnConnection', 'CfnConnectionProps', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument host_arn', 'argument id', 'argument inspector', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForConnection', 'attrConnectionArn', 'attrConnectionStatus', 'attrOwnerAccountId', 'cdkTagManager', 'cfnProperties', 'connectionName', 'connectionRef', 'connection_name', 'hostArn', 'host_arn', 'id', 'inspect', 'inspector', 'isCfnConnection', 'props', 'providerType', 'provider_type', 'renderProperties', 'resource', 'scope', 'tags', 'typeguard', 'value', 'x']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_identitystore\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'GroupReference', 'GroupReference(%s)', 'IGroupMembershipRef', 'IGroupRef', '__jsii_proxy_class__', '__jsii_type__', 'argument group_id', 'groupId', 'groupMembershipRef', 'groupRef', 'group_id', 'identityStoreId', 'identity_store_id', 'membershipId', 'membership_id', 'typeguard']

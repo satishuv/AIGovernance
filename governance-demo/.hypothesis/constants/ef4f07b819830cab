@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_robomaker\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'FleetReference', 'FleetReference(%s)', 'IFleetRef', 'IRobotApplicationRef', 'IRobotRef', 'RobotReference', 'RobotReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument fleet_arn', 'argument robot_arn', 'fleetArn', 'fleetRef', 'fleet_arn', 'robotApplicationArn', 'robotApplicationRef', 'robotArn', 'robotRef', 'robot_arn', 'typeguard']

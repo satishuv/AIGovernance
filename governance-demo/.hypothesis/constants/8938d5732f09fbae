@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_codestarconnections\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ConnectionReference', 'IConnectionRef', 'IRepositoryLinkRef', '__jsii_proxy_class__', '__jsii_type__', 'argument sync_type', 'connectionArn', 'connectionRef', 'connection_arn', 'repositoryLinkArn', 'repositoryLinkRef', 'repository_link_arn', 'resourceName', 'resource_name', 'syncConfigurationRef', 'syncType', 'sync_type', 'typeguard']

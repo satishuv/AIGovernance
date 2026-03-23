@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\crt\__init__.py
+# hypothesis_version: 6.151.9
+
+['s3v4', 's3v4-query', 's3v4a', 's3v4a-query', 'v4', 'v4-query', 'v4a']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\importlib_resources\__init__.py
+# hypothesis_version: 6.151.9
+
+['Anchor', 'Package', 'ResourceReader', 'as_file', 'contents', 'files', 'is_resource', 'open_binary', 'open_text', 'path', 'read_binary', 'read_text']

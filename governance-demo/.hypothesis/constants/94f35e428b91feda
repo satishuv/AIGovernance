@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_connectcampaigns\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnCampaign', 'CfnCampaignProps', 'CfnCampaignProps(%s)', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument id', 'argument inspector', 'argument name', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForCampaign', 'attrArn', 'bandwidthAllocation', 'bandwidth_allocation', 'campaignRef', 'cfnProperties', 'connectInstanceArn', 'connectQueueArn', 'connect_instance_arn', 'connect_queue_arn', 'dialerConfig', 'dialer_config', 'dialingCapacity', 'dialing_capacity', 'id', 'inspect', 'inspector', 'isCfnCampaign', 'name', 'outboundCallConfig', 'outbound_call_config', 'props', 'renderProperties', 'resource', 'scope', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_notificationscontacts\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnEmailContact', 'CfnEmailContactProps', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'address', 'argument address', 'argument arn', 'argument id', 'argument inspector', 'argument name', 'argument props', 'argument resource', 'argument scope', 'argument status', 'argument tags', 'argument update_time', 'argument value', 'argument x', 'arn', 'arnForEmailContact', 'attrArn', 'attrEmailContact', 'attrEmailContactArn', 'attrEmailContactName', 'cdkTagManager', 'cfnProperties', 'creationTime', 'creation_time', 'emailAddress', 'emailContactRef', 'email_address', 'id', 'inspect', 'inspector', 'isCfnEmailContact', 'name', 'props', 'renderProperties', 'resource', 'scope', 'status', 'tags', 'typeguard', 'updateTime', 'update_time', 'value', 'x']

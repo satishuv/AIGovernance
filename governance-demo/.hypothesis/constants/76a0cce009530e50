@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_lambda\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AliasReference', 'AliasReference(%s)', 'FunctionReference', 'IAliasRef', 'ICapacityProviderRef', 'IFunctionRef', 'ILayerVersionRef', 'IPermissionRef', 'IUrlRef', 'IVersionRef', 'PermissionReference', 'UrlReference', 'UrlReference(%s)', 'VersionReference', 'VersionReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'aliasArn', 'aliasRef', 'alias_arn', 'argument alias_arn', 'argument qualifier', 'capacityProviderArn', 'capacityProviderName', 'capacityProviderRef', 'codeSigningConfigArn', 'codeSigningConfigRef', 'eventInvokeConfigRef', 'eventSourceMappingId', 'functionArn', 'functionName', 'functionRef', 'function_arn', 'function_name', 'layerVersionArn', 'layerVersionRef', 'layer_version_arn', 'permissionId', 'permissionRef', 'permission_id', 'qualifier', 'typeguard', 'urlRef', 'versionRef']

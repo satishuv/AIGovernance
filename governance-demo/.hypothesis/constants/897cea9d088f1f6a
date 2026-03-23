@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_opensearchservice\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ApplicationReference', 'DomainReference', 'DomainReference(%s)', 'IApplicationRef', 'IDomainRef', '__jsii_proxy_class__', '__jsii_type__', 'applicationArn', 'applicationName', 'applicationRef', 'application_arn', 'application_name', 'argument domain_arn', 'argument domain_name', 'domainArn', 'domainName', 'domainRef', 'domain_arn', 'domain_name', 'typeguard']

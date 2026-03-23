@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_kafkaconnect\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ConnectorReference', 'IConnectorRef', 'ICustomPluginRef', '__jsii_proxy_class__', '__jsii_type__', 'connectorArn', 'connectorRef', 'connector_arn', 'customPluginArn', 'customPluginRef', 'custom_plugin_arn', 'typeguard']

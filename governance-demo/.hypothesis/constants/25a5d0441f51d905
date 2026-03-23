@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_resourceexplorer2\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IIndexRef', 'IViewRef', 'IndexReference', 'IndexReference(%s)', 'ViewReference', 'ViewReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument index_arn', 'argument view_arn', 'indexArn', 'indexRef', 'index_arn', 'typeguard', 'viewArn', 'viewRef', 'view_arn']

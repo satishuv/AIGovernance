@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\regions.py
+# hypothesis_version: 6.151.9
+
+[',', ', ', '-', 'AWS::Auth::AccountId', 'AWS::Region', 'AWS::S3::Accelerate', 'AWS::UseDualStack', 'AWS::UseFIPS', 'AccountId', 'Bucket', 'Endpoint', 'Invalid ARN:', 'RESOLVED_ACCOUNT_ID', 'SDK::Endpoint', '`', 'aws', 'aws-iso', 'aws-iso-b', 'defaults', 'deprecated', 'dnsSuffix', 'dualstack', 'endpointName', 'endpoint_name', 'endpoints', 'events', 'fips', 'hostname', 'https://', 'invalid arn:', 'isRegionalized', 'msg', 'name', 'none', 'partition', 'partitionEndpoint', 'partitions', 'path', 'region', 'regionRegex', 'regions', 's3', 's3control', 'service_data', 'service_name', 'services', 'sig', 'signingName', 'signingRegion', 'signingRegionSet', 'sslCommonName', 'tags', 'us-east-1', 'use_fips_endpoint', 'variants']

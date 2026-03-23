@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_bedrockmantle\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnProject', 'CfnProjectProps', 'CfnProjectProps(%s)', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument id', 'argument inspector', 'argument name', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForProject', 'attrArn', 'attrCreatedAt', 'attrId', 'cdkTagManager', 'cfnProperties', 'id', 'inspect', 'inspector', 'isCfnProject', 'name', 'projectRef', 'props', 'renderProperties', 'resource', 'scope', 'tags', 'typeguard', 'value', 'x']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_backupgateway\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnHypervisor', 'CfnHypervisorProps', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument host', 'argument id', 'argument inspector', 'argument kms_key_arn', 'argument name', 'argument password', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument username', 'argument value', 'argument x', 'arnForHypervisor', 'attrHypervisorArn', 'cfnProperties', 'host', 'hypervisorRef', 'id', 'inspect', 'inspector', 'isCfnHypervisor', 'kmsKeyArn', 'kms_key_arn', 'logGroupArn', 'log_group_arn', 'name', 'password', 'props', 'renderProperties', 'resource', 'scope', 'tags', 'tagsRaw', 'typeguard', 'username', 'value', 'x']

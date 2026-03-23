@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_emr\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ClusterReference', 'ClusterReference(%s)', 'IClusterRef', 'IStepRef', 'IStudioRef', 'IWALWorkspaceRef', 'StepReference', 'StepReference(%s)', 'StudioReference', 'StudioReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument cluster_id', 'argument step_id', 'argument studio_arn', 'argument studio_id', 'clusterId', 'clusterRef', 'cluster_id', 'identityName', 'identityType', 'identity_name', 'identity_type', 'stepId', 'stepRef', 'step_id', 'studioArn', 'studioId', 'studioRef', 'studio_arn', 'studio_id', 'typeguard', 'walWorkspaceName', 'walWorkspaceRef', 'wal_workspace_name']

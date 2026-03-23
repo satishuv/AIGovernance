@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\cattrs\cols.py
+# hypothesis_version: 6.151.9
+
+['T', '__notes__', '__orig_bases__', '__origin__', 'from_converter', 'is_abstract_set', 'is_any_set', 'is_defaultdict', 'is_frozenset', 'is_mapping', 'is_mutable_sequence', 'is_namedtuple', 'is_sequence', 'is_set']

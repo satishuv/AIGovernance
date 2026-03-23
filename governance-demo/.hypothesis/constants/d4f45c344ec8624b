@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_appflow\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ConnectorReference', 'FlowReference', 'FlowReference(%s)', 'IConnectorProfileRef', 'IConnectorRef', 'IFlowRef', '__jsii_proxy_class__', '__jsii_type__', 'argument flow_arn', 'argument flow_name', 'connectorArn', 'connectorLabel', 'connectorProfileArn', 'connectorProfileName', 'connectorProfileRef', 'connectorRef', 'connector_arn', 'connector_label', 'flowArn', 'flowName', 'flowRef', 'flow_arn', 'flow_name', 'typeguard']

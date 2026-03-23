@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_securitylake\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DataLakeReference', 'IAwsLogSourceRef', 'IDataLakeRef', 'ISubscriberRef', 'SubscriberReference', '__jsii_proxy_class__', '__jsii_type__', 'argument source_name', 'awsLogSourceRef', 'dataLakeArn', 'dataLakeRef', 'data_lake_arn', 'sourceName', 'sourceVersion', 'source_name', 'source_version', 'subscriberArn', 'subscriberRef', 'subscriber_arn', 'typeguard']

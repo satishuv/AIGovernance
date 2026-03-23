@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_omics\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IAnnotationStoreRef', 'IReferenceStoreRef', 'IRunGroupRef', 'ISequenceStoreRef', 'IVariantStoreRef', 'IWorkflowRef', 'IWorkflowVersionRef', 'RunGroupReference', 'WorkflowReference', '__jsii_proxy_class__', '__jsii_type__', 'annotationStoreName', 'annotationStoreRef', 'argument workflow_id', 'referenceStoreArn', 'referenceStoreId', 'referenceStoreRef', 'reference_store_arn', 'reference_store_id', 'runGroupArn', 'runGroupId', 'runGroupRef', 'run_group_arn', 'run_group_id', 'sequenceStoreArn', 'sequenceStoreId', 'sequenceStoreRef', 'sequence_store_arn', 'sequence_store_id', 'typeguard', 'variantStoreName', 'variantStoreRef', 'variant_store_name', 'workflowArn', 'workflowId', 'workflowRef', 'workflowVersionArn', 'workflowVersionRef', 'workflow_arn', 'workflow_id', 'workflow_version_arn']

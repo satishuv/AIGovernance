@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\sharedexample.py
+# hypothesis_version: 6.151.9
+
+['# ', '(', ')', ',', ', ', '...', '=', 'Examples', 'Expected Output:', 'ResponseMetadata', '[', '],', '^\\.', 'comments', 'description', 'dict-value', 'ending-brace', 'ending-bracket', 'ending-parenthesis', 'id', 'input', 'input-close', 'list-section', 'map', 'output', 'output-close', 'param-values', 'parameters', 'print(response)', 'shared-examples', 'structure', 'timestamp', '{', '}']

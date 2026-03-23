@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_lex\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'BotAliasReference', 'BotReference', 'BotReference(%s)', 'BotVersionReference', 'IBotAliasRef', 'IBotRef', 'IBotVersionRef', 'IResourcePolicyRef', '__jsii_proxy_class__', '__jsii_type__', 'argument bot_arn', 'argument bot_id', 'argument bot_version', 'botAliasArn', 'botAliasId', 'botAliasRef', 'botArn', 'botId', 'botRef', 'botVersion', 'botVersionRef', 'bot_alias_arn', 'bot_alias_id', 'bot_arn', 'bot_id', 'bot_version', 'resourcePolicyId', 'resourcePolicyRef', 'resource_policy_id', 'typeguard']

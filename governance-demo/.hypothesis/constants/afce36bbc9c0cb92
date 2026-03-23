@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_waf\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IByteMatchSetRef', 'IIPSetRef', 'IPSetReference', 'IPSetReference(%s)', 'IRuleRef', 'IWebACLRef', 'IXssMatchSetRef', 'RuleReference', 'RuleReference(%s)', 'WebACLReference', 'WebACLReference(%s)', 'XssMatchSetReference', '__jsii_proxy_class__', '__jsii_type__', 'argument ip_set_id', 'argument rule_id', 'argument web_acl_id', 'byteMatchSetId', 'byteMatchSetRef', 'byte_match_set_id', 'ipSetId', 'ipSetRef', 'ip_set_id', 'ruleId', 'ruleRef', 'rule_id', 'sizeConstraintSetId', 'sizeConstraintSetRef', 'typeguard', 'webAclId', 'webAclRef', 'web_acl_id', 'xssMatchSetId', 'xssMatchSetRef', 'xss_match_set_id']

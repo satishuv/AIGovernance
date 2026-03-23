@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_signer\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ISigningProfileRef', '__jsii_proxy_class__', '__jsii_type__', 'profileName', 'profilePermissionRef', 'profile_name', 'signingProfileArn', 'signingProfileRef', 'signing_profile_arn', 'statementId', 'statement_id', 'typeguard']

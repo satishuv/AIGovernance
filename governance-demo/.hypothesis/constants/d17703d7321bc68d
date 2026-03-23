@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_mpa\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IApprovalTeamRef', 'IIdentitySourceRef', '__jsii_proxy_class__', '__jsii_type__', 'approvalTeamArn', 'approvalTeamRef', 'approval_team_arn', 'identitySourceArn', 'identitySourceRef', 'identity_source_arn', 'typeguard']

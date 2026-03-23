@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_emrcontainers\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'EndpointReference', 'IEndpointRef', 'IVirtualClusterRef', '__jsii_proxy_class__', '__jsii_type__', 'endpointArn', 'endpointRef', 'endpoint_arn', 'typeguard', 'virtualClusterArn', 'virtualClusterId', 'virtualClusterRef', 'virtual_cluster_arn', 'virtual_cluster_id']

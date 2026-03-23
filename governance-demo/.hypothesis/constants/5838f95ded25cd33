@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_efs\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AccessPointReference', 'FileSystemReference', 'IAccessPointRef', 'IFileSystemRef', 'IMountTargetRef', 'MountTargetReference', '__jsii_proxy_class__', '__jsii_type__', 'accessPointArn', 'accessPointId', 'accessPointRef', 'access_point_arn', 'access_point_id', 'fileSystemArn', 'fileSystemId', 'fileSystemRef', 'file_system_arn', 'file_system_id', 'mountTargetId', 'mountTargetRef', 'mount_target_id', 'typeguard']

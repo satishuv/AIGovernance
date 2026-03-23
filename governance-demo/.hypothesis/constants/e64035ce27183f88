@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_codepipeline\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ICustomActionTypeRef', 'IPipelineRef', 'IWebhookRef', 'PipelineReference', 'WebhookReference', 'WebhookReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument category', 'argument provider', 'argument version', 'category', 'customActionTypeRef', 'pipelineName', 'pipelineRef', 'pipeline_name', 'provider', 'typeguard', 'version', 'webhookName', 'webhookRef', 'webhook_name']

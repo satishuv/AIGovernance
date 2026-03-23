@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_cloudtrail\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ChannelReference', 'ChannelReference(%s)', 'DashboardReference', 'IChannelRef', 'IDashboardRef', 'IEventDataStoreRef', 'IResourcePolicyRef', 'ITrailRef', 'TrailReference', 'TrailReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument channel_arn', 'argument trail_arn', 'argument trail_name', 'channelArn', 'channelRef', 'channel_arn', 'dashboardArn', 'dashboardRef', 'dashboard_arn', 'eventDataStoreArn', 'eventDataStoreRef', 'event_data_store_arn', 'resourceArn', 'resourcePolicyRef', 'resource_arn', 'trailArn', 'trailName', 'trailRef', 'trail_arn', 'trail_name', 'typeguard']

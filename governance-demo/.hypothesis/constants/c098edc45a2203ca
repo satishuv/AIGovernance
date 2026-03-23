@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AI Blog Setup\governance-demo\lambdas\kill_switch\index.py
+# hypothesis_version: 6.151.9
+
+['%Y-%m-%dT%H:%M:%SZ', '*', '0', '2012-10-17', ':by', ':ts', ':zero', 'AGENT_ROLE_NAME', 'Action', 'Deny', 'Effect', 'N', 'Resource', 'S', 'SCOPE_TABLE_NAME', 'Statement', 'Version', 'actions_taken', 'agent_id', 'demo-agent', 'dynamodb', 'error', 'event', 'iam', 'invoker_identity', 'kill-switch', 'kill-switch-deny-all', 'outcome', 'partial_success', 'scope_set_to_0', 'scope_update_failed', 'status', 'success', 'timestamp', 'unknown']

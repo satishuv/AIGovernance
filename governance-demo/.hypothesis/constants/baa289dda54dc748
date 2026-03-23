@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_invoicing\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnInvoiceUnit', 'CfnInvoiceUnitProps', 'RuleProperty(%s)', '_TagManager_0a598cb3', 'argument description', 'argument id', 'argument inspector', 'argument key', 'argument name', 'argument props', 'argument resource', 'argument rule', 'argument scope', 'argument value', 'argument x', 'arnForInvoiceUnit', 'attrInvoiceUnitArn', 'attrLastModified', 'cdkTagManager', 'cfnProperties', 'description', 'id', 'inspect', 'inspector', 'invoiceReceiver', 'invoiceUnitRef', 'invoice_receiver', 'isCfnInvoiceUnit', 'key', 'linkedAccounts', 'linked_accounts', 'name', 'props', 'renderProperties', 'resource', 'resourceTags', 'resource_tags', 'rule', 'scope', 'typeguard', 'value', 'x']

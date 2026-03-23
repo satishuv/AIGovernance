@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_timestream\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DatabaseReference', 'IDatabaseRef', 'IInfluxDBClusterRef', 'IInfluxDBInstanceRef', 'IScheduledQueryRef', 'ITableRef', 'TableReference', 'TableReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument table_arn', 'argument table_name', 'databaseArn', 'databaseName', 'databaseRef', 'database_arn', 'database_name', 'influxDbClusterArn', 'influxDbClusterId', 'influxDbClusterRef', 'influxDbInstanceArn', 'influxDbInstanceId', 'influxDbInstanceRef', 'influx_db_cluster_id', 'scheduledQueryArn', 'scheduledQueryRef', 'scheduled_query_arn', 'tableArn', 'tableName', 'tableRef', 'table_arn', 'table_name', 'typeguard']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_workspaces\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IConnectionAliasRef', 'IWorkspaceRef', 'IWorkspacesPoolRef', 'WorkspaceReference', '__jsii_proxy_class__', '__jsii_type__', 'aliasId', 'alias_id', 'argument alias_id', 'argument pool_arn', 'argument pool_id', 'connectionAliasRef', 'poolArn', 'poolId', 'pool_arn', 'pool_id', 'typeguard', 'workspaceId', 'workspaceRef', 'workspace_id', 'workspacesPoolRef']

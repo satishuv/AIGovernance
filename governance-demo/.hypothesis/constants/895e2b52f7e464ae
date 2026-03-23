@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_healthimaging\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnDatastore', 'CfnDatastoreProps', '_TagManager_0a598cb3', 'argument arn', 'argument id', 'argument inspector', 'argument kms_key_arn', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arn', 'arnForDatastore', 'attrCreatedAt', 'attrDatastoreArn', 'attrDatastoreId', 'attrDatastoreStatus', 'attrUpdatedAt', 'cdkTagManager', 'cfnProperties', 'datastoreName', 'datastoreRef', 'datastore_id', 'datastore_name', 'fromDatastoreArn', 'fromDatastoreId', 'id', 'inspect', 'inspector', 'isCfnDatastore', 'kmsKeyArn', 'kms_key_arn', 'props', 'renderProperties', 'resource', 'scope', 'tags', 'typeguard', 'value', 'x']

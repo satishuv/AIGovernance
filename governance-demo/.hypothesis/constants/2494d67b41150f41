@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_sns_subscriptions\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'EmailSubscription', 'FirehoseSubscription', 'LambdaSubscription', 'SmsSubscription', 'SmsSubscriptionProps', 'SqsSubscription', 'SqsSubscriptionProps', 'SubscriptionProps', 'UrlSubscription', 'UrlSubscriptionProps', '_IFunction_6adb0ab8', '_IQueue_7ed6f679', '_IRole_235f5d8e', '_ITopic_9eca4852', '_topic', 'argument _topic', 'argument fn', 'argument json', 'argument protocol', 'argument queue', 'argument role', 'argument topic', 'argument url', 'bind', 'deadLetterQueue', 'dead_letter_queue', 'deliveryPolicy', 'delivery_policy', 'delivery_stream', 'email_address', 'filterPolicy', 'filter_policy', 'fn', 'json', 'phone_number', 'protocol', 'queue', 'rawMessageDelivery', 'raw_message_delivery', 'role', 'topic', 'typeguard', 'url']

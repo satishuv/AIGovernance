@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_s3tables\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'INamespaceRef', 'ITableBucketRef', 'ITablePolicyRef', 'ITableRef', 'NamespaceReference', 'TableBucketReference', 'TablePolicyReference', 'TableReference', 'TableReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument namespace', 'argument table_arn', 'namespace', 'namespaceRef', 'tableArn', 'tableBucketArn', 'tableBucketPolicyRef', 'tableBucketRef', 'tablePolicyRef', 'tableRef', 'table_arn', 'table_bucket_arn', 'typeguard']

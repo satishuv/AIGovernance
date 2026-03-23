@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_arczonalshift\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'alarmIdentifier', 'alarm_identifier', 'argument id', 'argument inspector', 'argument props', 'argument scope', 'argument status', 'argument type', 'argument value', 'argument x', 'attrAccountId', 'attrRegion', 'blockedDates', 'blockedWindows', 'blocked_dates', 'blocked_windows', 'blockingAlarms', 'blocking_alarms', 'cfnProperties', 'id', 'inspect', 'inspector', 'outcomeAlarms', 'outcome_alarms', 'props', 'renderProperties', 'resourceIdentifier', 'resource_identifier', 'scope', 'status', 'type', 'typeguard', 'value', 'x', 'zonalAutoshiftStatus']

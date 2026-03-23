@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_pinpointemail\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'IConfigurationSetRef', 'IDedicatedIpPoolRef', 'IIdentityRef', 'IdentityReference', '__jsii_proxy_class__', '__jsii_type__', 'argument identity_id', 'configurationSetId', 'configurationSetRef', 'configuration_set_id', 'dedicatedIpPoolId', 'dedicatedIpPoolRef', 'dedicated_ip_pool_id', 'identityId', 'identityRef', 'identity_id', 'typeguard']

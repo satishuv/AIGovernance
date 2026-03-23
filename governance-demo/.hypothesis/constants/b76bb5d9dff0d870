@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_organizations\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'AccountReference', 'AccountReference(%s)', 'IAccountRef', 'IOrganizationRef', 'IPolicyRef', 'IResourcePolicyRef', 'PolicyReference', 'PolicyReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'accountArn', 'accountId', 'accountRef', 'account_arn', 'account_id', 'argument account_arn', 'argument account_id', 'argument policy_arn', 'argument policy_id', 'organizationArn', 'organizationId', 'organizationRef', 'organization_arn', 'organization_id', 'organizationalUnitId', 'policyArn', 'policyId', 'policyRef', 'policy_arn', 'policy_id', 'resourcePolicyArn', 'resourcePolicyId', 'resourcePolicyRef', 'resource_policy_arn', 'resource_policy_id', 'typeguard']

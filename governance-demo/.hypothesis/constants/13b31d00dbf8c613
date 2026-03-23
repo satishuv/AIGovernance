@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_notifications\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'EventRuleReference', 'IEventRuleRef', 'INotificationHubRef', '__jsii_proxy_class__', '__jsii_type__', 'argument channel_arn', 'argument region', 'channelArn', 'channel_arn', 'contactIdentifier', 'contact_identifier', 'eventRuleArn', 'eventRuleRef', 'event_rule_arn', 'notificationHubRef', 'organizationalUnitId', 'region', 'typeguard']

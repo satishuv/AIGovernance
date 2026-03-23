@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_oam\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'CfnLink', 'CfnLinkProps', 'CfnLinkProps(%s)', 'CfnSink', 'CfnSinkProps', 'CfnSinkProps(%s)', '_ILinkRef_912f3726', '_ISinkRef_52a08f4c', '_TagManager_0a598cb3', 'argument filter', 'argument id', 'argument inspector', 'argument name', 'argument policy', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForLink', 'arnForSink', 'attrArn', 'attrLabel', 'cfnProperties', 'filter', 'id', 'inspect', 'inspector', 'isCfnLink', 'isCfnSink', 'labelTemplate', 'label_template', 'linkConfiguration', 'linkRef', 'link_configuration', 'metricConfiguration', 'metric_configuration', 'name', 'policy', 'props', 'renderProperties', 'resource', 'resourceTypes', 'resource_types', 'scope', 'sinkIdentifier', 'sinkRef', 'sink_identifier', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

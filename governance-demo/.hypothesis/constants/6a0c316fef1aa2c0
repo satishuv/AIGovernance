@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_appintegrations\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ApplicationReference', 'IApplicationRef', 'IDataIntegrationRef', 'IEventIntegrationRef', '__jsii_proxy_class__', '__jsii_type__', 'applicationArn', 'applicationRef', 'application_arn', 'dataIntegrationArn', 'dataIntegrationId', 'dataIntegrationRef', 'data_integration_arn', 'data_integration_id', 'eventIntegrationArn', 'eventIntegrationName', 'eventIntegrationRef', 'typeguard']

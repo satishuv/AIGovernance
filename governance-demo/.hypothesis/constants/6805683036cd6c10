@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_refactorspaces\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ApplicationReference', 'EnvironmentReference', 'IApplicationRef', 'IEnvironmentRef', 'IRouteRef', 'IServiceRef', 'RouteReference', 'RouteReference(%s)', 'ServiceReference', 'ServiceReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'applicationArn', 'applicationRef', 'application_arn', 'argument route_arn', 'argument service_arn', 'environmentArn', 'environmentRef', 'environment_arn', 'routeArn', 'routeIdentifier', 'routeRef', 'route_arn', 'route_identifier', 'serviceArn', 'serviceIdentifier', 'serviceRef', 'service_arn', 'service_identifier', 'typeguard']

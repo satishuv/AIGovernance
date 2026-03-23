@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_imagebuilder\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'ComponentReference', 'IComponentRef', 'IContainerRecipeRef', 'IImagePipelineRef', 'IImageRecipeRef', 'IImageRef', 'ILifecyclePolicyRef', 'IWorkflowRef', 'ImageRecipeReference', 'ImageReference', 'ImageReference(%s)', 'WorkflowReference', '__jsii_proxy_class__', '__jsii_type__', 'argument image_arn', 'componentArn', 'componentRef', 'component_arn', 'containerRecipeArn', 'containerRecipeRef', 'container_recipe_arn', 'imageArn', 'imagePipelineArn', 'imagePipelineRef', 'imageRecipeArn', 'imageRecipeRef', 'imageRef', 'image_arn', 'image_pipeline_arn', 'image_recipe_arn', 'lifecyclePolicyArn', 'lifecyclePolicyRef', 'lifecycle_policy_arn', 'typeguard', 'workflowArn', 'workflowRef', 'workflow_arn']

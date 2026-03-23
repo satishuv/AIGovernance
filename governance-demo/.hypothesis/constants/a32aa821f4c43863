@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\config.py
+# hypothesis_version: 6.151.9
+
+['UNSET', 'adaptive', 'addressing_style', 'auto', 'client_cert', 'connect_timeout', 'defaults_mode', 'inject_host_prefix', 'legacy', 'max_attempts', 'max_pool_connections', 'mode', 'parameter_validation', 'path', 'proxies', 'proxies_config', 'read_timeout', 'region_name', 'retries', 's3', 'signature_version', 'standard', 'tcp_keepalive', 'total_max_attempts', 'use_fips_endpoint', 'user_agent', 'user_agent_appid', 'user_agent_extra', 'virtual']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_apigatewayv2_authorizers\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'HttpIamAuthorizer', 'HttpJwtAuthorizer', 'HttpLambdaAuthorizer', 'IAM', 'SIMPLE', '_Duration_4839e8c3', '_IFunction_6adb0ab8', '_IHttpRoute_2fbc6171', '_IUserPool_1f1029e2', 'argument handler', 'argument id', 'argument jwt_issuer', 'argument pool', 'authorizationType', 'authorizerId', 'authorizerName', 'authorizer_name', 'bind', 'handler', 'id', 'identitySource', 'identity_source', 'jwtAudience', 'jwt_audience', 'jwt_issuer', 'pool', 'responseTypes', 'response_types', 'resultsCacheTtl', 'results_cache_ttl', 'typeguard', 'userPoolClients', 'userPoolRegion', 'user_pool_clients', 'user_pool_region']

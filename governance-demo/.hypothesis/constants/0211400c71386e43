@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_shield\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'DRTAccessReference', 'IDRTAccessRef', 'IProtectionGroupRef', 'IProtectionRef', 'ProtectionReference', '__jsii_proxy_class__', '__jsii_type__', 'accountId', 'account_id', 'argument account_id', 'drtAccessRef', 'protectionArn', 'protectionGroupArn', 'protectionGroupRef', 'protectionRef', 'protection_arn', 'protection_group_arn', 'typeguard']

@@ -1,0 +1,4 @@
+# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_resourcegroups\__init__.py
+# hypothesis_version: 6.151.9
+
+[', ', '.', '=', 'GroupReference', 'GroupReference(%s)', 'IGroupRef', 'ITagSyncTaskRef', 'TagSyncTaskReference', '__jsii_proxy_class__', '__jsii_type__', 'argument group_arn', 'argument group_name', 'argument task_arn', 'groupArn', 'groupName', 'groupRef', 'group_arn', 'group_name', 'tagSyncTaskRef', 'taskArn', 'task_arn', 'typeguard']
