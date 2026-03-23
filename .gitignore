@@ -1,6 +1,8 @@
 *.docx
 *.tmp
 ~$*
+change-guide-v2.md
+text in the blog.md
 __pycache__/
 .env
 cdk.out/
