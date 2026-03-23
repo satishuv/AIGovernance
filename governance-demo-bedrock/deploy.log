@@ -1,0 +1,574 @@
+﻿npx : 
+At line:1 char:246
++ ... ce-demo-bedrock; npx cdk deploy --require-approval never 2>&1 | Out-F ...
++                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Γ£¿  Synthesis time: 15.2s
+
+GovernanceBedrockStack: deploying... [1/1]
+GovernanceBedrockStack: creating CloudFormation changeset...
+GovernanceBedrockStack |  0/42 | 11:09:09 AM | REVIEW_IN_PROGRESS   | 
+AWS::CloudFormation::Stack  | GovernanceBedrockStack User Initiated
+GovernanceBedrockStack |  0/42 | 11:09:20 AM | CREATE_IN_PROGRESS   | 
+AWS::CloudFormation::Stack  | GovernanceBedrockStack User Initiated
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::CDK::Metadata          | CDKMetadata/Default (CDKMetadata) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | PendingTable (PendingTable0A187476) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::Bucket             | TrailBucket (TrailBucketA831CE63) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::Bucket             | DataBucket (DataBucketE3889A50) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | KillSwitchLambda/ServiceRole (KillSwitchLambdaServiceRole4AAC0D01) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SampleDataDeployment/AwsCliLayer 
+(SampleDataDeploymentAwsCliLayerA7CEF9B7) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | ScopeTable (ScopeTableA04A8CF8) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SchemaDeployment/AwsCliLayer 
+(SchemaDeploymentAwsCliLayer199F1B74) 
+GovernanceBedrockStack |  0/42 | 11:09:24 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | ScopeEnforcerLambda/ServiceRole 
+(ScopeEnforcerLambdaServiceRole5C0CF35C) 
+GovernanceBedrockStack |  0/42 | 11:09:25 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | Custom::S3AutoDeleteObjectsCustomResourceProvider/Role 
+(CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092) 
+GovernanceBedrockStack |  0/42 | 11:09:25 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | AWS679f53fac002430cb0da5b7982bd2287/ServiceRole 
+(AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2) 
+GovernanceBedrockStack |  0/42 | 11:09:25 AM | CREATE_IN_PROGRESS   | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+Resource creation Initiated
+GovernanceBedrockStack |  0/42 | 11:09:25 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265) 
+Resource creation Initiated
+GovernanceBedrockStack |  0/42 | 11:09:25 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | Custom::S3AutoDeleteObjectsCustomResourceProvider/Role 
+(CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092) Resource creation 
+Initiated
+GovernanceBedrockStack |  0/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | ScopeEnforcerLambda/ServiceRole 
+(ScopeEnforcerLambdaServiceRole5C0CF35C) Resource creation Initiated
+GovernanceBedrockStack |  0/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | 
+AWS::CDK::Metadata          | CDKMetadata/Default (CDKMetadata) Resource creation 
+Initiated
+GovernanceBedrockStack |  0/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | AWS679f53fac002430cb0da5b7982bd2287/ServiceRole 
+(AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2) Resource creation Initiated
+GovernanceBedrockStack |  0/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | ScopeTable (ScopeTableA04A8CF8) Resource creation 
+Initiated
+GovernanceBedrockStack |  0/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | PendingTable (PendingTable0A187476) Resource creation 
+Initiated
+GovernanceBedrockStack |  1/42 | 11:09:26 AM | CREATE_COMPLETE      | 
+AWS::CDK::Metadata          | CDKMetadata/Default (CDKMetadata) 
+GovernanceBedrockStack |  1/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::Bucket             | DataBucket (DataBucketE3889A50) Resource creation 
+Initiated
+GovernanceBedrockStack |  1/42 | 11:09:26 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::Bucket             | TrailBucket (TrailBucketA831CE63) Resource creation 
+Initiated
+GovernanceBedrockStack |  1/42 | 11:09:27 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | KillSwitchLambda/ServiceRole (KillSwitchLambdaServiceRole4AAC0D01) 
+Resource creation Initiated
+GovernanceBedrockStack |  1/42 | 11:09:30 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SampleDataDeployment/AwsCliLayer 
+(SampleDataDeploymentAwsCliLayerA7CEF9B7) Resource creation Initiated
+GovernanceBedrockStack |  2/42 | 11:09:30 AM | CREATE_COMPLETE      | 
+AWS::Lambda::LayerVersion   | SampleDataDeployment/AwsCliLayer 
+(SampleDataDeploymentAwsCliLayerA7CEF9B7) 
+GovernanceBedrockStack |  2/42 | 11:09:34 AM | CREATE_IN_PROGRESS   | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+Eventual consistency check initiated
+GovernanceBedrockStack |  3/42 | 11:09:35 AM | CREATE_COMPLETE      | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+GovernanceBedrockStack |  3/42 | 11:09:35 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SchemaDeployment/AwsCliLayer 
+(SchemaDeploymentAwsCliLayer199F1B74) Resource creation Initiated
+GovernanceBedrockStack |  4/42 | 11:09:35 AM | CREATE_COMPLETE      | 
+AWS::Lambda::LayerVersion   | SchemaDeployment/AwsCliLayer 
+(SchemaDeploymentAwsCliLayer199F1B74) 
+GovernanceBedrockStack |  5/42 | 11:09:39 AM | CREATE_COMPLETE      | 
+AWS::DynamoDB::Table        | ScopeTable (ScopeTableA04A8CF8) 
+GovernanceBedrockStack |  6/42 | 11:09:39 AM | CREATE_COMPLETE      | 
+AWS::DynamoDB::Table        | PendingTable (PendingTable0A187476) 
+GovernanceBedrockStack |  7/42 | 11:09:40 AM | CREATE_COMPLETE      | 
+AWS::S3::Bucket             | TrailBucket (TrailBucketA831CE63) 
+GovernanceBedrockStack |  8/42 | 11:09:41 AM | CREATE_COMPLETE      | 
+AWS::S3::Bucket             | DataBucket (DataBucketE3889A50) 
+GovernanceBedrockStack |  9/42 | 11:09:42 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265) 
+GovernanceBedrockStack |  9/42 | 11:09:42 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) 
+GovernanceBedrockStack | 10/42 | 11:09:42 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | ScopeEnforcerLambda/ServiceRole 
+(ScopeEnforcerLambdaServiceRole5C0CF35C) 
+GovernanceBedrockStack | 11/42 | 11:09:42 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | Custom::S3AutoDeleteObjectsCustomResourceProvider/Role 
+(CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092) 
+GovernanceBedrockStack | 11/42 | 11:09:42 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756C/ServiceRole/DefaultPolicy (CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756CServiceRoleDefaultPolicy88902FDF) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) Resource 
+creation Initiated
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | DataBucket/Policy (DataBucketPolicy3231C704) 
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) Resource 
+creation Initiated
+GovernanceBedrockStack | 11/42 | 11:09:43 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756C/ServiceRole/DefaultPolicy (CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756CServiceRoleDefaultPolicy88902FDF) Resource creation Initiated
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) Resource 
+creation Initiated
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | TrailBucket/Policy (TrailBucketPolicyFEBC3C5C) 
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) Resource 
+creation Initiated
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 11/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | DataBucket/Policy (DataBucketPolicy3231C704) Resource 
+creation Initiated
+GovernanceBedrockStack | 12/42 | 11:09:44 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | KillSwitchLambda/ServiceRole (KillSwitchLambdaServiceRole4AAC0D01) 
+GovernanceBedrockStack | 12/42 | 11:09:44 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 12/42 | 11:09:45 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 12/42 | 11:09:45 AM | CREATE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | TrailBucket/Policy (TrailBucketPolicyFEBC3C5C) 
+Resource creation Initiated
+GovernanceBedrockStack | 13/42 | 11:09:45 AM | CREATE_COMPLETE      | 
+AWS::S3::BucketPolicy       | DataBucket/Policy (DataBucketPolicy3231C704) 
+GovernanceBedrockStack | 13/42 | 11:09:45 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) Resource creation 
+Initiated
+GovernanceBedrockStack | 14/42 | 11:09:45 AM | CREATE_COMPLETE      | 
+AWS::S3::BucketPolicy       | TrailBucket/Policy (TrailBucketPolicyFEBC3C5C) 
+GovernanceBedrockStack | 15/42 | 11:09:46 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | AWS679f53fac002430cb0da5b7982bd2287/ServiceRole 
+(AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2) 
+GovernanceBedrockStack | 15/42 | 11:09:46 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 15/42 | 11:09:46 AM | CREATE_IN_PROGRESS   | 
+AWS::CloudTrail::Trail      | GovernanceTrail (GovernanceTrailE6F38C88) 
+GovernanceBedrockStack | 15/42 | 11:09:46 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ScopeTableInit/CustomResourcePolicy 
+(ScopeTableInitCustomResourcePolicyD645B53D) 
+GovernanceBedrockStack | 15/42 | 11:09:47 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) 
+GovernanceBedrockStack | 15/42 | 11:09:47 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ScopeTableInit/CustomResourcePolicy 
+(ScopeTableInitCustomResourcePolicyD645B53D) Resource creation Initiated
+GovernanceBedrockStack | 15/42 | 11:09:47 AM | CREATE_IN_PROGRESS   | 
+AWS::CloudTrail::Trail      | GovernanceTrail (GovernanceTrailE6F38C88) Resource 
+creation Initiated
+GovernanceBedrockStack | 16/42 | 11:09:48 AM | CREATE_COMPLETE      | 
+AWS::CloudTrail::Trail      | GovernanceTrail (GovernanceTrailE6F38C88) 
+GovernanceBedrockStack | 16/42 | 11:09:49 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) Resource creation Initiated
+GovernanceBedrockStack | 16/42 | 11:09:49 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) Eventual consistency check initiated
+GovernanceBedrockStack | 17/42 | 11:09:52 AM | CREATE_COMPLETE      | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) 
+GovernanceBedrockStack | 17/42 | 11:09:52 AM | CREATE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | TrailBucket/AutoDeleteObjectsCustomResource/Default 
+(TrailBucketAutoDeleteObjectsCustomResource8D1A7617) 
+GovernanceBedrockStack | 17/42 | 11:09:52 AM | CREATE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | DataBucket/AutoDeleteObjectsCustomResource/Default 
+(DataBucketAutoDeleteObjectsCustomResource9FB51BF3) 
+GovernanceBedrockStack | 17/42 | 11:09:54 AM | CREATE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | DataBucket/AutoDeleteObjectsCustomResource/Default 
+(DataBucketAutoDeleteObjectsCustomResource9FB51BF3) Resource creation Initiated
+GovernanceBedrockStack | 17/42 | 11:09:54 AM | CREATE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | TrailBucket/AutoDeleteObjectsCustomResource/Default 
+(TrailBucketAutoDeleteObjectsCustomResource8D1A7617) Resource creation Initiated
+GovernanceBedrockStack | 18/42 | 11:09:54 AM | CREATE_COMPLETE      | 
+Custom::S3AutoDeleteObjects | DataBucket/AutoDeleteObjectsCustomResource/Default 
+(DataBucketAutoDeleteObjectsCustomResource9FB51BF3) 
+GovernanceBedrockStack | 19/42 | 11:09:54 AM | CREATE_COMPLETE      | 
+Custom::S3AutoDeleteObjects | TrailBucket/AutoDeleteObjectsCustomResource/Default 
+(TrailBucketAutoDeleteObjectsCustomResource8D1A7617) 
+GovernanceBedrockStack | 20/42 | 11:09:55 AM | CREATE_COMPLETE      | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) 
+GovernanceBedrockStack | 21/42 | 11:09:59 AM | CREATE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) 
+GovernanceBedrockStack | 22/42 | 11:09:59 AM | CREATE_COMPLETE      | 
+AWS::IAM::Policy            | Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756C/ServiceRole/DefaultPolicy (CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756CServiceRoleDefaultPolicy88902FDF) 
+GovernanceBedrockStack | 23/42 | 11:09:59 AM | CREATE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) 
+GovernanceBedrockStack | 23/42 | 11:10:00 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | ActionGroupLambdaRole (ActionGroupLambdaRole0015CF3C) 
+GovernanceBedrockStack | 24/42 | 11:10:00 AM | CREATE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) 
+GovernanceBedrockStack | 25/42 | 11:10:00 AM | CREATE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) 
+GovernanceBedrockStack | 25/42 | 11:10:00 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) 
+GovernanceBedrockStack | 25/42 | 11:10:01 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | ActionGroupLambdaRole (ActionGroupLambdaRole0015CF3C) Resource 
+creation Initiated
+GovernanceBedrockStack | 25/42 | 11:10:02 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) Resource 
+creation Initiated
+GovernanceBedrockStack | 26/42 | 11:10:03 AM | CREATE_COMPLETE      | 
+AWS::IAM::Policy            | ScopeTableInit/CustomResourcePolicy 
+(ScopeTableInitCustomResourcePolicyD645B53D) 
+GovernanceBedrockStack | 26/42 | 11:10:03 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 26/42 | 11:10:04 AM | CREATE_IN_PROGRESS   | Custom::AWS    
+             | ScopeTableInit/Resource/Default (ScopeTableInit710FB851) 
+GovernanceBedrockStack | 27/42 | 11:10:08 AM | CREATE_COMPLETE      | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) 
+GovernanceBedrockStack | 27/42 | 11:10:09 AM | CREATE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SchemaDeployment/CustomResource/Default 
+(SchemaDeploymentCustomResourceDE1244A0) 
+GovernanceBedrockStack | 27/42 | 11:10:09 AM | CREATE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SampleDataDeployment/CustomResource/Default 
+(SampleDataDeploymentCustomResourceDAC2E054) 
+GovernanceBedrockStack | 27/42 | 11:10:11 AM | CREATE_IN_PROGRESS   | Custom::AWS    
+             | ScopeTableInit/Resource/Default (ScopeTableInit710FB851) Resource 
+creation Initiated
+GovernanceBedrockStack | 28/42 | 11:10:11 AM | CREATE_COMPLETE      | Custom::AWS    
+             | ScopeTableInit/Resource/Default (ScopeTableInit710FB851) 
+GovernanceBedrockStack | 29/42 | 11:10:17 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | ActionGroupLambdaRole (ActionGroupLambdaRole0015CF3C) 
+GovernanceBedrockStack | 29/42 | 11:10:18 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ActionGroupLambdaRole/DefaultPolicy 
+(ActionGroupLambdaRoleDefaultPolicyAE003FBB) 
+GovernanceBedrockStack | 29/42 | 11:10:18 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | KillSwitchLambda/ServiceRole/DefaultPolicy 
+(KillSwitchLambdaServiceRoleDefaultPolicyF4081C13) 
+GovernanceBedrockStack | 29/42 | 11:10:19 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ActionGroupLambdaRole/DefaultPolicy 
+(ActionGroupLambdaRoleDefaultPolicyAE003FBB) Resource creation Initiated
+GovernanceBedrockStack | 29/42 | 11:10:20 AM | CREATE_IN_PROGRESS   | 
+AWS::IAM::Policy            | KillSwitchLambda/ServiceRole/DefaultPolicy 
+(KillSwitchLambdaServiceRoleDefaultPolicyF4081C13) Resource creation Initiated
+GovernanceBedrockStack | 30/42 | 11:10:35 AM | CREATE_COMPLETE      | 
+AWS::IAM::Policy            | ActionGroupLambdaRole/DefaultPolicy 
+(ActionGroupLambdaRoleDefaultPolicyAE003FBB) 
+GovernanceBedrockStack | 31/42 | 11:10:35 AM | CREATE_COMPLETE      | 
+AWS::IAM::Policy            | KillSwitchLambda/ServiceRole/DefaultPolicy 
+(KillSwitchLambdaServiceRoleDefaultPolicyF4081C13) 
+GovernanceBedrockStack | 31/42 | 11:10:36 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) 
+GovernanceBedrockStack | 31/42 | 11:10:36 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) 
+GovernanceBedrockStack | 31/42 | 11:10:38 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) Resource 
+creation Initiated
+GovernanceBedrockStack | 31/42 | 11:10:38 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) Resource 
+creation Initiated
+GovernanceBedrockStack | 31/42 | 11:10:39 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 31/42 | 11:10:39 AM | CREATE_IN_PROGRESS   | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) Eventual 
+consistency check initiated
+GovernanceBedrockStack | 32/42 | 11:10:44 AM | CREATE_COMPLETE      | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) 
+GovernanceBedrockStack | 33/42 | 11:10:45 AM | CREATE_COMPLETE      | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) 
+GovernanceBedrockStack | 33/42 | 11:10:45 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | BedrockAgentRole (BedrockAgentRole7C982E0C) 
+GovernanceBedrockStack | 33/42 | 11:10:46 AM | CREATE_IN_PROGRESS   | AWS::IAM::Role 
+             | BedrockAgentRole (BedrockAgentRole7C982E0C) Resource creation 
+Initiated
+GovernanceBedrockStack | 34/42 | 11:11:03 AM | CREATE_COMPLETE      | AWS::IAM::Role 
+             | BedrockAgentRole (BedrockAgentRole7C982E0C) 
+GovernanceBedrockStack | 34/42 | 11:11:07 AM | CREATE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SchemaDeployment/CustomResource/Default 
+(SchemaDeploymentCustomResourceDE1244A0) Resource creation Initiated
+GovernanceBedrockStack | 35/42 | 11:11:07 AM | CREATE_COMPLETE      | 
+Custom::CDKBucketDeployment | SchemaDeployment/CustomResource/Default 
+(SchemaDeploymentCustomResourceDE1244A0) 
+GovernanceBedrockStack | 35/42 | 11:11:07 AM | CREATE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SampleDataDeployment/CustomResource/Default 
+(SampleDataDeploymentCustomResourceDAC2E054) Resource creation Initiated
+GovernanceBedrockStack | 36/42 | 11:11:08 AM | CREATE_COMPLETE      | 
+Custom::CDKBucketDeployment | SampleDataDeployment/CustomResource/Default 
+(SampleDataDeploymentCustomResourceDAC2E054) 
+GovernanceBedrockStack | 36/42 | 11:11:08 AM | CREATE_IN_PROGRESS   | 
+AWS::Bedrock::Agent         | BedrockAgent 
+GovernanceBedrockStack | 36/42 | 11:11:10 AM | CREATE_IN_PROGRESS   | 
+AWS::Bedrock::Agent         | BedrockAgent Resource creation Initiated
+GovernanceBedrockStack | 36/42 | 11:11:16 AM | CREATE_FAILED        | 
+AWS::Bedrock::Agent         | BedrockAgent Resource handler returned message: 
+"CreateAgentActionGroupRequest caught an error. Failed to create OpenAPI 3 model 
+from the JSON/YAML object that you provided for action: ReadPipelineStatus (Service: 
+BedrockAgent, Status Code: 400, Request ID: fb9c0fb8-f6e5-4250-9538-fded74a48c61) 
+(SDK Attempt Count: 1)" (RequestToken: c0201a89-7702-16a9-31d6-4aa7477d75ee, 
+HandlerErrorCode: GeneralServiceException)
+GovernanceBedrockStack | 36/42 | 11:11:17 AM | ROLLBACK_IN_PROGRESS | 
+AWS::CloudFormation::Stack  | GovernanceBedrockStack The following resource(s) 
+failed to create: [BedrockAgent]. Rollback requested by user.
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::Bedrock::Agent         | BedrockAgent 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::CloudTrail::Trail      | GovernanceTrail (GovernanceTrailE6F38C88) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | ScopeEnforcerLambda/ServiceRole 
+(ScopeEnforcerLambdaServiceRole5C0CF35C) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | TrailBucket/AutoDeleteObjectsCustomResource/Default 
+(TrailBucketAutoDeleteObjectsCustomResource8D1A7617) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SampleDataDeployment/CustomResource/Default 
+(SampleDataDeploymentCustomResourceDAC2E054) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::CDK::Metadata          | CDKMetadata/Default (CDKMetadata) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | Custom::AWS    
+             | ScopeTableInit/Resource/Default (ScopeTableInit710FB851) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+Custom::S3AutoDeleteObjects | DataBucket/AutoDeleteObjectsCustomResource/Default 
+(DataBucketAutoDeleteObjectsCustomResource9FB51BF3) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SampleDataDeployment/AwsCliLayer 
+(SampleDataDeploymentAwsCliLayerA7CEF9B7) 
+GovernanceBedrockStack | 36/42 | 11:11:19 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) 
+GovernanceBedrockStack | 35/42 | 11:11:20 AM | DELETE_COMPLETE      | 
+AWS::CDK::Metadata          | CDKMetadata/Default (CDKMetadata) 
+GovernanceBedrockStack | 34/42 | 11:11:20 AM | DELETE_COMPLETE      | 
+AWS::CloudTrail::Trail      | GovernanceTrail (GovernanceTrailE6F38C88) 
+GovernanceBedrockStack | 33/42 | 11:11:20 AM | DELETE_COMPLETE      | 
+AWS::Lambda::LayerVersion   | SampleDataDeployment/AwsCliLayer 
+(SampleDataDeploymentAwsCliLayerA7CEF9B7) 
+GovernanceBedrockStack | 32/42 | 11:11:21 AM | DELETE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope3Boundary (Scope3Boundary3B7E8EEC) 
+GovernanceBedrockStack | 31/42 | 11:11:21 AM | DELETE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope2Boundary (Scope2Boundary37BDACAA) 
+GovernanceBedrockStack | 32/42 | 11:11:21 AM | DELETE_COMPLETE      | 
+AWS::Bedrock::Agent         | BedrockAgent 
+GovernanceBedrockStack | 31/42 | 11:11:21 AM | DELETE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope4Boundary (Scope4BoundaryBE394DEE) 
+GovernanceBedrockStack | 31/42 | 11:11:21 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | BedrockAgentRole (BedrockAgentRole7C982E0C) 
+GovernanceBedrockStack | 31/42 | 11:11:21 AM | DELETE_IN_PROGRESS   | 
+Custom::CDKBucketDeployment | SchemaDeployment/CustomResource/Default 
+(SchemaDeploymentCustomResourceDE1244A0) 
+GovernanceBedrockStack | 30/42 | 11:11:21 AM | DELETE_COMPLETE      | 
+Custom::CDKBucketDeployment | SampleDataDeployment/CustomResource/Default 
+(SampleDataDeploymentCustomResourceDAC2E054) 
+GovernanceBedrockStack | 29/42 | 11:11:21 AM | DELETE_COMPLETE      | Custom::AWS    
+             | ScopeTableInit/Resource/Default (ScopeTableInit710FB851) 
+GovernanceBedrockStack | 29/42 | 11:11:22 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ScopeTableInit/CustomResourcePolicy 
+(ScopeTableInitCustomResourcePolicyD645B53D) 
+GovernanceBedrockStack | 29/42 | 11:11:22 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) 
+GovernanceBedrockStack | 28/42 | 11:11:22 AM | DELETE_COMPLETE      | 
+Custom::S3AutoDeleteObjects | TrailBucket/AutoDeleteObjectsCustomResource/Default 
+(TrailBucketAutoDeleteObjectsCustomResource8D1A7617) 
+GovernanceBedrockStack | 27/42 | 11:11:23 AM | DELETE_COMPLETE      | 
+Custom::S3AutoDeleteObjects | DataBucket/AutoDeleteObjectsCustomResource/Default 
+(DataBucketAutoDeleteObjectsCustomResource9FB51BF3) 
+GovernanceBedrockStack | 27/42 | 11:11:23 AM | DELETE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | TrailBucket/Policy (TrailBucketPolicyFEBC3C5C) 
+GovernanceBedrockStack | 27/42 | 11:11:23 AM | DELETE_IN_PROGRESS   | 
+AWS::S3::BucketPolicy       | DataBucket/Policy (DataBucketPolicy3231C704) 
+GovernanceBedrockStack | 27/42 | 11:11:23 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) 
+GovernanceBedrockStack | 26/42 | 11:11:23 AM | DELETE_COMPLETE      | 
+AWS::IAM::Policy            | ScopeTableInit/CustomResourcePolicy 
+(ScopeTableInitCustomResourcePolicyD645B53D) 
+GovernanceBedrockStack | 25/42 | 11:11:23 AM | DELETE_COMPLETE      | 
+AWS::Lambda::Function       | KillSwitchLambda (KillSwitchLambdaC7575B3E) 
+GovernanceBedrockStack | 24/42 | 11:11:23 AM | DELETE_COMPLETE      | 
+Custom::CDKBucketDeployment | SchemaDeployment/CustomResource/Default 
+(SchemaDeploymentCustomResourceDE1244A0) 
+GovernanceBedrockStack | 24/42 | 11:11:24 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::Policy            | KillSwitchLambda/ServiceRole/DefaultPolicy 
+(KillSwitchLambdaServiceRoleDefaultPolicyF4081C13) 
+GovernanceBedrockStack | 24/42 | 11:11:24 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) 
+GovernanceBedrockStack | 23/42 | 11:11:24 AM | DELETE_COMPLETE      | 
+AWS::S3::BucketPolicy       | TrailBucket/Policy (TrailBucketPolicyFEBC3C5C) 
+GovernanceBedrockStack | 22/42 | 11:11:24 AM | DELETE_COMPLETE      | 
+AWS::S3::BucketPolicy       | DataBucket/Policy (DataBucketPolicy3231C704) 
+GovernanceBedrockStack | 22/42 | 11:11:24 AM | DELETE_IN_PROGRESS   | 
+AWS::S3::Bucket             | TrailBucket (TrailBucketA831CE63) 
+GovernanceBedrockStack | 21/42 | 11:11:25 AM | DELETE_COMPLETE      | 
+AWS::IAM::Policy            | KillSwitchLambda/ServiceRole/DefaultPolicy 
+(KillSwitchLambdaServiceRoleDefaultPolicyF4081C13) 
+GovernanceBedrockStack | 21/42 | 11:11:25 AM | DELETE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | ScopeTable (ScopeTableA04A8CF8) 
+GovernanceBedrockStack | 21/42 | 11:11:25 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | KillSwitchLambda/ServiceRole (KillSwitchLambdaServiceRole4AAC0D01) 
+GovernanceBedrockStack | 20/42 | 11:11:26 AM | DELETE_COMPLETE      | 
+AWS::Lambda::Function       | AWS679f53fac002430cb0da5b7982bd2287 
+(AWS679f53fac002430cb0da5b7982bd22872D164C4C) 
+GovernanceBedrockStack | 20/42 | 11:11:26 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | AWS679f53fac002430cb0da5b7982bd2287/ServiceRole 
+(AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2) 
+GovernanceBedrockStack | 19/42 | 11:11:26 AM | DELETE_COMPLETE      | 
+AWS::S3::Bucket             | TrailBucket (TrailBucketA831CE63) 
+GovernanceBedrockStack | 18/42 | 11:11:27 AM | DELETE_COMPLETE      | 
+AWS::Lambda::Function       | 
+Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler 
+(CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F) 
+GovernanceBedrockStack | 18/42 | 11:11:28 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | Custom::S3AutoDeleteObjectsCustomResourceProvider/Role 
+(CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092) 
+GovernanceBedrockStack | 17/42 | 11:11:28 AM | DELETE_COMPLETE      | 
+AWS::Lambda::Function       | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536) 
+GovernanceBedrockStack | 17/42 | 11:11:28 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::LayerVersion   | SchemaDeployment/AwsCliLayer 
+(SchemaDeploymentAwsCliLayer199F1B74) 
+GovernanceBedrockStack | 17/42 | 11:11:28 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::Policy            | Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756C/ServiceRole/DefaultPolicy (CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756CServiceRoleDefaultPolicy88902FDF) 
+GovernanceBedrockStack | 16/42 | 11:11:29 AM | DELETE_COMPLETE      | 
+AWS::IAM::Policy            | Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756C/ServiceRole/DefaultPolicy (CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8
+756CServiceRoleDefaultPolicy88902FDF) 
+GovernanceBedrockStack | 15/42 | 11:11:29 AM | DELETE_COMPLETE      | 
+AWS::Lambda::LayerVersion   | SchemaDeployment/AwsCliLayer 
+(SchemaDeploymentAwsCliLayer199F1B74) 
+GovernanceBedrockStack | 15/42 | 11:11:29 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265) 
+GovernanceBedrockStack | 14/42 | 11:11:31 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | ScopeEnforcerLambda/ServiceRole 
+(ScopeEnforcerLambdaServiceRole5C0CF35C) 
+GovernanceBedrockStack | 13/42 | 11:11:33 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | BedrockAgentRole (BedrockAgentRole7C982E0C) 
+GovernanceBedrockStack | 13/42 | 11:11:33 AM | DELETE_IN_PROGRESS   | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) 
+GovernanceBedrockStack | 12/42 | 11:11:37 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | KillSwitchLambda/ServiceRole (KillSwitchLambdaServiceRole4AAC0D01) 
+GovernanceBedrockStack | 11/42 | 11:11:37 AM | DELETE_COMPLETE      | 
+AWS::DynamoDB::Table        | ScopeTable (ScopeTableA04A8CF8) 
+GovernanceBedrockStack | 10/42 | 11:11:37 AM | DELETE_COMPLETE      | 
+AWS::Lambda::Function       | ActionGroupLambda (ActionGroupLambdaDAF0E21B) 
+GovernanceBedrockStack |  9/42 | 11:11:38 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | AWS679f53fac002430cb0da5b7982bd2287/ServiceRole 
+(AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2) 
+GovernanceBedrockStack |  9/42 | 11:11:38 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::Policy            | ActionGroupLambdaRole/DefaultPolicy 
+(ActionGroupLambdaRoleDefaultPolicyAE003FBB) 
+GovernanceBedrockStack |  8/42 | 11:11:39 AM | DELETE_COMPLETE      | 
+AWS::IAM::Policy            | ActionGroupLambdaRole/DefaultPolicy 
+(ActionGroupLambdaRoleDefaultPolicyAE003FBB) 
+GovernanceBedrockStack |  7/42 | 11:11:39 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | Custom::S3AutoDeleteObjectsCustomResourceProvider/Role 
+(CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092) 
+GovernanceBedrockStack |  7/42 | 11:11:39 AM | DELETE_IN_PROGRESS   | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+GovernanceBedrockStack |  7/42 | 11:11:39 AM | DELETE_IN_PROGRESS   | AWS::IAM::Role 
+             | ActionGroupLambdaRole (ActionGroupLambdaRole0015CF3C) 
+GovernanceBedrockStack |  7/42 | 11:11:39 AM | DELETE_IN_PROGRESS   | 
+AWS::DynamoDB::Table        | PendingTable (PendingTable0A187476) 
+GovernanceBedrockStack |  6/42 | 11:11:40 AM | DELETE_COMPLETE      | 
+AWS::Logs::LogGroup         | AgentActionsLogGroup (AgentActionsLogGroup38932ABF) 
+GovernanceBedrockStack |  5/42 | 11:11:41 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | 
+Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole 
+(CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265) 
+GovernanceBedrockStack |  4/42 | 11:11:51 AM | DELETE_COMPLETE      | AWS::IAM::Role 
+             | ActionGroupLambdaRole (ActionGroupLambdaRole0015CF3C) 
+GovernanceBedrockStack |  3/42 | 11:11:51 AM | DELETE_COMPLETE      | 
+AWS::DynamoDB::Table        | PendingTable (PendingTable0A187476) 
+GovernanceBedrockStack |  3/42 | 11:11:51 AM | DELETE_IN_PROGRESS   | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) 
+GovernanceBedrockStack |  2/42 | 11:11:52 AM | DELETE_COMPLETE      | 
+AWS::IAM::ManagedPolicy     | Scope1Boundary (Scope1BoundaryBA0533D7) 
+GovernanceBedrockStack |  2/42 | 11:11:53 AM | DELETE_IN_PROGRESS   | 
+AWS::S3::Bucket             | DataBucket (DataBucketE3889A50) 
+GovernanceBedrockStack |  1/42 | 11:11:55 AM | DELETE_COMPLETE      | 
+AWS::S3::Bucket             | DataBucket (DataBucketE3889A50) 
+GovernanceBedrockStack |  2/42 | 11:11:55 AM | ROLLBACK_COMPLETE    | 
+AWS::CloudFormation::Stack  | GovernanceBedrockStack 
+
+Failed resources:
+GovernanceBedrockStack | 11:11:16 AM | CREATE_FAILED        | AWS::Bedrock::Agent    
+     | BedrockAgent Resource handler returned message: 
+"CreateAgentActionGroupRequest caught an error. Failed to create OpenAPI 3 model 
+from the JSON/YAML object that you provided for action: ReadPipelineStatus (Service: 
+BedrockAgent, Status Code: 400, Request ID: fb9c0fb8-f6e5-4250-9538-fded74a48c61) 
+(SDK Attempt Count: 1)" (RequestToken: c0201a89-7702-16a9-31d6-4aa7477d75ee, 
+HandlerErrorCode: GeneralServiceException)
+Γ¥î  GovernanceBedrockStack failed: ToolkitError: The stack named 
+GovernanceBedrockStack failed creation, it may need to be manually deleted from the 
+AWS console: ROLLBACK_COMPLETE: Resource handler returned message: 
+"CreateAgentActionGroupRequest caught an error. Failed to create OpenAPI 3 model 
+from the JSON/YAML object that you provided for action: ReadPipelineStatus (Service: 
+BedrockAgent, Status Code: 400, Request ID: fb9c0fb8-f6e5-4250-9538-fded74a48c61) 
+(SDK Attempt Count: 1)" (RequestToken: c0201a89-7702-16a9-31d6-4aa7477d75ee, 
+HandlerErrorCode: GeneralServiceException)

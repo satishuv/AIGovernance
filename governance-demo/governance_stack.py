@@ -33,16 +33,6 @@ class AgenticGovernanceDemoStack(Stack):
             auto_delete_objects=True,
         )
 
-        # CloudTrail log delivery bucket
-        self.trail_bucket = s3.Bucket(
-            self,
-            "TrailBucket",
-            encryption=s3.BucketEncryption.S3_MANAGED,
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
         # Upload sample data to the Data Bucket
         s3deploy.BucketDeployment(
             self,
@@ -360,6 +350,15 @@ class AgenticGovernanceDemoStack(Stack):
         skip_trail = self.node.try_get_context("skip_cloudtrail") == "true"
 
         if not skip_trail:
+            self.trail_bucket = s3.Bucket(
+                self,
+                "TrailBucket",
+                encryption=s3.BucketEncryption.S3_MANAGED,
+                block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+                removal_policy=RemovalPolicy.DESTROY,
+                auto_delete_objects=True,
+            )
+
             self.trail = cloudtrail.Trail(
                 self,
                 "GovernanceTrail",

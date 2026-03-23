@@ -1,0 +1,11 @@
+{
+  "buildId": "build-47",
+  "status": "passed",
+  "timestamp": "2026-03-20T09:00:00Z",
+  "commitHash": "a1b2c3d4e5f6789012345678abcdef01",
+  "artifactLocation": "s3://artifacts/build-47.zip",
+  "testsPassed": true,
+  "securityScanPassed": true,
+  "branch": "main",
+  "author": "deploy-bot"
+}

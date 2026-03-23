@@ -1,0 +1,13 @@
+{
+  "buildId": "build-46",
+  "testSuite": "integration",
+  "passed": 139,
+  "failed": 3,
+  "testCases": [
+    { "name": "test_api_health", "status": "passed", "duration_ms": 115 },
+    { "name": "test_db_connection", "status": "passed", "duration_ms": 290 },
+    { "name": "test_auth_flow", "status": "failed", "duration_ms": 510 },
+    { "name": "test_deployment_endpoint", "status": "failed", "duration_ms": 420 },
+    { "name": "test_rollback_trigger", "status": "failed", "duration_ms": 380 }
+  ]
+}
