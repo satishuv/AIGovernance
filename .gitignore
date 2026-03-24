@@ -23,3 +23,7 @@ governance-demo/kill_output.json
 # Pytest cache
 .pytest_cache/
 governance-demo/.pytest_cache/
+
+# Deploy logs (contain request tokens that trigger secret scanners)
+*.log
+governance-demo-bedrock/deploy.log
