@@ -6,9 +6,12 @@ before invoking the Bedrock Agent:
 1. Optionally updates scope if new_scope is provided (Task 6.4)
 2. Reads current scope from Scope Table (Task 6.1)
 3. If scope is 0, denies request (kill switch active) (Task 6.1)
-4. Swaps IAM permission boundary on Action Group Lambda role (Task 6.2)
-5. Calls bedrock-agent-runtime:InvokeAgent with session attributes (Task 6.3)
-6. Collects streamed response and returns it (Task 6.3)
+4. Invokes Governance Engine Lambda for policy/risk evaluation (Task 11.1)
+5. If denied: return denied response with explanation
+6. If escalated: create pending approval record and return escalated response
+7. If allowed: swap IAM permission boundary on Action Group Lambda role (Task 6.2)
+8. Calls bedrock-agent-runtime:InvokeAgent with session attributes (Task 6.3)
+9. Collects streamed response and returns it (Task 6.3)
 
 Environment variables:
     AGENT_ID: Bedrock Agent ID
@@ -16,6 +19,8 @@ Environment variables:
     SCOPE_TABLE_NAME: DynamoDB table name for scope
     ACTION_GROUP_LAMBDA_ROLE_NAME: IAM role name for the action group lambda
     SCOPE_BOUNDARY_ARNS: JSON-encoded dict mapping scope levels to permission boundary ARNs
+    GOVERNANCE_ENGINE_LAMBDA_ARN: ARN of the Governance Engine Lambda
+    PENDING_TABLE_NAME: DynamoDB table for pending approval records
 """
 
 import json
@@ -34,10 +39,13 @@ AGENT_ALIAS_ID = os.environ.get("AGENT_ALIAS_ID", "")
 SCOPE_TABLE_NAME = os.environ.get("SCOPE_TABLE_NAME", "")
 ACTION_GROUP_LAMBDA_ROLE_NAME = os.environ.get("ACTION_GROUP_LAMBDA_ROLE_NAME", "")
 SCOPE_BOUNDARY_ARNS = json.loads(os.environ.get("SCOPE_BOUNDARY_ARNS", "{}"))
+GOVERNANCE_ENGINE_LAMBDA_ARN = os.environ.get("GOVERNANCE_ENGINE_LAMBDA_ARN", "")
+PENDING_TABLE_NAME = os.environ.get("PENDING_TABLE_NAME", "")
 
 dynamodb = boto3.resource("dynamodb")
 iam = boto3.client("iam")
 bedrock_agent_runtime = boto3.client("bedrock-agent-runtime")
+lambda_client = boto3.client("lambda")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -169,10 +177,127 @@ def invoke_bedrock_agent(input_text, session_attributes):
 
 
 # ---------------------------------------------------------------------------
+# Task 11.1 -- Requirements 2.1, 4.1-4.5, 17.1, 18.2: Governance Engine invocation
+# ---------------------------------------------------------------------------
+def _derive_action_group(input_text):
+    """Derive an action group name from the user's input text.
+
+    Uses simple keyword matching to map input to known action groups.
+    Falls back to 'general' if no match is found.
+    """
+    text_lower = (input_text or "").lower()
+    if any(kw in text_lower for kw in ("deploy", "release", "production")):
+        return "ProductionDeployment"
+    if any(kw in text_lower for kw in ("staging", "stage")):
+        return "StagingDeployment"
+    if any(kw in text_lower for kw in ("propose", "change", "modify", "update")):
+        return "ProposeChanges"
+    if any(kw in text_lower for kw in ("read", "status", "show", "list", "get", "describe")):
+        return "ReadPipelineStatus"
+    return "general"
+
+
+def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=""):
+    """Invoke the Governance Engine Lambda synchronously.
+
+    Args:
+        agent_id: The agent identifier.
+        input_text: The user's natural language request.
+        scope_level: Current scope level for the agent.
+        target_resource: Optional target resource identifier.
+
+    Returns:
+        Parsed GovernanceDecision dict from the Governance Engine.
+
+    Raises:
+        Exception on invocation failure (timeout, error, bad response).
+    """
+    action_group = _derive_action_group(input_text)
+
+    payload = {
+        "agent_id": agent_id,
+        "action_group": action_group,
+        "target_resource": target_resource or "default",
+        "input_text": input_text,
+        "scope_level": scope_level,
+    }
+
+    response = lambda_client.invoke(
+        FunctionName=GOVERNANCE_ENGINE_LAMBDA_ARN,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(payload),
+    )
+
+    # Check for Lambda-level errors (function error, timeout)
+    if "FunctionError" in response:
+        error_payload = response["Payload"].read().decode("utf-8")
+        raise Exception(f"Governance Engine Lambda error: {error_payload}")
+
+    response_payload = json.loads(response["Payload"].read().decode("utf-8"))
+
+    # Validate the response contains a verdict
+    if "verdict" not in response_payload:
+        raise Exception(
+            f"Governance Engine returned invalid response: missing 'verdict' field"
+        )
+
+    return response_payload
+
+
+def create_pending_approval(agent_id, input_text, governance_decision):
+    """Create a pending approval record in the PendingTable for escalated actions.
+
+    Args:
+        agent_id: The agent identifier.
+        input_text: The user's original request.
+        governance_decision: The GovernanceDecision dict from the Governance Engine.
+    """
+    table = dynamodb.Table(PENDING_TABLE_NAME)
+    request_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow().isoformat()
+
+    table.put_item(Item={
+        "request_id": request_id,
+        "agent_id": agent_id,
+        "input_text": input_text,
+        "decision_id": governance_decision.get("decision_id", ""),
+        "verdict": "escalate",
+        "explanation": governance_decision.get("explanation", ""),
+        "risk_score": str(governance_decision.get("risk_score", 0)),
+        "framework_mapping": governance_decision.get("framework_mapping", []),
+        "status": "pending_approval",
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    })
+
+    logger.info(json.dumps({
+        "event": "pending_approval_created",
+        "request_id": request_id,
+        "agent_id": agent_id,
+        "decision_id": governance_decision.get("decision_id", ""),
+        "timestamp": timestamp,
+    }))
+
+    return request_id
+
+
+# ---------------------------------------------------------------------------
 # Lambda entry point
 # ---------------------------------------------------------------------------
 def handler(event, context):
-    """Orchestrate scope enforcement and Bedrock Agent invocation.
+    """Orchestrate scope enforcement, governance evaluation, and Bedrock Agent invocation.
+
+    Flow:
+        1. Optionally update scope level
+        2. Read current scope level
+        3. Deny if kill switch active (scope == 0)
+        4. Invoke Governance Engine for policy/risk evaluation
+           - deny  → return denied response with explanation
+           - escalate → create pending approval, return escalated response
+           - allow → proceed to Bedrock Agent
+        5. Swap IAM permission boundary (allow only)
+        6. Build session attributes (allow only)
+        7. Invoke Bedrock Agent (allow only)
 
     Input format:
         {
@@ -201,17 +326,80 @@ def handler(event, context):
                 "message": "Kill switch is active. All requests are denied.",
             }
 
-        # Step 4: Swap permission boundary (Task 6.2 -- Requirement 10.6)
+        # Step 4: Invoke Governance Engine (Task 11.1 -- Reqs 2.1, 4.1-4.5, 17.1, 18.2)
+        try:
+            governance_decision = invoke_governance_engine(
+                agent_id, input_text, scope_level
+            )
+        except Exception as gov_exc:
+            # Fail-safe: deny on Governance Engine failure (Req 18.2)
+            logger.error(json.dumps({
+                "event": "governance_engine_failure",
+                "component_name": "GovernanceEngineLambda",
+                "failure_type": type(gov_exc).__name__,
+                "failure_detail": str(gov_exc),
+                "fallback_action_taken": "deny",
+                "agent_id": agent_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }))
+            return {
+                "status": "denied",
+                "error": "governance_engine_failure",
+                "message": (
+                    "Governance Engine is unavailable. "
+                    "Request denied as a safety precaution."
+                ),
+            }
+
+        verdict = governance_decision.get("verdict", "deny")
+
+        # Step 4a: Handle deny verdict (Req 4.2)
+        if verdict == "deny":
+            explanation = governance_decision.get("explanation", "Action denied by governance policy.")
+            logger.info(json.dumps({
+                "event": "governance_denied",
+                "agent_id": agent_id,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "explanation": explanation,
+                "timestamp": datetime.utcnow().isoformat(),
+            }))
+            return {
+                "status": "denied",
+                "error": "governance_denied",
+                "message": explanation,
+                "decision_id": governance_decision.get("decision_id", ""),
+            }
+
+        # Step 4b: Handle escalate verdict (Reqs 4.4, 4.5)
+        if verdict == "escalate":
+            explanation = governance_decision.get("explanation", "Action escalated for human review.")
+            request_id = create_pending_approval(agent_id, input_text, governance_decision)
+            logger.info(json.dumps({
+                "event": "governance_escalated",
+                "agent_id": agent_id,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "request_id": request_id,
+                "explanation": explanation,
+                "timestamp": datetime.utcnow().isoformat(),
+            }))
+            return {
+                "status": "escalated",
+                "message": explanation,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "request_id": request_id,
+            }
+
+        # Step 5: Swap permission boundary — only on allow (Task 6.2 -- Req 10.6)
         swap_permission_boundary(scope_level)
 
-        # Step 5: Build session attributes (Task 6.1 -- Requirement 8.6)
+        # Step 6: Build session attributes (Task 6.1 -- Requirement 8.6)
         permitted_groups = get_permitted_action_groups(scope_level)
         session_attributes = {
             "scope_level": str(scope_level),
             "permitted_action_groups": ",".join(permitted_groups),
         }
 
-        # Step 6: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)
+        # Step 7: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)
         response_text = invoke_bedrock_agent(input_text, session_attributes)
 
         return {
@@ -219,6 +407,7 @@ def handler(event, context):
             "scope_level": scope_level,
             "permitted_action_groups": permitted_groups,
             "response": response_text,
+            "decision_id": governance_decision.get("decision_id", ""),
         }
 
     except Exception as exc:
