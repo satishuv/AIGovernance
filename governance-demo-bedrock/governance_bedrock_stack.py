@@ -15,6 +15,7 @@ from aws_cdk import (
     aws_logs as logs,
     aws_cloudtrail as cloudtrail,
     aws_sns as sns,
+    aws_apigateway as apigw,
     custom_resources as cr,
 )
 from constructs import Construct
@@ -640,3 +641,504 @@ class GovernanceBedrockStack(Stack):
             destination_bucket=self.policy_bucket,
             destination_key_prefix="policies/",
         )
+
+        # ===================================================================
+        # Phase 1b — Identity, Registry, and Governance Roles Infrastructure
+        # ===================================================================
+
+        # --- Task 21.1: DynamoDB tables for Phase 1b ---
+
+        self.agent_registry_table = dynamodb.Table(
+            self,
+            "AgentRegistryTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.tool_model_registry_table = dynamodb.Table(
+            self,
+            "ToolModelRegistryTable",
+            partition_key=dynamodb.Attribute(
+                name="entry_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.governance_roles_table = dynamodb.Table(
+            self,
+            "GovernanceRolesTable",
+            partition_key=dynamodb.Attribute(
+                name="user_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="role", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # --- Task 21.2: Grant Governance Engine Lambda access to Phase 1b tables ---
+
+        self.agent_registry_table.grant_read_write_data(self.governance_engine_lambda)
+        self.tool_model_registry_table.grant_read_write_data(self.governance_engine_lambda)
+        self.governance_roles_table.grant_read_write_data(self.governance_engine_lambda)
+
+        self.governance_engine_lambda.add_environment(
+            "AGENT_REGISTRY_TABLE_NAME",
+            self.agent_registry_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "TOOL_MODEL_REGISTRY_TABLE_NAME",
+            self.tool_model_registry_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "GOVERNANCE_ROLES_TABLE_NAME",
+            self.governance_roles_table.table_name,
+        )
+
+        # --- Task 21.3: Update ScopeTable seed to include AgentIdentity fields ---
+
+        self.scope_table_init_phase1b = cr.AwsCustomResource(
+            self,
+            "ScopeTableInitPhase1b",
+            on_create=cr.AwsSdkCall(
+                service="DynamoDB",
+                action="putItem",
+                parameters={
+                    "TableName": self.scope_table.table_name,
+                    "Item": {
+                        "agent_id": {"S": "demo-agent"},
+                        "scope_level": {"N": "1"},
+                        "updated_at": {"S": "2025-01-15T10:30:00Z"},
+                        "updated_by": {"S": "cdk-init"},
+                        "environment": {"S": "dev"},
+                        "status": {"S": "active"},
+                        "display_name": {"S": "Demo Agent"},
+                    },
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("ScopeTableInitPhase1b"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["dynamodb:PutItem"],
+                    resources=[self.scope_table.table_arn],
+                ),
+            ]),
+        )
+
+        # --- Task 21.4: Seed Phase 1b DynamoDB tables with initial data ---
+
+        # Seed AgentRegistryTable with demo agent
+        self.agent_registry_seed = cr.AwsCustomResource(
+            self,
+            "AgentRegistrySeed0",
+            on_create=cr.AwsSdkCall(
+                service="DynamoDB",
+                action="putItem",
+                parameters={
+                    "TableName": self.agent_registry_table.table_name,
+                    "Item": {
+                        "agent_id": {"S": "demo-agent"},
+                        "purpose": {"S": "Software Deployment Pipeline Agent"},
+                        "owner": {"S": "governance-admin"},
+                        "data_classes": {"L": [
+                            {"S": "pipeline_status"},
+                            {"S": "deployment_config"},
+                        ]},
+                        "tools": {"L": [
+                            {"S": "ReadPipelineStatus"},
+                            {"S": "ProposeChanges"},
+                        ]},
+                        "approved_scope": {"N": "2"},
+                        "environment": {"S": "dev"},
+                    },
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("AgentRegistrySeed0"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["dynamodb:PutItem"],
+                    resources=[self.agent_registry_table.table_arn],
+                ),
+            ]),
+        )
+
+        # Seed GovernanceRolesTable with initial role assignments
+        governance_role_seeds = [
+            {
+                "user_id": "governance-admin",
+                "role": "policy_author",
+                "scope": "global",
+                "assigned_by": "cdk-init",
+                "assigned_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "user_id": "governance-admin",
+                "role": "operator",
+                "scope": "global",
+                "assigned_by": "cdk-init",
+                "assigned_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "user_id": "demo-auditor",
+                "role": "auditor",
+                "scope": "global",
+                "assigned_by": "cdk-init",
+                "assigned_at": "2025-01-15T10:30:00Z",
+            },
+        ]
+
+        for idx, role_item in enumerate(governance_role_seeds):
+            ddb_item = {
+                "user_id": {"S": role_item["user_id"]},
+                "role": {"S": role_item["role"]},
+                "scope": {"S": role_item["scope"]},
+                "assigned_by": {"S": role_item["assigned_by"]},
+                "assigned_at": {"S": role_item["assigned_at"]},
+            }
+            cr.AwsCustomResource(
+                self,
+                f"GovernanceRoleSeed{idx}",
+                on_create=cr.AwsSdkCall(
+                    service="DynamoDB",
+                    action="putItem",
+                    parameters={
+                        "TableName": self.governance_roles_table.table_name,
+                        "Item": ddb_item,
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of(
+                        f"GovernanceRoleSeed{idx}"
+                    ),
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements([
+                    iam.PolicyStatement(
+                        actions=["dynamodb:PutItem"],
+                        resources=[self.governance_roles_table.table_arn],
+                    ),
+                ]),
+            )
+
+        # ===================================================================
+        # Phase 1c — Evidence, Compliance, and Security Infrastructure
+        # ===================================================================
+
+        # --- Task 35.1: DynamoDB tables for Phase 1c ---
+
+        self.control_trace_table = dynamodb.Table(
+            self,
+            "ControlTraceTable",
+            partition_key=dynamodb.Attribute(
+                name="control_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.control_trace_table.add_global_secondary_index(
+            index_name="ByEvidenceRecordId",
+            partition_key=dynamodb.Attribute(
+                name="evidence_record_id", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.control_trace_table.add_global_secondary_index(
+            index_name="ByDecisionId",
+            partition_key=dynamodb.Attribute(
+                name="decision_id", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.threat_patterns_table = dynamodb.Table(
+            self,
+            "ThreatPatternsTable",
+            partition_key=dynamodb.Attribute(
+                name="pattern_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.control_mapping_table = dynamodb.Table(
+            self,
+            "ControlMappingTable",
+            partition_key=dynamodb.Attribute(
+                name="control_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # --- Task 35.2: Immutable Evidence Bucket with S3 Object Lock ---
+
+        self.immutable_evidence_bucket = s3.Bucket(
+            self,
+            "ImmutableEvidenceBucket",
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            versioned=True,
+            object_lock_enabled=True,
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=False,
+        )
+
+        # Set default Object Lock retention in compliance mode (365 days)
+        cfn_bucket = self.immutable_evidence_bucket.node.default_child
+        cfn_bucket.add_property_override(
+            "ObjectLockConfiguration",
+            {
+                "ObjectLockEnabled": "Enabled",
+                "Rule": {
+                    "DefaultRetention": {
+                        "Mode": "COMPLIANCE",
+                        "Days": 365,
+                    }
+                },
+            },
+        )
+
+        # --- Task 35.3: Kill Switch Lambda for Phase 1c ---
+
+        self.kill_switch_phase1c_lambda = _lambda.Function(
+            self,
+            "KillSwitchPhase1cLambda",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="kill_switch.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            environment={
+                "SCOPE_TABLE_NAME": self.scope_table.table_name,
+                "AGENT_REGISTRY_TABLE_NAME": self.agent_registry_table.table_name,
+                "GOVERNANCE_ROLES_TABLE_NAME": self.governance_roles_table.table_name,
+                "OPERATOR_SNS_TOPIC_ARN": self.operator_alerts_topic.topic_arn,
+            },
+        )
+
+        self.scope_table.grant_read_write_data(self.kill_switch_phase1c_lambda)
+        self.agent_registry_table.grant_read_data(self.kill_switch_phase1c_lambda)
+        self.governance_roles_table.grant_read_data(self.kill_switch_phase1c_lambda)
+        self.operator_alerts_topic.grant_publish(self.kill_switch_phase1c_lambda)
+
+        # --- Task 35.4: API Gateway for Kill Switch ---
+
+        self.kill_switch_api = apigw.RestApi(
+            self,
+            "KillSwitchApi",
+            rest_api_name="GovernanceKillSwitchAPI",
+            description="API Gateway for Kill Switch activate/deactivate",
+            deploy_options=apigw.StageOptions(stage_name="prod"),
+        )
+
+        kill_switch_resource = self.kill_switch_api.root.add_resource("kill-switch")
+        activate_resource = kill_switch_resource.add_resource("activate")
+        deactivate_resource = kill_switch_resource.add_resource("deactivate")
+
+        kill_switch_integration = apigw.LambdaIntegration(
+            self.kill_switch_phase1c_lambda,
+        )
+
+        activate_resource.add_method(
+            "POST",
+            kill_switch_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        deactivate_resource.add_method(
+            "POST",
+            kill_switch_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        # --- Task 35.5: Grant Governance Engine Lambda access to Phase 1c tables ---
+
+        self.control_trace_table.grant_read_write_data(self.governance_engine_lambda)
+        self.threat_patterns_table.grant_read_write_data(self.governance_engine_lambda)
+        self.control_mapping_table.grant_read_write_data(self.governance_engine_lambda)
+        self.immutable_evidence_bucket.grant_read_write(self.governance_engine_lambda)
+
+        self.governance_engine_lambda.add_environment(
+            "CONTROL_TRACE_TABLE_NAME",
+            self.control_trace_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "THREAT_PATTERNS_TABLE_NAME",
+            self.threat_patterns_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "CONTROL_MAPPING_TABLE_NAME",
+            self.control_mapping_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "IMMUTABLE_EVIDENCE_BUCKET_NAME",
+            self.immutable_evidence_bucket.bucket_name,
+        )
+
+        # --- Task 35.6: Seed Phase 1c DynamoDB tables ---
+
+        # Seed ThreatPatternsTable with known-bad and suspicious patterns
+        threat_pattern_seeds = [
+            {
+                "pattern_id": "kb-sql-injection-1",
+                "category": "known_bad",
+                "pattern": "';\\s*drop\\s+table",
+                "description": "SQL injection: DROP TABLE attempt",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "kb-sql-injection-2",
+                "category": "known_bad",
+                "pattern": "or\\s+1\\s*=\\s*1",
+                "description": "SQL injection: OR 1=1 tautology",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "kb-prompt-injection-1",
+                "category": "known_bad",
+                "pattern": "ignore\\s+previous\\s+instructions",
+                "description": "Prompt injection: ignore previous instructions",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "kb-prompt-injection-2",
+                "category": "known_bad",
+                "pattern": "system:\\s*override",
+                "description": "Prompt injection: system override attempt",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "kb-disallowed-cmd-1",
+                "category": "known_bad",
+                "pattern": "rm\\s+-rf",
+                "description": "Disallowed command: rm -rf",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "kb-disallowed-cmd-2",
+                "category": "known_bad",
+                "pattern": "format\\s+c:",
+                "description": "Disallowed command: format c:",
+                "risk_weight": 100,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "sus-partial-prompt-1",
+                "category": "suspicious",
+                "pattern": "you\\s+are\\s+now",
+                "description": "Suspicious: partial prompt injection indicator",
+                "risk_weight": 30,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "sus-encoding-1",
+                "category": "suspicious",
+                "pattern": "%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}",
+                "description": "Suspicious: unusual URL encoding sequences",
+                "risk_weight": 20,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+            {
+                "pattern_id": "sus-length-1",
+                "category": "suspicious",
+                "pattern": ".{5000,}",
+                "description": "Suspicious: anomalous input length (>5000 chars)",
+                "risk_weight": 25,
+                "updated_at": "2025-01-15T10:30:00Z",
+            },
+        ]
+
+        for idx, tp in enumerate(threat_pattern_seeds):
+            ddb_item = {
+                "pattern_id": {"S": tp["pattern_id"]},
+                "category": {"S": tp["category"]},
+                "pattern": {"S": tp["pattern"]},
+                "description": {"S": tp["description"]},
+                "risk_weight": {"N": str(tp["risk_weight"])},
+                "updated_at": {"S": tp["updated_at"]},
+            }
+            cr.AwsCustomResource(
+                self,
+                f"ThreatPatternSeed{idx}",
+                on_create=cr.AwsSdkCall(
+                    service="DynamoDB",
+                    action="putItem",
+                    parameters={
+                        "TableName": self.threat_patterns_table.table_name,
+                        "Item": ddb_item,
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of(
+                        f"ThreatPatternSeed{idx}"
+                    ),
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements([
+                    iam.PolicyStatement(
+                        actions=["dynamodb:PutItem"],
+                        resources=[self.threat_patterns_table.table_arn],
+                    ),
+                ]),
+            )
+
+        # Seed ControlMappingTable from sample_data files
+        control_mapping_dir = os.path.join(
+            os.path.dirname(__file__), "sample_data", "control_mapping"
+        )
+
+        all_mappings = []
+        for filename in ["iso42001_mappings.json", "nist_ai_rmf_mappings.json"]:
+            filepath = os.path.join(control_mapping_dir, filename)
+            with open(filepath) as f:
+                data = json.load(f)
+            for m in data.get("mappings", []):
+                composite_id = f"{m['control_id']}#{m['implementation_component']}"
+                all_mappings.append({
+                    "control_id": composite_id,
+                    "framework": data["framework"],
+                    "control_name": m["control_name"],
+                    "implementation_component": m["implementation_component"],
+                    "evidence_generated": m["evidence_generated"],
+                })
+
+        for idx, cm in enumerate(all_mappings):
+            ddb_item = {
+                "control_id": {"S": cm["control_id"]},
+                "framework": {"S": cm["framework"]},
+                "control_name": {"S": cm["control_name"]},
+                "implementation_component": {"S": cm["implementation_component"]},
+                "evidence_generated": {"S": cm["evidence_generated"]},
+            }
+            cr.AwsCustomResource(
+                self,
+                f"ControlMappingSeed{idx}",
+                on_create=cr.AwsSdkCall(
+                    service="DynamoDB",
+                    action="putItem",
+                    parameters={
+                        "TableName": self.control_mapping_table.table_name,
+                        "Item": ddb_item,
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of(
+                        f"ControlMappingSeed{idx}"
+                    ),
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements([
+                    iam.PolicyStatement(
+                        actions=["dynamodb:PutItem"],
+                        resources=[self.control_mapping_table.table_arn],
+                    ),
+                ]),
+            )

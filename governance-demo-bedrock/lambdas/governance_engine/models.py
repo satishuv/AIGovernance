@@ -279,3 +279,414 @@ class LatencyMetric:
             budget_exceeded=data.get("budget_exceeded", False),
             timestamp=data.get("timestamp", ""),
         )
+
+
+@dataclass
+class AgentIdentity:
+    """Identity record for a governed agent.
+
+    Attributes:
+        agent_id: Unique identifier for the agent.
+        display_name: Human-readable name for the agent.
+        scope_level: Current autonomy level (0–4). Defaults to 1.
+        creation_timestamp: ISO 8601 timestamp of agent creation.
+        status: Agent status — "active" or "suspended". Defaults to "active".
+        environment: Deployment environment — "dev", "staging", or "prod".
+    """
+
+    agent_id: str
+    display_name: str
+    scope_level: int = 1
+    creation_timestamp: str = ""
+    status: str = "active"
+    environment: str = "dev"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "display_name": self.display_name,
+            "scope_level": self.scope_level,
+            "creation_timestamp": self.creation_timestamp,
+            "status": self.status,
+            "environment": self.environment,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentIdentity":
+        return cls(
+            agent_id=data["agent_id"],
+            display_name=data["display_name"],
+            scope_level=data.get("scope_level", 1),
+            creation_timestamp=data.get("creation_timestamp", ""),
+            status=data.get("status", "active"),
+            environment=data["environment"],
+        )
+
+
+@dataclass
+class AgentRegistryEntry:
+    """Registry entry describing a governed agent's purpose and permissions.
+
+    Attributes:
+        agent_id: Unique identifier for the agent.
+        purpose: Description of the agent's purpose.
+        owner: Identity of the agent owner.
+        data_classes: List of data classes the agent is declared to access.
+        tools: List of tools the agent is declared to use.
+        approved_scope: Maximum approved scope level for the agent.
+        environment: Deployment environment — "dev", "staging", or "prod".
+    """
+
+    agent_id: str
+    purpose: str
+    owner: str
+    data_classes: List[str] = field(default_factory=list)
+    tools: List[str] = field(default_factory=list)
+    approved_scope: int = 1
+    environment: str = "dev"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "purpose": self.purpose,
+            "owner": self.owner,
+            "data_classes": list(self.data_classes),
+            "tools": list(self.tools),
+            "approved_scope": self.approved_scope,
+            "environment": self.environment,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentRegistryEntry":
+        return cls(
+            agent_id=data["agent_id"],
+            purpose=data["purpose"],
+            owner=data["owner"],
+            data_classes=data.get("data_classes", []),
+            tools=data.get("tools", []),
+            approved_scope=data.get("approved_scope", 1),
+            environment=data["environment"],
+        )
+
+
+@dataclass
+class ToolModelRegistryEntry:
+    """Registry entry for an approved model, tool connector, or data source.
+
+    Attributes:
+        entry_id: Unique identifier for the registry entry.
+        category: One of "model", "tool_connector", or "data_source".
+        name: Human-readable name of the entry.
+        version: Version string of the entry.
+        approval_status: Current approval status (e.g., "approved", "pending", "revoked").
+        approver: Identity of the approver.
+        approval_timestamp: ISO 8601 timestamp of approval.
+    """
+
+    entry_id: str
+    category: str
+    name: str
+    version: str
+    approval_status: str = ""
+    approver: str = ""
+    approval_timestamp: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "entry_id": self.entry_id,
+            "category": self.category,
+            "name": self.name,
+            "version": self.version,
+            "approval_status": self.approval_status,
+            "approver": self.approver,
+            "approval_timestamp": self.approval_timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ToolModelRegistryEntry":
+        return cls(
+            entry_id=data["entry_id"],
+            category=data["category"],
+            name=data["name"],
+            version=data["version"],
+            approval_status=data.get("approval_status", ""),
+            approver=data.get("approver", ""),
+            approval_timestamp=data.get("approval_timestamp", ""),
+        )
+
+
+@dataclass
+class GovernanceRoleAssignment:
+    """Assignment of a governance role to a user for separation of duties.
+
+    Attributes:
+        user_id: Identifier of the user.
+        role: One of "policy_author", "policy_approver", "operator",
+              "auditor", or "agent_owner".
+        scope: Scope to which the role assignment applies.
+        assigned_by: Identity of the assigner.
+        assigned_at: ISO 8601 timestamp of the assignment.
+    """
+
+    user_id: str
+    role: str
+    scope: str
+    assigned_by: str
+    assigned_at: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "user_id": self.user_id,
+            "role": self.role,
+            "scope": self.scope,
+            "assigned_by": self.assigned_by,
+            "assigned_at": self.assigned_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GovernanceRoleAssignment":
+        return cls(
+            user_id=data["user_id"],
+            role=data["role"],
+            scope=data["scope"],
+            assigned_by=data["assigned_by"],
+            assigned_at=data["assigned_at"],
+        )
+
+
+@dataclass
+class EvidenceRecord:
+    """Structured evidence record for a governance decision.
+
+    Attributes:
+        evidence_id: Unique identifier for the evidence record.
+        decision_id: Identifier of the associated governance decision.
+        agent_id: Identifier of the agent whose action was evaluated.
+        action_requested: Description of the action the agent requested.
+        policy_result: Summary of the policy evaluation outcome.
+        risk_score: Numeric risk score (0–100) from the risk assessment.
+        verdict: Final decision — 'allow', 'deny', or 'escalate'.
+        timestamp: ISO 8601 timestamp of the evidence record.
+        framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
+        environment: Deployment environment — "dev", "staging", or "prod".
+        previous_hash: SHA-256 hash of the preceding evidence record for hash chain.
+        record_hash: SHA-256 hash of this evidence record.
+        retention_class: Retention class — "standard" or "extended".
+    """
+
+    evidence_id: str
+    decision_id: str
+    agent_id: str
+    action_requested: str
+    policy_result: str
+    risk_score: float
+    verdict: str
+    timestamp: str
+    framework_mapping: List[str] = field(default_factory=list)
+    environment: str = ""
+    previous_hash: str = ""
+    record_hash: str = ""
+    retention_class: str = "standard"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "evidence_id": self.evidence_id,
+            "decision_id": self.decision_id,
+            "agent_id": self.agent_id,
+            "action_requested": self.action_requested,
+            "policy_result": self.policy_result,
+            "risk_score": self.risk_score,
+            "verdict": self.verdict,
+            "timestamp": self.timestamp,
+            "framework_mapping": list(self.framework_mapping),
+            "environment": self.environment,
+            "previous_hash": self.previous_hash,
+            "record_hash": self.record_hash,
+            "retention_class": self.retention_class,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "EvidenceRecord":
+        return cls(
+            evidence_id=data["evidence_id"],
+            decision_id=data["decision_id"],
+            agent_id=data["agent_id"],
+            action_requested=data["action_requested"],
+            policy_result=data["policy_result"],
+            risk_score=data["risk_score"],
+            verdict=data["verdict"],
+            timestamp=data["timestamp"],
+            framework_mapping=data.get("framework_mapping", []),
+            environment=data.get("environment", ""),
+            previous_hash=data.get("previous_hash", ""),
+            record_hash=data.get("record_hash", ""),
+            retention_class=data.get("retention_class", "standard"),
+        )
+
+
+@dataclass
+class ControlTrace:
+    """Trace linking a framework control to an evidence record and decision.
+
+    Attributes:
+        control_id: Identifier of the framework control (e.g., ISO 42001 or NIST AI RMF).
+        implementation_component: Name of the component implementing the control.
+        evidence_record_id: Identifier of the associated evidence record.
+        decision_id: Identifier of the associated governance decision.
+        timestamp: ISO 8601 timestamp of the trace.
+    """
+
+    control_id: str
+    implementation_component: str
+    evidence_record_id: str
+    decision_id: str
+    timestamp: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "control_id": self.control_id,
+            "implementation_component": self.implementation_component,
+            "evidence_record_id": self.evidence_record_id,
+            "decision_id": self.decision_id,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ControlTrace":
+        return cls(
+            control_id=data["control_id"],
+            implementation_component=data["implementation_component"],
+            evidence_record_id=data["evidence_record_id"],
+            decision_id=data["decision_id"],
+            timestamp=data["timestamp"],
+        )
+
+
+@dataclass
+class PolicyVersion:
+    """Version metadata for a policy definition in the lifecycle.
+
+    Attributes:
+        policy_id: Identifier of the policy.
+        version: Monotonically increasing version number.
+        author: Identity of the policy author.
+        approval_status: Current approval status (e.g., "pending", "approved").
+        approver: Identity of the approver (empty if not yet approved).
+        timestamp: ISO 8601 timestamp of the version creation.
+        s3_key: S3 key where this policy version is stored.
+    """
+
+    policy_id: str
+    version: int
+    author: str
+    approval_status: str
+    approver: str
+    timestamp: str
+    s3_key: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "policy_id": self.policy_id,
+            "version": self.version,
+            "author": self.author,
+            "approval_status": self.approval_status,
+            "approver": self.approver,
+            "timestamp": self.timestamp,
+            "s3_key": self.s3_key,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PolicyVersion":
+        return cls(
+            policy_id=data["policy_id"],
+            version=data["version"],
+            author=data["author"],
+            approval_status=data["approval_status"],
+            approver=data["approver"],
+            timestamp=data["timestamp"],
+            s3_key=data["s3_key"],
+        )
+
+
+@dataclass
+class ThreatPattern:
+    """Pattern definition for input validation heuristics (threat detection).
+
+    Attributes:
+        pattern_id: Unique identifier for the threat pattern.
+        category: Pattern category — "known_bad" or "suspicious".
+        pattern: The pattern string to match against input.
+        description: Human-readable description of the threat pattern.
+        risk_weight: Numeric weight applied to risk score on match.
+        updated_at: ISO 8601 timestamp of the last update.
+    """
+
+    pattern_id: str
+    category: str
+    pattern: str
+    description: str
+    risk_weight: int
+    updated_at: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "pattern_id": self.pattern_id,
+            "category": self.category,
+            "pattern": self.pattern,
+            "description": self.description,
+            "risk_weight": self.risk_weight,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ThreatPattern":
+        return cls(
+            pattern_id=data["pattern_id"],
+            category=data["category"],
+            pattern=data["pattern"],
+            description=data["description"],
+            risk_weight=data["risk_weight"],
+            updated_at=data["updated_at"],
+        )
+
+
+@dataclass
+class ValidationResult:
+    """Result of a validation suite test execution.
+
+    Attributes:
+        test_name: Name of the validation test.
+        passed: Whether the test passed.
+        evidence_record_ids: List of evidence record IDs generated during the test.
+        control_trace_ids: List of control trace IDs generated during the test.
+        timestamp: ISO 8601 timestamp of the test execution.
+        details: Human-readable details or error message from the test.
+    """
+
+    test_name: str
+    passed: bool
+    evidence_record_ids: List[str] = field(default_factory=list)
+    control_trace_ids: List[str] = field(default_factory=list)
+    timestamp: str = ""
+    details: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "test_name": self.test_name,
+            "passed": self.passed,
+            "evidence_record_ids": list(self.evidence_record_ids),
+            "control_trace_ids": list(self.control_trace_ids),
+            "timestamp": self.timestamp,
+            "details": self.details,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ValidationResult":
+        return cls(
+            test_name=data["test_name"],
+            passed=data["passed"],
+            evidence_record_ids=data.get("evidence_record_ids", []),
+            control_trace_ids=data.get("control_trace_ids", []),
+            timestamp=data.get("timestamp", ""),
+            details=data.get("details", ""),
+        )

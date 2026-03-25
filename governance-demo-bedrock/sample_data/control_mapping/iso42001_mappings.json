@@ -1,0 +1,102 @@
+{
+  "framework": "ISO/IEC 42001:2023",
+  "description": "ISO 42001 Annex A control mappings to governance platform components",
+  "mappings": [
+    {
+      "control_id": "A.2",
+      "control_name": "AI Policy",
+      "implementation_component": "Policy_Engine",
+      "evidence_generated": "Policy definition records, policy evaluation logs, policy version history"
+    },
+    {
+      "control_id": "A.2",
+      "control_name": "AI Policy",
+      "implementation_component": "Policy_Lifecycle",
+      "evidence_generated": "Policy version metadata, approval records, rollback audit logs"
+    },
+    {
+      "control_id": "A.3",
+      "control_name": "Internal Organization",
+      "implementation_component": "Separation_of_Duties",
+      "evidence_generated": "Role assignment records, SoD constraint enforcement logs"
+    },
+    {
+      "control_id": "A.3",
+      "control_name": "Internal Organization",
+      "implementation_component": "Agent_Registry",
+      "evidence_generated": "Agent registration records, ownership assignments, audit logs"
+    },
+    {
+      "control_id": "A.4",
+      "control_name": "Resources for AI",
+      "implementation_component": "Agent_Registry",
+      "evidence_generated": "Agent inventory with purpose, owner, tools, data classes"
+    },
+    {
+      "control_id": "A.4",
+      "control_name": "Resources for AI",
+      "implementation_component": "Tool_Model_Registry",
+      "evidence_generated": "Approved model/tool/data source registry entries"
+    },
+    {
+      "control_id": "A.5",
+      "control_name": "Assessing AI Impacts",
+      "implementation_component": "Risk_Scoring_Engine",
+      "evidence_generated": "Risk assessment records with scores, categories, escalation flags"
+    },
+    {
+      "control_id": "A.5",
+      "control_name": "Assessing AI Impacts",
+      "implementation_component": "Decision_Engine",
+      "evidence_generated": "Governance decision records with verdicts and explanations"
+    },
+    {
+      "control_id": "A.6",
+      "control_name": "AI System Lifecycle",
+      "implementation_component": "Evidence_Pipeline",
+      "evidence_generated": "Structured evidence records with hash chains and framework tags"
+    },
+    {
+      "control_id": "A.6",
+      "control_name": "AI System Lifecycle",
+      "implementation_component": "Policy_Lifecycle",
+      "evidence_generated": "Policy version history, approval workflow records"
+    },
+    {
+      "control_id": "A.8",
+      "control_name": "Data for AI",
+      "implementation_component": "Agent_Registry",
+      "evidence_generated": "Data class declarations per agent, access control enforcement logs"
+    },
+    {
+      "control_id": "A.8",
+      "control_name": "Data for AI",
+      "implementation_component": "Threat_Detector",
+      "evidence_generated": "Input validation logs, threat detection records"
+    },
+    {
+      "control_id": "A.9",
+      "control_name": "AI System Performance",
+      "implementation_component": "Decision_Engine",
+      "evidence_generated": "Decision latency metrics, budget exceedance records"
+    },
+    {
+      "control_id": "A.9",
+      "control_name": "AI System Performance",
+      "implementation_component": "Kill_Switch",
+      "evidence_generated": "Emergency shutdown activation/deactivation audit logs"
+    },
+    {
+      "control_id": "A.10",
+      "control_name": "Third-party and Customer Relationships",
+      "implementation_component": "Tool_Model_Registry",
+      "evidence_generated": "Third-party model/tool approval records, revocation logs"
+    },
+    {
+      "control_id": "A.10",
+      "control_name": "Third-party and Customer Relationships",
+      "implementation_component": "Separation_of_Duties",
+      "evidence_generated": "Role-based access control records, SoD enforcement logs"
+    }
+  ]
+}
