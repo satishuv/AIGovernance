@@ -690,3 +690,239 @@ class ValidationResult:
             timestamp=data.get("timestamp", ""),
             details=data.get("details", ""),
         )
+
+
+@dataclass
+class PendingApproval:
+    """A pending human-in-the-loop approval record for an escalated governance decision.
+
+    Attributes:
+        approval_id: Unique identifier for the approval request.
+        decision_id: Identifier of the governance decision that triggered escalation.
+        agent_id: Identifier of the agent whose action requires approval.
+        action_requested: Description of the action requiring approval.
+        risk_score: Numeric risk score (0–100) from the risk assessment.
+        escalation_reason: Human-readable reason for escalation.
+        status: Approval status — "pending", "approved", "denied", or "timeout".
+        approver_id: Identifier of the approver (empty if not yet resolved).
+        approval_conditions: Conditions attached to the approval (empty if none).
+        denial_reason: Reason for denial (empty if not denied).
+        created_at: ISO 8601 timestamp of creation.
+        resolved_at: ISO 8601 timestamp of resolution (empty if not yet resolved).
+        timeout_seconds: Seconds before the approval times out. Defaults to 3600.
+    """
+
+    approval_id: str
+    decision_id: str
+    agent_id: str
+    action_requested: str
+    risk_score: float
+    escalation_reason: str
+    status: str = "pending"
+    approver_id: Optional[str] = ""
+    approval_conditions: Optional[str] = ""
+    denial_reason: Optional[str] = ""
+    created_at: str = ""
+    resolved_at: Optional[str] = ""
+    timeout_seconds: int = 3600
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "approval_id": self.approval_id,
+            "decision_id": self.decision_id,
+            "agent_id": self.agent_id,
+            "action_requested": self.action_requested,
+            "risk_score": self.risk_score,
+            "escalation_reason": self.escalation_reason,
+            "status": self.status,
+            "approver_id": self.approver_id,
+            "approval_conditions": self.approval_conditions,
+            "denial_reason": self.denial_reason,
+            "created_at": self.created_at,
+            "resolved_at": self.resolved_at,
+            "timeout_seconds": self.timeout_seconds,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PendingApproval":
+        return cls(
+            approval_id=data["approval_id"],
+            decision_id=data["decision_id"],
+            agent_id=data["agent_id"],
+            action_requested=data["action_requested"],
+            risk_score=data["risk_score"],
+            escalation_reason=data["escalation_reason"],
+            status=data.get("status", "pending"),
+            approver_id=data.get("approver_id", ""),
+            approval_conditions=data.get("approval_conditions", ""),
+            denial_reason=data.get("denial_reason", ""),
+            created_at=data.get("created_at", ""),
+            resolved_at=data.get("resolved_at", ""),
+            timeout_seconds=data.get("timeout_seconds", 3600),
+        )
+
+
+@dataclass
+class ChangeRecord:
+    """Record of a scope or policy change for audit and compliance logging.
+
+    Attributes:
+        record_id: Unique identifier for the change record.
+        change_type: Type of change — "scope_change" or "policy_change".
+        agent_id: Identifier of the agent affected (empty if not applicable).
+        policy_id: Identifier of the policy affected (empty if not applicable).
+        previous_value: Previous value before the change.
+        new_value: New value after the change.
+        requester_id: Identifier of the person who requested the change.
+        authorization_method: Method used to authorize the change.
+        timestamp: ISO 8601 timestamp of the change.
+        retention_days: Number of days to retain the record. Defaults to 2555 (7 years).
+    """
+
+    record_id: str
+    change_type: str
+    agent_id: Optional[str] = ""
+    policy_id: Optional[str] = ""
+    previous_value: str = ""
+    new_value: str = ""
+    requester_id: str = ""
+    authorization_method: str = ""
+    timestamp: str = ""
+    retention_days: int = 2555
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "change_type": self.change_type,
+            "agent_id": self.agent_id,
+            "policy_id": self.policy_id,
+            "previous_value": self.previous_value,
+            "new_value": self.new_value,
+            "requester_id": self.requester_id,
+            "authorization_method": self.authorization_method,
+            "timestamp": self.timestamp,
+            "retention_days": self.retention_days,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChangeRecord":
+        return cls(
+            record_id=data["record_id"],
+            change_type=data["change_type"],
+            agent_id=data.get("agent_id", ""),
+            policy_id=data.get("policy_id", ""),
+            previous_value=data.get("previous_value", ""),
+            new_value=data.get("new_value", ""),
+            requester_id=data.get("requester_id", ""),
+            authorization_method=data.get("authorization_method", ""),
+            timestamp=data.get("timestamp", ""),
+            retention_days=data.get("retention_days", 2555),
+        )
+
+
+@dataclass
+class DecisionHistoryEntry:
+    """Indexed entry for queryable governance decision history.
+
+    Attributes:
+        agent_id: Identifier of the agent whose action was evaluated.
+        timestamp: ISO 8601 timestamp of the decision.
+        decision_id: Unique identifier of the governance decision.
+        action_requested: Description of the action the agent requested.
+        verdict: Final decision — "allow", "deny", or "escalate".
+        risk_score: Numeric risk score (0–100) from the risk assessment.
+        control_ids: List of framework control IDs associated with the decision.
+        policy_id: Identifier of the matched policy.
+        environment: Deployment environment — "dev", "staging", or "prod".
+    """
+
+    agent_id: str
+    timestamp: str
+    decision_id: str
+    action_requested: str
+    verdict: str
+    risk_score: float
+    control_ids: List[str] = field(default_factory=list)
+    policy_id: str = ""
+    environment: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "timestamp": self.timestamp,
+            "decision_id": self.decision_id,
+            "action_requested": self.action_requested,
+            "verdict": self.verdict,
+            "risk_score": self.risk_score,
+            "control_ids": list(self.control_ids),
+            "policy_id": self.policy_id,
+            "environment": self.environment,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DecisionHistoryEntry":
+        return cls(
+            agent_id=data["agent_id"],
+            timestamp=data["timestamp"],
+            decision_id=data["decision_id"],
+            action_requested=data["action_requested"],
+            verdict=data["verdict"],
+            risk_score=data["risk_score"],
+            control_ids=data.get("control_ids", []),
+            policy_id=data.get("policy_id", ""),
+            environment=data.get("environment", ""),
+        )
+
+
+@dataclass
+class ComplianceMappingEntry:
+    """Entry mapping a framework control to an implementation component for compliance reporting.
+
+    Attributes:
+        control_id: Identifier of the framework control (e.g., "A.2" for ISO 42001).
+        control_name: Human-readable name of the control.
+        framework: Framework identifier — "iso_42001" or "nist_ai_rmf".
+        function_name: NIST AI RMF function name (empty if not applicable).
+        category: NIST AI RMF category (empty if not applicable).
+        subcategory: NIST AI RMF subcategory (empty if not applicable).
+        implementation_component: Name of the component implementing the control.
+        evidence_generated: Description of evidence generated for the control.
+        compliance_status: Current compliance status — "implemented", "partial", or "planned".
+    """
+
+    control_id: str
+    control_name: str
+    framework: str
+    function_name: Optional[str] = ""
+    category: Optional[str] = ""
+    subcategory: Optional[str] = ""
+    implementation_component: str = ""
+    evidence_generated: str = ""
+    compliance_status: str = "planned"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "control_id": self.control_id,
+            "control_name": self.control_name,
+            "framework": self.framework,
+            "function_name": self.function_name,
+            "category": self.category,
+            "subcategory": self.subcategory,
+            "implementation_component": self.implementation_component,
+            "evidence_generated": self.evidence_generated,
+            "compliance_status": self.compliance_status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ComplianceMappingEntry":
+        return cls(
+            control_id=data["control_id"],
+            control_name=data["control_name"],
+            framework=data["framework"],
+            function_name=data.get("function_name", ""),
+            category=data.get("category", ""),
+            subcategory=data.get("subcategory", ""),
+            implementation_component=data.get("implementation_component", ""),
+            evidence_generated=data.get("evidence_generated", ""),
+            compliance_status=data.get("compliance_status", "planned"),
+        )

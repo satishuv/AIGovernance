@@ -4,11 +4,12 @@ Manages agent identity lifecycle: creation, retrieval, scope level updates,
 and suspension. Uses the existing ScopeTable for storage since AgentIdentity
 extends the scope concept. All mutations produce structured audit log entries.
 
-Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 19.6
+Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 19.6, 21.1
 """
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -150,6 +151,40 @@ class AgentIdentityManager:
                 }
             )
         )
+
+        # Phase 2: Log scope change via ChangeLogger (Req 21.1)
+        change_log_table_name = os.environ.get("CHANGE_LOG_TABLE_NAME", "")
+        evidence_bucket = os.environ.get(
+            "IMMUTABLE_EVIDENCE_BUCKET_NAME",
+            os.environ.get("EVIDENCE_BUCKET_NAME", ""),
+        )
+        if change_log_table_name and evidence_bucket:
+            try:
+                import boto3
+                from governance_engine.change_logger import ChangeLogger
+
+                dynamodb = boto3.resource("dynamodb")
+                s3_client = boto3.client("s3")
+                cl = ChangeLogger(dynamodb.Table(change_log_table_name))
+                auth_method = "human_authorized" if human_authorized else "system"
+                cl.log_scope_change(
+                    agent_id=agent_id,
+                    previous_scope=previous_scope,
+                    new_scope=new_scope_level,
+                    requester_id=requester_id,
+                    authorization_method=auth_method,
+                    s3_client=s3_client,
+                    bucket=evidence_bucket,
+                )
+            except Exception as cl_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "change_logging_failed",
+                        "error": str(cl_exc),
+                        "agent_id": agent_id,
+                        "timestamp": now,
+                    })
+                )
 
         agent.scope_level = new_scope_level
         return agent

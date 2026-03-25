@@ -1142,3 +1142,297 @@ class GovernanceBedrockStack(Stack):
                     ),
                 ]),
             )
+
+        # ===================================================================
+        # Phase 2 — Human Oversight + Evidence Pipeline Infrastructure
+        # ===================================================================
+
+        # --- Task 49.1: DynamoDB tables for Phase 2 ---
+
+        # PendingApprovalTable: stores pending approval records
+        self.pending_approval_table = dynamodb.Table(
+            self,
+            "PendingApprovalTable",
+            partition_key=dynamodb.Attribute(
+                name="approval_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.pending_approval_table.add_global_secondary_index(
+            index_name="ByAgentId",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="created_at", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.pending_approval_table.add_global_secondary_index(
+            index_name="ByStatus",
+            partition_key=dynamodb.Attribute(
+                name="status", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="created_at", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # ChangeLogTable: stores scope and policy change records
+        self.change_log_table = dynamodb.Table(
+            self,
+            "ChangeLogTable",
+            partition_key=dynamodb.Attribute(
+                name="record_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl_expiry",
+        )
+
+        self.change_log_table.add_global_secondary_index(
+            index_name="ByAgentId",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.change_log_table.add_global_secondary_index(
+            index_name="ByPolicyId",
+            partition_key=dynamodb.Attribute(
+                name="policy_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.change_log_table.add_global_secondary_index(
+            index_name="ByRequesterId",
+            partition_key=dynamodb.Attribute(
+                name="requester_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # DecisionHistoryTable: stores indexed governance decision records
+        self.decision_history_table = dynamodb.Table(
+            self,
+            "DecisionHistoryTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.decision_history_table.add_global_secondary_index(
+            index_name="ByVerdict",
+            partition_key=dynamodb.Attribute(
+                name="verdict", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        self.decision_history_table.add_global_secondary_index(
+            index_name="ByControlId",
+            partition_key=dynamodb.Attribute(
+                name="control_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # --- Task 49.2: Grant Governance Engine Lambda access to Phase 2 tables ---
+
+        self.pending_approval_table.grant_read_write_data(self.governance_engine_lambda)
+        self.change_log_table.grant_read_write_data(self.governance_engine_lambda)
+        self.decision_history_table.grant_read_write_data(self.governance_engine_lambda)
+
+        self.governance_engine_lambda.add_environment(
+            "PENDING_APPROVAL_TABLE_NAME",
+            self.pending_approval_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "CHANGE_LOG_TABLE_NAME",
+            self.change_log_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "DECISION_HISTORY_TABLE_NAME",
+            self.decision_history_table.table_name,
+        )
+
+        # --- Task 49.3: API Gateway endpoints for Approval Workflow ---
+
+        self.approval_api = apigw.RestApi(
+            self,
+            "ApprovalApi",
+            rest_api_name="GovernanceApprovalAPI",
+            description="API Gateway for approval workflow and decision history",
+            deploy_options=apigw.StageOptions(stage_name="prod"),
+        )
+
+        governance_integration = apigw.LambdaIntegration(
+            self.governance_engine_lambda,
+        )
+
+        approvals_resource = self.approval_api.root.add_resource("approvals")
+        pending_resource = approvals_resource.add_resource("pending")
+        approval_id_resource = approvals_resource.add_resource("{approval_id}")
+        approve_resource = approval_id_resource.add_resource("approve")
+        deny_resource = approval_id_resource.add_resource("deny")
+
+        pending_resource.add_method(
+            "GET",
+            governance_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        approve_resource.add_method(
+            "POST",
+            governance_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        deny_resource.add_method(
+            "POST",
+            governance_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        # --- Task 49.4: API Gateway endpoints for Decision History queries ---
+
+        decisions_resource = self.approval_api.root.add_resource("decisions")
+        decisions_agent_resource = decisions_resource.add_resource("{agent_id}")
+
+        decisions_agent_resource.add_method(
+            "GET",
+            governance_integration,
+            authorization_type=apigw.AuthorizationType.IAM,
+        )
+
+        # --- Task 49.5: Seed Phase 2 tables and upload compliance mapping data ---
+
+        # Upload compliance mapping files to evidence S3 bucket
+        compliance_dir = os.path.join(
+            os.path.dirname(__file__), "sample_data", "compliance"
+        )
+        self.compliance_deployment = s3deploy.BucketDeployment(
+            self,
+            "ComplianceDeployment",
+            sources=[s3deploy.Source.asset(compliance_dir)],
+            destination_bucket=self.evidence_bucket,
+            destination_key_prefix="compliance/",
+        )
+
+        # Seed PendingApprovalTable with a sample pending approval
+        self.pending_approval_seed = cr.AwsCustomResource(
+            self,
+            "PendingApprovalSeed0",
+            on_create=cr.AwsSdkCall(
+                service="DynamoDB",
+                action="putItem",
+                parameters={
+                    "TableName": self.pending_approval_table.table_name,
+                    "Item": {
+                        "approval_id": {"S": "sample-approval-001"},
+                        "decision_id": {"S": "sample-decision-001"},
+                        "agent_id": {"S": "demo-agent"},
+                        "action_requested": {"S": "StagingDeployment"},
+                        "risk_score": {"N": "75"},
+                        "escalation_reason": {"S": "Risk score 75 exceeds escalation threshold of 70"},
+                        "status": {"S": "pending"},
+                        "approver_id": {"S": ""},
+                        "approval_conditions": {"S": ""},
+                        "denial_reason": {"S": ""},
+                        "created_at": {"S": "2025-01-15T10:30:00Z"},
+                        "resolved_at": {"S": ""},
+                        "timeout_seconds": {"N": "3600"},
+                    },
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("PendingApprovalSeed0"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["dynamodb:PutItem"],
+                    resources=[self.pending_approval_table.table_arn],
+                ),
+            ]),
+        )
+
+        # --- Task 53.2: Compliance Refresh Lambda and custom resource trigger ---
+
+        self.compliance_refresh_lambda = _lambda.Function(
+            self,
+            "ComplianceRefreshLambda",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="compliance_refresh.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "CONTROL_MAPPING_TABLE_NAME": self.control_mapping_table.table_name,
+                "EVIDENCE_BUCKET_NAME": self.evidence_bucket.bucket_name,
+                "IMMUTABLE_EVIDENCE_BUCKET_NAME": self.immutable_evidence_bucket.bucket_name,
+            },
+        )
+
+        self.control_mapping_table.grant_read_data(self.compliance_refresh_lambda)
+        self.evidence_bucket.grant_read_write(self.compliance_refresh_lambda)
+        self.immutable_evidence_bucket.grant_read_write(self.compliance_refresh_lambda)
+
+        # Custom resource to trigger compliance refresh on stack create/update
+        self.compliance_refresh_trigger = cr.AwsCustomResource(
+            self,
+            "ComplianceRefreshTrigger",
+            on_create=cr.AwsSdkCall(
+                service="Lambda",
+                action="invoke",
+                parameters={
+                    "FunctionName": self.compliance_refresh_lambda.function_name,
+                    "InvocationType": "RequestResponse",
+                    "Payload": json.dumps({"trigger": "cdk_deployment"}),
+                },
+                physical_resource_id=cr.PhysicalResourceId.of(
+                    "ComplianceRefreshTrigger"
+                ),
+            ),
+            on_update=cr.AwsSdkCall(
+                service="Lambda",
+                action="invoke",
+                parameters={
+                    "FunctionName": self.compliance_refresh_lambda.function_name,
+                    "InvocationType": "RequestResponse",
+                    "Payload": json.dumps({"trigger": "cdk_deployment_update"}),
+                },
+                physical_resource_id=cr.PhysicalResourceId.of(
+                    "ComplianceRefreshTrigger"
+                ),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["lambda:InvokeFunction"],
+                    resources=[self.compliance_refresh_lambda.function_arn],
+                ),
+            ]),
+        )

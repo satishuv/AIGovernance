@@ -4,11 +4,12 @@ Manages policy versioning, approval workflow with separation-of-duties
 enforcement, rollback capability, and version history queries. Policy
 content is stored in S3; version metadata lives in DynamoDB.
 
-Requirements: 10.1, 10.2, 10.3, 10.4, 10.5
+Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 21.2
 """
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -101,6 +102,20 @@ class PolicyLifecycle:
                 "timestamp": now,
             })
         )
+
+        # Phase 2: Log policy change via ChangeLogger (Req 21.2)
+        change_type_detail = "create" if next_version == 1 else "update"
+        self._log_policy_change(
+            policy_id=policy_id,
+            previous_version=str(next_version - 1) if next_version > 1 else "0",
+            new_version=str(next_version),
+            author_id=author_id,
+            approver_id="",
+            change_type_detail=change_type_detail,
+            s3_client=s3_client,
+            bucket=bucket,
+        )
+
         return version_record
 
     def approve_policy(
@@ -229,7 +244,75 @@ class PolicyLifecycle:
                 "timestamp": now,
             })
         )
+
+        # Phase 2: Log rollback via ChangeLogger (Req 21.2)
+        self._log_policy_change(
+            policy_id=policy_id,
+            previous_version=str(current_version),
+            new_version=str(new_version),
+            author_id=requester_id,
+            approver_id=requester_id,
+            change_type_detail="rollback",
+            s3_client=s3_client,
+            bucket=bucket,
+        )
+
         return version_record
+
+    def _log_policy_change(
+        self,
+        policy_id: str,
+        previous_version: str,
+        new_version: str,
+        author_id: str,
+        approver_id: str,
+        change_type_detail: str,
+        s3_client,
+        bucket: str,
+    ) -> None:
+        """Log a policy change via ChangeLogger if configured.
+
+        Args:
+            policy_id: The policy that changed.
+            previous_version: Previous version identifier.
+            new_version: New version identifier.
+            author_id: Identity of the policy author.
+            approver_id: Identity of the policy approver.
+            change_type_detail: One of "create", "update", or "rollback".
+            s3_client: boto3 S3 client.
+            bucket: S3 bucket name.
+        """
+        change_log_table_name = os.environ.get("CHANGE_LOG_TABLE_NAME", "")
+        evidence_bucket = os.environ.get(
+            "IMMUTABLE_EVIDENCE_BUCKET_NAME",
+            os.environ.get("EVIDENCE_BUCKET_NAME", bucket),
+        )
+        if change_log_table_name and evidence_bucket:
+            try:
+                import boto3 as _boto3
+                from governance_engine.change_logger import ChangeLogger
+
+                dynamodb = _boto3.resource("dynamodb")
+                cl = ChangeLogger(dynamodb.Table(change_log_table_name))
+                cl.log_policy_change(
+                    policy_id=policy_id,
+                    previous_version=previous_version,
+                    new_version=new_version,
+                    author_id=author_id,
+                    approver_id=approver_id,
+                    change_type_detail=change_type_detail,
+                    s3_client=s3_client,
+                    bucket=evidence_bucket,
+                )
+            except Exception as cl_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "policy_change_logging_failed",
+                        "error": str(cl_exc),
+                        "policy_id": policy_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    })
+                )
 
     @staticmethod
     def get_policy_history(

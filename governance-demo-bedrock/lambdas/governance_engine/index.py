@@ -53,6 +53,11 @@ from .risk_scoring import RiskScoringEngine
 from .threat_detector import ThreatDetector
 from .tool_model_registry import ToolModelRegistry
 
+# Phase 2 imports
+from .approval_workflow import ApprovalWorkflow
+from .change_logger import ChangeLogger
+from .decision_history import DecisionHistory
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -69,6 +74,11 @@ CONTROL_TRACE_TABLE_NAME = os.environ.get("CONTROL_TRACE_TABLE_NAME", "")
 THREAT_PATTERNS_TABLE_NAME = os.environ.get("THREAT_PATTERNS_TABLE_NAME", "")
 CONTROL_MAPPING_TABLE_NAME = os.environ.get("CONTROL_MAPPING_TABLE_NAME", "")
 IMMUTABLE_EVIDENCE_BUCKET_NAME = os.environ.get("IMMUTABLE_EVIDENCE_BUCKET_NAME", "")
+
+# Phase 2 environment variables
+PENDING_APPROVAL_TABLE_NAME = os.environ.get("PENDING_APPROVAL_TABLE_NAME", "")
+CHANGE_LOG_TABLE_NAME = os.environ.get("CHANGE_LOG_TABLE_NAME", "")
+DECISION_HISTORY_TABLE_NAME = os.environ.get("DECISION_HISTORY_TABLE_NAME", "")
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +197,187 @@ def _deny_response(
 
 
 
+def _api_response(status_code: int, body: Any) -> Dict[str, Any]:
+    """Build an API Gateway proxy response."""
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(body, default=str),
+    }
+
+
+def _handle_api_gateway_event(
+    event: Dict[str, Any], context: Any
+) -> Dict[str, Any]:
+    """Handle API Gateway proxy events for Phase 2 endpoints.
+
+    Routes:
+        POST /approvals/{approval_id}/approve
+        POST /approvals/{approval_id}/deny
+        GET  /approvals/pending
+        GET  /decisions/{agent_id}
+
+    Requirements: 20.3, 20.4, 20.5, 22.2, 22.3
+    """
+    http_method = event.get("httpMethod", "")
+    resource = event.get("resource", "")
+    path_params = event.get("pathParameters") or {}
+    query_params = event.get("queryStringParameters") or {}
+
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        body = {}
+
+    try:
+        dynamodb = boto3.resource("dynamodb")
+
+        # --- Approval endpoints ---
+        if "/approvals/" in resource:
+            if not PENDING_APPROVAL_TABLE_NAME:
+                return _api_response(503, {"error": "Approval table not configured"})
+
+            aw = ApprovalWorkflow(dynamodb.Table(PENDING_APPROVAL_TABLE_NAME))
+
+            # GET /approvals/pending
+            if resource.endswith("/pending") and http_method == "GET":
+                from boto3.dynamodb.conditions import Attr
+
+                table = dynamodb.Table(PENDING_APPROVAL_TABLE_NAME)
+                response = table.scan(
+                    FilterExpression=Attr("status").eq("pending"),
+                )
+                items = response.get("Items", [])
+
+                # Check timeouts on each pending approval
+                active_pending = []
+                for item in items:
+                    aid = item.get("approval_id", "")
+                    timed_out = aw.check_timeout(aid)
+                    if timed_out is None:
+                        active_pending.append(item)
+
+                return _api_response(200, {"pending_approvals": active_pending})
+
+            approval_id = path_params.get("approval_id", "")
+
+            # POST /approvals/{approval_id}/approve
+            if resource.endswith("/approve") and http_method == "POST":
+                approver_id = body.get("approver_id", "")
+                conditions = body.get("conditions", "")
+
+                # Look up agent owner from registry
+                agent_owner_id = ""
+                if AGENT_REGISTRY_TABLE_NAME:
+                    approval_record = aw._get_approval(approval_id)
+                    if approval_record:
+                        ar = AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME))
+                        reg_entry = ar.get_agent(approval_record.agent_id)
+                        if reg_entry:
+                            agent_owner_id = reg_entry.owner
+
+                result = aw.approve(approval_id, approver_id, agent_owner_id, conditions)
+
+                # Write approval evidence
+                evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
+                if evidence_bucket and result:
+                    try:
+                        s3_client = boto3.client("s3")
+                        aw.write_approval_evidence(
+                            result, s3_client, evidence_bucket, "prod",
+                        )
+                    except Exception:
+                        pass
+
+                return _api_response(200, result.to_dict() if result else {})
+
+            # POST /approvals/{approval_id}/deny
+            if resource.endswith("/deny") and http_method == "POST":
+                approver_id = body.get("approver_id", "")
+                denial_reason = body.get("denial_reason", "")
+
+                result = aw.deny(approval_id, approver_id, denial_reason)
+
+                # Write denial evidence
+                evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
+                if evidence_bucket and result:
+                    try:
+                        s3_client = boto3.client("s3")
+                        aw.write_approval_evidence(
+                            result, s3_client, evidence_bucket, "prod",
+                        )
+                    except Exception:
+                        pass
+
+                return _api_response(200, result.to_dict() if result else {})
+
+        # --- Decision history endpoints ---
+        if "/decisions/" in resource and http_method == "GET":
+            if not DECISION_HISTORY_TABLE_NAME:
+                return _api_response(503, {"error": "Decision history table not configured"})
+
+            dh = DecisionHistory(dynamodb.Table(DECISION_HISTORY_TABLE_NAME))
+            agent_id = path_params.get("agent_id", "")
+
+            start_date = query_params.get("start_date")
+            end_date = query_params.get("end_date")
+            verdict = query_params.get("verdict")
+            min_score = query_params.get("min_score")
+            max_score = query_params.get("max_score")
+            control_id = query_params.get("control_id")
+            limit = int(query_params.get("limit", "100"))
+            last_key_str = query_params.get("last_evaluated_key")
+            last_key = json.loads(last_key_str) if last_key_str else None
+
+            if control_id:
+                entries, next_key = dh.query_by_control_id(
+                    control_id, limit=limit, last_evaluated_key=last_key,
+                )
+            elif verdict:
+                entries, next_key = dh.query_by_verdict(
+                    agent_id, verdict, start_date, end_date,
+                    limit=limit, last_evaluated_key=last_key,
+                )
+            elif min_score is not None and max_score is not None:
+                entries, next_key = dh.query_by_risk_score_range(
+                    agent_id, float(min_score), float(max_score),
+                    limit=limit, last_evaluated_key=last_key,
+                )
+            else:
+                entries, next_key = dh.query_by_agent(
+                    agent_id, start_date, end_date,
+                    limit=limit, last_evaluated_key=last_key,
+                )
+
+            result = {
+                "decisions": [e.to_dict() for e in entries],
+                "last_evaluated_key": next_key,
+            }
+            return _api_response(200, result)
+
+        return _api_response(404, {"error": "Route not found"})
+
+    except ValueError as ve:
+        return _api_response(400, {"error": str(ve)})
+    except Exception as exc:
+        logger.error(
+            json.dumps({
+                "event": "api_handler_error",
+                "error": str(exc),
+                "resource": resource,
+                "timestamp": _iso_now(),
+            })
+        )
+        return _api_response(500, {"error": f"Internal error: {type(exc).__name__}"})
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda entry point — orchestrate the governance decision pipeline.
 
-    Input event format::
+    Handles both direct invocation (from Scope Enforcer) and API Gateway
+    proxy events (for approval workflow and decision history endpoints).
+
+    Input event format (direct invocation)::
 
         {
             "agent_id": "demo-agent",
@@ -204,6 +391,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         A JSON-serialisable dict representing the GovernanceDecision.
         On unrecoverable failure the verdict is always "deny" (Req 18.2, 18.5).
     """
+    # ------------------------------------------------------------------
+    # Phase 2: Route API Gateway proxy events to appropriate handlers
+    # ------------------------------------------------------------------
+    if "httpMethod" in event and "resource" in event:
+        return _handle_api_gateway_event(event, context)
+
     agent_id = event.get("agent_id", "")
 
     # ------------------------------------------------------------------
@@ -272,6 +465,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 dynamodb.Table(CONTROL_TRACE_TABLE_NAME)
                 if CONTROL_TRACE_TABLE_NAME else None
             )
+
+            # Phase 2 managers
+            approval_workflow = ApprovalWorkflow(
+                dynamodb.Table(PENDING_APPROVAL_TABLE_NAME)
+            ) if PENDING_APPROVAL_TABLE_NAME else None
+
+            change_logger = ChangeLogger(
+                dynamodb.Table(CHANGE_LOG_TABLE_NAME)
+            ) if CHANGE_LOG_TABLE_NAME else None
+
+            decision_history = DecisionHistory(
+                dynamodb.Table(DECISION_HISTORY_TABLE_NAME)
+            ) if DECISION_HISTORY_TABLE_NAME else None
 
         except Exception as init_exc:
             # DynamoDB / S3 tables unreachable — deny all (Req 18.2)
@@ -578,6 +784,63 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     json.dumps({
                         "event": "control_trace_storage_failed",
                         "error": str(ct_exc),
+                        "decision_id": decision.decision_id,
+                        "timestamp": _iso_now(),
+                    })
+                )
+
+        # ==============================================================
+        # Phase 2 post-decision — approval workflow + decision history
+        # ==============================================================
+
+        # --------------------------------------------------------------
+        # 16a. Approval workflow for escalated decisions (Req 20.1, 20.2)
+        # --------------------------------------------------------------
+        if decision.verdict == "escalate" and approval_workflow is not None:
+            try:
+                approval_id = approval_workflow.create_pending_approval(
+                    decision, timeout_seconds=3600,
+                )
+                # Retrieve the approval record for notification
+                approval_record = approval_workflow._get_approval(approval_id)
+                if approval_record is not None:
+                    try:
+                        sns_client = boto3.client("sns")
+                        topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
+                        if topic_arn:
+                            approval_workflow.notify_approvers(
+                                approval_record, sns_client, topic_arn,
+                            )
+                    except Exception as notify_exc:
+                        logger.error(
+                            json.dumps({
+                                "event": "approval_notification_failed",
+                                "error": str(notify_exc),
+                                "approval_id": approval_id,
+                                "timestamp": _iso_now(),
+                            })
+                        )
+            except Exception as aw_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "approval_workflow_failed",
+                        "error": str(aw_exc),
+                        "decision_id": decision.decision_id,
+                        "timestamp": _iso_now(),
+                    })
+                )
+
+        # --------------------------------------------------------------
+        # 16b. Index decision in history (Req 22.1)
+        # --------------------------------------------------------------
+        if decision_history is not None:
+            try:
+                decision_history.index_decision(decision)
+            except Exception as dh_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "decision_history_indexing_failed",
+                        "error": str(dh_exc),
                         "decision_id": decision.decision_id,
                         "timestamp": _iso_now(),
                     })
