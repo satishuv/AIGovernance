@@ -31,6 +31,7 @@ class KillSwitchManager:
         operator_id: str,
         scope_table,
         agent_registry_table,
+        cloudwatch_client=None,
     ) -> Dict[str, Any]:
         """Activate the kill switch — set all active agents to scope 0.
 
@@ -99,6 +100,14 @@ class KillSwitchManager:
                 }
             )
         )
+
+        # Phase 3: publish kill switch activation metric (Req 25.1)
+        if cloudwatch_client is not None:
+            try:
+                from .cloudwatch_metrics import CloudWatchMetricsPublisher
+                CloudWatchMetricsPublisher().publish_kill_switch_metric(cloudwatch_client)
+            except Exception:
+                pass
 
         return {
             "status": "activated",

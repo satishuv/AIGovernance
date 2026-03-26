@@ -16,6 +16,10 @@ from aws_cdk import (
     aws_cloudtrail as cloudtrail,
     aws_sns as sns,
     aws_apigateway as apigw,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cw_actions,
+    aws_events as events,
+    aws_events_targets as targets,
     custom_resources as cr,
 )
 from constructs import Construct
@@ -1435,4 +1439,316 @@ class GovernanceBedrockStack(Stack):
                     resources=[self.compliance_refresh_lambda.function_arn],
                 ),
             ]),
+        )
+
+        # ===================================================================
+        # Phase 3 — Compliance, Metrics, and Advanced Security Infrastructure
+        # ===================================================================
+
+        # --- Task 69.1: DynamoDB tables for Phase 3 ---
+
+        self.denial_pattern_table = dynamodb.Table(
+            self,
+            "DenialPatternTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="window_start", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.exfiltration_allowlist_table = dynamodb.Table(
+            self,
+            "ExfiltrationAllowlistTable",
+            partition_key=dynamodb.Attribute(
+                name="endpoint_pattern", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.scope_reduction_history_table = dynamodb.Table(
+            self,
+            "ScopeReductionHistoryTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.multi_agent_config_table = dynamodb.Table(
+            self,
+            "MultiAgentConfigTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        self.metrics_threshold_table = dynamodb.Table(
+            self,
+            "MetricsThresholdTable",
+            partition_key=dynamodb.Attribute(
+                name="metric_name", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # --- Task 69.2: CloudWatch alarms ---
+
+        self.policy_eval_latency_alarm = cloudwatch.Alarm(
+            self,
+            "PolicyEvalLatencyAlarm",
+            alarm_name="AGCP-PolicyEvalLatencyAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AGCP/Governance",
+                metric_name="PolicyEvalLatency",
+                statistic="Average",
+                period=Duration.seconds(60),
+            ),
+            threshold=200,
+            evaluation_periods=3,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            alarm_description="Policy evaluation latency exceeds 200ms",
+        )
+        self.policy_eval_latency_alarm.add_alarm_action(
+            cw_actions.SnsAction(self.operator_alerts_topic)
+        )
+
+        self.evidence_write_failure_alarm = cloudwatch.Alarm(
+            self,
+            "EvidenceWriteFailureAlarm",
+            alarm_name="AGCP-EvidenceWriteFailureAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AGCP/Governance",
+                metric_name="EvidenceWriteFailureCount",
+                statistic="Sum",
+                period=Duration.seconds(60),
+            ),
+            threshold=1,
+            evaluation_periods=5,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_description="Evidence write failure rate exceeds threshold",
+        )
+        self.evidence_write_failure_alarm.add_alarm_action(
+            cw_actions.SnsAction(self.operator_alerts_topic)
+        )
+
+        self.kill_switch_activation_alarm = cloudwatch.Alarm(
+            self,
+            "KillSwitchActivationAlarm",
+            alarm_name="AGCP-KillSwitchActivationAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AGCP/Governance",
+                metric_name="KillSwitchActivationCount",
+                statistic="Sum",
+                period=Duration.seconds(60),
+            ),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_description="Kill switch has been activated",
+        )
+        self.kill_switch_activation_alarm.add_alarm_action(
+            cw_actions.SnsAction(self.operator_alerts_topic)
+        )
+
+        # --- Task 69.3: Grant Lambda access to Phase 3 tables and CloudWatch ---
+
+        self.denial_pattern_table.grant_read_write_data(self.governance_engine_lambda)
+        self.exfiltration_allowlist_table.grant_read_write_data(self.governance_engine_lambda)
+        self.scope_reduction_history_table.grant_read_write_data(self.governance_engine_lambda)
+        self.multi_agent_config_table.grant_read_write_data(self.governance_engine_lambda)
+        self.metrics_threshold_table.grant_read_write_data(self.governance_engine_lambda)
+
+        self.governance_engine_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+            )
+        )
+
+        self.governance_engine_lambda.add_environment(
+            "DENIAL_PATTERN_TABLE_NAME",
+            self.denial_pattern_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "EXFILTRATION_ALLOWLIST_TABLE_NAME",
+            self.exfiltration_allowlist_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "SCOPE_REDUCTION_HISTORY_TABLE_NAME",
+            self.scope_reduction_history_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "MULTI_AGENT_CONFIG_TABLE_NAME",
+            self.multi_agent_config_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
+            "METRICS_THRESHOLD_TABLE_NAME",
+            self.metrics_threshold_table.table_name,
+        )
+
+        # --- Task 69.4: Seed Phase 3 DynamoDB tables ---
+
+        # Seed ExfiltrationAllowlistTable with default approved endpoints
+        exfiltration_allowlist_seeds = [
+            "amazonaws.com",
+            "aws.amazon.com",
+            "github.com",
+        ]
+        for idx, endpoint in enumerate(exfiltration_allowlist_seeds):
+            cr.AwsCustomResource(
+                self,
+                f"ExfiltrationAllowlistSeed{idx}",
+                on_create=cr.AwsSdkCall(
+                    service="DynamoDB",
+                    action="putItem",
+                    parameters={
+                        "TableName": self.exfiltration_allowlist_table.table_name,
+                        "Item": {
+                            "endpoint_pattern": {"S": endpoint},
+                            "description": {"S": f"Default approved endpoint: {endpoint}"},
+                            "added_at": {"S": "2025-01-15T10:30:00Z"},
+                        },
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of(
+                        f"ExfiltrationAllowlistSeed{idx}"
+                    ),
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements([
+                    iam.PolicyStatement(
+                        actions=["dynamodb:PutItem"],
+                        resources=[self.exfiltration_allowlist_table.table_arn],
+                    ),
+                ]),
+            )
+
+        # Seed MetricsThresholdTable with default thresholds
+        metrics_threshold_seeds = [
+            {"metric_name": "denial_rate", "threshold": 0.3,
+             "description": "Maximum acceptable denial rate"},
+            {"metric_name": "escalation_rate", "threshold": 0.2,
+             "description": "Maximum acceptable escalation rate"},
+            {"metric_name": "avg_risk_score", "threshold": 60,
+             "description": "Maximum acceptable average risk score"},
+        ]
+        for idx, mt in enumerate(metrics_threshold_seeds):
+            cr.AwsCustomResource(
+                self,
+                f"MetricsThresholdSeed{idx}",
+                on_create=cr.AwsSdkCall(
+                    service="DynamoDB",
+                    action="putItem",
+                    parameters={
+                        "TableName": self.metrics_threshold_table.table_name,
+                        "Item": {
+                            "metric_name": {"S": mt["metric_name"]},
+                            "threshold": {"N": str(mt["threshold"])},
+                            "description": {"S": mt["description"]},
+                        },
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of(
+                        f"MetricsThresholdSeed{idx}"
+                    ),
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements([
+                    iam.PolicyStatement(
+                        actions=["dynamodb:PutItem"],
+                        resources=[self.metrics_threshold_table.table_arn],
+                    ),
+                ]),
+            )
+
+        # Seed MultiAgentConfigTable with demo-agent configuration
+        cr.AwsCustomResource(
+            self,
+            "MultiAgentConfigSeed0",
+            on_create=cr.AwsSdkCall(
+                service="DynamoDB",
+                action="putItem",
+                parameters={
+                    "TableName": self.multi_agent_config_table.table_name,
+                    "Item": {
+                        "agent_id": {"S": "demo-agent"},
+                        "policy_binding_ids": {"L": [
+                            {"S": "default-deny"},
+                            {"S": "allow-read-at-scope-1"},
+                        ]},
+                        "risk_profile": {"M": {
+                            "base_risk": {"N": "10"},
+                            "escalation_threshold": {"N": "70"},
+                        }},
+                        "evidence_partition": {"S": "evidence/demo-agent/"},
+                        "environment": {"S": "dev"},
+                    },
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("MultiAgentConfigSeed0"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["dynamodb:PutItem"],
+                    resources=[self.multi_agent_config_table.table_arn],
+                ),
+            ]),
+        )
+
+        # Seed scope reduction config in RiskConfigTable
+        cr.AwsCustomResource(
+            self,
+            "ScopeReductionConfigSeed",
+            on_create=cr.AwsSdkCall(
+                service="DynamoDB",
+                action="putItem",
+                parameters={
+                    "TableName": self.risk_config_table.table_name,
+                    "Item": {
+                        "config_key": {"S": "scope_reduction_mode"},
+                        "value": {"S": "approval-gated"},
+                        "time_window_seconds": {"N": "3600"},
+                        "sustained_period_seconds": {"N": "1800"},
+                        "cooldown_seconds": {"N": "7200"},
+                        "high_risk_threshold": {"N": "70"},
+                        "description": {"S": "Graduated scope reduction configuration"},
+                    },
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("ScopeReductionConfigSeed"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["dynamodb:PutItem"],
+                    resources=[self.risk_config_table.table_arn],
+                ),
+            ]),
+        )
+
+        # --- Task 69.5: EventBridge rule for monthly MEASURE/MANAGE reports ---
+
+        self.monthly_report_rule = events.Rule(
+            self,
+            "MonthlyReportRule",
+            rule_name="AGCP-MonthlyMeasureManageReport",
+            description="Triggers monthly MEASURE/MANAGE report generation on the 1st of each month",
+            schedule=events.Schedule.cron(
+                minute="0", hour="2", day="1", month="*", year="*",
+            ),
+        )
+
+        self.monthly_report_rule.add_target(
+            targets.LambdaFunction(
+                self.governance_engine_lambda,
+                event=events.RuleTargetInput.from_object({
+                    "trigger": "monthly_report",
+                    "report_type": "measure_manage",
+                }),
+            )
         )

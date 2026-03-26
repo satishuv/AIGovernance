@@ -187,6 +187,28 @@
     "compliance_status": "implemented"
   },
   {
+    "control_id": "MEASURE 1",
+    "control_name": "Metrics and Methodologies",
+    "framework": "nist_ai_rmf",
+    "function_name": "MEASURE",
+    "category": "MEASURE 1",
+    "subcategory": "Metrics and Methodologies",
+    "implementation_component": "MeasureManage_Engine",
+    "evidence_generated": "Aggregate metrics reports, denial/escalation rates, risk score distributions",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MEASURE 1",
+    "control_name": "Metrics and Methodologies",
+    "framework": "nist_ai_rmf",
+    "function_name": "MEASURE",
+    "category": "MEASURE 1",
+    "subcategory": "Metrics and Methodologies",
+    "implementation_component": "CloudWatch_Metrics_Publisher",
+    "evidence_generated": "Real-time decision count, latency, risk score, kill switch, and evidence failure metrics",
+    "compliance_status": "implemented"
+  },
+  {
     "control_id": "MEASURE 2",
     "control_name": "Evaluation and Tracking",
     "framework": "nist_ai_rmf",
@@ -217,6 +239,94 @@
     "subcategory": "Feedback and Communication",
     "implementation_component": "Approval_Workflow",
     "evidence_generated": "Approval feedback records, stakeholder communication logs",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 1",
+    "control_name": "Risk Response",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 1",
+    "subcategory": "Risk Response",
+    "implementation_component": "MeasureManage_Engine",
+    "evidence_generated": "MANAGE reports with incident summaries, policy change summaries, remediation actions",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 1",
+    "control_name": "Risk Response",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 1",
+    "subcategory": "Risk Response",
+    "implementation_component": "Graduated_Scope_Reduction",
+    "evidence_generated": "Scope reduction events with rolling avg risk, sustained threshold, cooldown tracking",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 2",
+    "control_name": "Risk Prioritization",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 2",
+    "subcategory": "Risk Prioritization",
+    "implementation_component": "Privilege_Escalation_Detector",
+    "evidence_generated": "Privilege escalation attempt records, denial pattern tracking, auto scope reduction logs",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 2",
+    "control_name": "Risk Prioritization",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 2",
+    "subcategory": "Risk Prioritization",
+    "implementation_component": "Exfiltration_Detector",
+    "evidence_generated": "Exfiltration detection records, blocked output logs, allowlist enforcement",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 3",
+    "control_name": "Risk Monitoring",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 3",
+    "subcategory": "Risk Monitoring",
+    "implementation_component": "CloudWatch_Metrics_Publisher",
+    "evidence_generated": "CloudWatch alarms for latency, evidence failures, kill switch activations",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 3",
+    "control_name": "Risk Monitoring",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 3",
+    "subcategory": "Risk Monitoring",
+    "implementation_component": "MeasureManage_Engine",
+    "evidence_generated": "Threshold comparison reports, automated alerts when metrics exceed thresholds",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 4",
+    "control_name": "Risk Communication",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 4",
+    "subcategory": "Risk Communication",
+    "implementation_component": "Multi_Agent_Manager",
+    "evidence_generated": "Per-agent risk profiles, aggregate cross-agent compliance reports",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "MANAGE 4",
+    "control_name": "Risk Communication",
+    "framework": "nist_ai_rmf",
+    "function_name": "MANAGE",
+    "category": "MANAGE 4",
+    "subcategory": "Risk Communication",
+    "implementation_component": "Extended_Validation_Suite",
+    "evidence_generated": "Compliance validation reports with gap analysis and remediation recommendations",
     "compliance_status": "implemented"
   }
 ]

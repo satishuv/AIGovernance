@@ -64,6 +64,12 @@ def main() -> None:
         default=False,
         help="Use API invocation mode instead of local execution.",
     )
+    parser.add_argument(
+        "--extended",
+        action="store_true",
+        default=False,
+        help="Run ExtendedValidationSuite instead of MinimumValidationSuite.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -75,16 +81,52 @@ def main() -> None:
     if args.api:
         config["mode"] = "api"
 
-    suite = MinimumValidationSuite(config=config)
-    results = suite.run_all_tests()
-    report = suite.generate_report(results)
+    if args.extended:
+        from governance_engine.extended_validation import ExtendedValidationSuite  # noqa: E402
 
-    print(json.dumps(report, indent=2))
+        suite = ExtendedValidationSuite()
+        results = []
 
-    if report["suite_passed"]:
-        sys.exit(0)
+        # Run control mapping completeness test if table configured
+        cm_table_name = config.get("control_mapping_table_name") or os.environ.get(
+            "CONTROL_MAPPING_TABLE_NAME", ""
+        )
+        if cm_table_name:
+            try:
+                import boto3
+                dynamodb = boto3.resource("dynamodb")
+                r = suite.test_control_mapping_completeness(dynamodb.Table(cm_table_name))
+                results.append(r)
+            except Exception as exc:
+                from governance_engine.models import ValidationResult
+                from datetime import datetime, timezone
+                results.append(ValidationResult(
+                    test_name="test_control_mapping_completeness",
+                    passed=False, evidence_record_ids=[], control_trace_ids=[],
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    details=f"Failed: {exc}",
+                ))
+
+        report = suite.generate_compliance_report(results, "json")
+        print(json.dumps(report, indent=2))
+
+        gaps = suite.detect_gaps(results)
+        has_failures = any(not r.passed for r in results)
+        if has_failures:
+            sys.exit(1)
+        else:
+            sys.exit(0)
     else:
-        sys.exit(1)
+        suite = MinimumValidationSuite(config=config)
+        results = suite.run_all_tests()
+        report = suite.generate_report(results)
+
+        print(json.dumps(report, indent=2))
+
+        if report["suite_passed"]:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

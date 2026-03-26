@@ -182,5 +182,45 @@
     "implementation_component": "Separation_of_Duties",
     "evidence_generated": "Role-based access control records, SoD enforcement logs",
     "compliance_status": "implemented"
+  },
+  {
+    "control_id": "A.3",
+    "control_name": "Internal Organization",
+    "framework": "iso_42001",
+    "implementation_component": "Privilege_Escalation_Detector",
+    "evidence_generated": "Privilege escalation attempt records, auto scope reduction logs, denial pattern tracking",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "A.6",
+    "control_name": "AI System Lifecycle",
+    "framework": "iso_42001",
+    "implementation_component": "Graduated_Scope_Reduction",
+    "evidence_generated": "Scope reduction events with rolling avg risk, sustained threshold, cooldown tracking",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "A.8",
+    "control_name": "Data for AI",
+    "framework": "iso_42001",
+    "implementation_component": "Exfiltration_Detector",
+    "evidence_generated": "Exfiltration detection records, blocked output logs, allowlist enforcement",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "A.9",
+    "control_name": "AI System Performance",
+    "framework": "iso_42001",
+    "implementation_component": "CloudWatch_Metrics_Publisher",
+    "evidence_generated": "Decision count metrics, latency metrics, risk score metrics, kill switch and evidence failure alerts",
+    "compliance_status": "implemented"
+  },
+  {
+    "control_id": "A.10",
+    "control_name": "Third-party and Customer Relationships",
+    "framework": "iso_42001",
+    "implementation_component": "Multi_Agent_Manager",
+    "evidence_generated": "Per-agent config records, cross-agent rule enforcement logs, aggregate reports",
+    "compliance_status": "implemented"
   }
 ]

@@ -60,6 +60,12 @@ class MinimumValidationSuite:
         results.append(self.test_kill_switch(cfg))
         results.append(self.test_scope_boundary(cfg))
         results.append(self.test_evidence_generation(cfg))
+        # Phase 3 validation tests
+        results.append(self.test_cloudwatch_metrics(cfg))
+        results.append(self.test_privilege_escalation_hardening(cfg))
+        results.append(self.test_exfiltration_prevention(cfg))
+        results.append(self.test_graduated_scope_reduction(cfg))
+        results.append(self.test_multi_agent_isolation(cfg))
         return results
 
     def test_policy_evaluation(
@@ -315,6 +321,195 @@ class MinimumValidationSuite:
 
     # ------------------------------------------------------------------
     # Reporting
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Phase 3 validation tests
+    # ------------------------------------------------------------------
+
+    def test_cloudwatch_metrics(
+        self, config: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Verify CloudWatch metrics publisher has all required methods.
+
+        Requirements: 25.1
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            from .cloudwatch_metrics import CloudWatchMetricsPublisher
+
+            publisher = CloudWatchMetricsPublisher()
+            checks = [
+                hasattr(publisher, "publish_decision_metric"),
+                hasattr(publisher, "publish_latency_metric"),
+                hasattr(publisher, "publish_risk_score_metric"),
+                hasattr(publisher, "publish_kill_switch_metric"),
+                hasattr(publisher, "publish_evidence_failure_metric"),
+            ]
+            if all(checks):
+                return ValidationResult(
+                    test_name="test_cloudwatch_metrics",
+                    passed=True,
+                    evidence_record_ids=[],
+                    control_trace_ids=[],
+                    timestamp=now,
+                    details="CloudWatch metrics publisher has all required methods",
+                )
+            names = ["decision", "latency", "risk_score", "kill_switch", "evidence_failure"]
+            missing = [n for n, ok in zip(names, checks) if not ok]
+            return ValidationResult(
+                test_name="test_cloudwatch_metrics",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Missing metric methods: {missing}",
+            )
+        except Exception as exc:
+            return ValidationResult(
+                test_name="test_cloudwatch_metrics",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"CloudWatch metrics validation failed: {exc}",
+            )
+
+    def test_privilege_escalation_hardening(
+        self, config: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Verify self-modification and policy modification attempts are denied.
+
+        Requirements: 27.1, 27.2
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            from .privilege_escalation import PrivilegeEscalationDetector
+
+            detector = PrivilegeEscalationDetector()
+            self_mod = detector.is_self_modification(
+                "demo-agent", {"action_group": "update_scope", "target_resource": "demo-agent"},
+            )
+            policy_mod = detector.is_policy_modification({"action_group": "update_policy"})
+            normal_clean = not detector.is_self_modification(
+                "demo-agent", {"action_group": "ReadPipelineStatus", "target_resource": "production"},
+            )
+            all_passed = self_mod and policy_mod and normal_clean
+            return ValidationResult(
+                test_name="test_privilege_escalation_hardening",
+                passed=all_passed, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now,
+                details=f"self_mod={self_mod}, policy_mod={policy_mod}, normal_clean={normal_clean}",
+            )
+        except Exception as exc:
+            return ValidationResult(
+                test_name="test_privilege_escalation_hardening",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Privilege escalation validation failed: {exc}",
+            )
+
+    def test_exfiltration_prevention(
+        self, config: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Verify large output, encoded blocks, and unapproved endpoints are blocked.
+
+        Requirements: 28.1, 28.2
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            from .exfiltration_detector import ExfiltrationDetector
+            import base64
+
+            detector = ExfiltrationDetector()
+            size_ok, _, _ = detector.check_output_size(
+                "x" * 100000, scope_level=1, size_limits_config={"1": 1024},
+            )
+            large_blocked = not size_ok
+            encoded_block = base64.b64encode(b"A" * 1024).decode()
+            detected_blocks = detector.detect_encoded_blocks(encoded_block, max_encoded_length=512)
+            encoded_detected = len(detected_blocks) > 0
+            unapproved = detector.check_external_endpoints(
+                "Send data to https://evil.example.com/exfil", allowlist=["amazonaws.com"],
+            )
+            endpoint_detected = len(unapproved) > 0
+            all_passed = large_blocked and encoded_detected and endpoint_detected
+            return ValidationResult(
+                test_name="test_exfiltration_prevention",
+                passed=all_passed, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now,
+                details=f"large_blocked={large_blocked}, encoded={encoded_detected}, endpoint={endpoint_detected}",
+            )
+        except Exception as exc:
+            return ValidationResult(
+                test_name="test_exfiltration_prevention",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Exfiltration prevention validation failed: {exc}",
+            )
+
+    def test_graduated_scope_reduction(
+        self, config: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Verify graduated scope reduction module is functional.
+
+        Requirements: 29.1, 29.2
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            from .graduated_scope_reduction import GraduatedScopeReduction
+
+            gsr = GraduatedScopeReduction()
+            methods = ["compute_rolling_avg_risk", "check_sustained_threshold",
+                       "check_cooldown", "execute_reduction", "get_reduction_mode"]
+            checks = [hasattr(gsr, m) for m in methods]
+            if all(checks):
+                return ValidationResult(
+                    test_name="test_graduated_scope_reduction",
+                    passed=True, evidence_record_ids=[], control_trace_ids=[],
+                    timestamp=now, details="All required methods present",
+                )
+            missing = [m for m, ok in zip(methods, checks) if not ok]
+            return ValidationResult(
+                test_name="test_graduated_scope_reduction",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Missing methods: {missing}",
+            )
+        except Exception as exc:
+            return ValidationResult(
+                test_name="test_graduated_scope_reduction",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Graduated scope reduction validation failed: {exc}",
+            )
+
+    def test_multi_agent_isolation(
+        self, config: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Verify per-agent evidence partitions and cross-agent rule enforcement.
+
+        Requirements: 30.2, 30.3
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            from .multi_agent import MultiAgentManager
+
+            mam = MultiAgentManager()
+            partition_a = mam.get_evidence_partition("agent-a")
+            partition_b = mam.get_evidence_partition("agent-b")
+            partitions_isolated = partition_a != partition_b
+            allowed, _ = mam.enforce_cross_agent_rules(
+                "agent-a", "agent-b",
+                {"action_group": "update_scope", "target_resource": "agent-b"},
+            )
+            cross_agent_blocked = not allowed
+            all_passed = partitions_isolated and cross_agent_blocked
+            return ValidationResult(
+                test_name="test_multi_agent_isolation",
+                passed=all_passed, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now,
+                details=f"partitions_isolated={partitions_isolated}, cross_agent_blocked={cross_agent_blocked}",
+            )
+        except Exception as exc:
+            return ValidationResult(
+                test_name="test_multi_agent_isolation",
+                passed=False, evidence_record_ids=[], control_trace_ids=[],
+                timestamp=now, details=f"Multi-agent isolation validation failed: {exc}",
+            )
+
+    # ------------------------------------------------------------------
+    # Report generation
     # ------------------------------------------------------------------
 
     def generate_report(

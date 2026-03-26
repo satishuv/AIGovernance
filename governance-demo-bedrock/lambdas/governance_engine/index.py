@@ -58,6 +58,13 @@ from .approval_workflow import ApprovalWorkflow
 from .change_logger import ChangeLogger
 from .decision_history import DecisionHistory
 
+# Phase 3 imports
+from .cloudwatch_metrics import CloudWatchMetricsPublisher
+from .exfiltration_detector import ExfiltrationDetector
+from .graduated_scope_reduction import GraduatedScopeReduction
+from .multi_agent import MultiAgentManager
+from .privilege_escalation import PrivilegeEscalationDetector
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -79,6 +86,13 @@ IMMUTABLE_EVIDENCE_BUCKET_NAME = os.environ.get("IMMUTABLE_EVIDENCE_BUCKET_NAME"
 PENDING_APPROVAL_TABLE_NAME = os.environ.get("PENDING_APPROVAL_TABLE_NAME", "")
 CHANGE_LOG_TABLE_NAME = os.environ.get("CHANGE_LOG_TABLE_NAME", "")
 DECISION_HISTORY_TABLE_NAME = os.environ.get("DECISION_HISTORY_TABLE_NAME", "")
+
+# Phase 3 environment variables
+DENIAL_PATTERN_TABLE_NAME = os.environ.get("DENIAL_PATTERN_TABLE_NAME", "")
+EXFILTRATION_ALLOWLIST_TABLE_NAME = os.environ.get("EXFILTRATION_ALLOWLIST_TABLE_NAME", "")
+SCOPE_REDUCTION_HISTORY_TABLE_NAME = os.environ.get("SCOPE_REDUCTION_HISTORY_TABLE_NAME", "")
+MULTI_AGENT_CONFIG_TABLE_NAME = os.environ.get("MULTI_AGENT_CONFIG_TABLE_NAME", "")
+METRICS_THRESHOLD_TABLE_NAME = os.environ.get("METRICS_THRESHOLD_TABLE_NAME", "")
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +369,73 @@ def _handle_api_gateway_event(
             }
             return _api_response(200, result)
 
+        # --- Phase 3 report endpoints ---
+        if "/reports/" in resource and http_method == "GET":
+            from .measure_manage import MeasureManageEngine
+
+            mm_engine = MeasureManageEngine()
+            period = path_params.get("period", "monthly")
+
+            dh_table_name = os.environ.get("DECISION_HISTORY_TABLE_NAME", "")
+            cl_table_name = os.environ.get("CHANGE_LOG_TABLE_NAME", "")
+
+            if not dh_table_name:
+                return _api_response(503, {"error": "Decision history table not configured"})
+
+            from datetime import datetime as dt, timedelta
+            now = dt.utcnow()
+            end_date = now.isoformat()
+            start_date = (now - timedelta(days=30)).isoformat()
+
+            if "/reports/measure" in resource:
+                metrics = mm_engine.compute_aggregate_metrics(
+                    dynamodb.Table(dh_table_name), start_date, end_date,
+                )
+                threshold_config = {}
+                mt_table_name = os.environ.get("METRICS_THRESHOLD_TABLE_NAME", "")
+                if mt_table_name:
+                    mt_table = dynamodb.Table(mt_table_name)
+                    resp = mt_table.scan()
+                    for item in resp.get("Items", []):
+                        threshold_config[item["metric_name"]] = float(item.get("threshold", 0))
+                report = mm_engine.generate_measure_report(metrics, threshold_config)
+                return _api_response(200, report.to_dict())
+
+            if "/reports/manage" in resource:
+                cl_table = dynamodb.Table(cl_table_name) if cl_table_name else None
+                dh_table = dynamodb.Table(dh_table_name)
+                report = mm_engine.generate_manage_report(
+                    cl_table, dh_table, start_date, end_date,
+                )
+                return _api_response(200, report.to_dict())
+
+        # --- Phase 3 agent risk profile endpoint ---
+        if "/agents/" in resource and "/risk-profile" in resource and http_method == "GET":
+            agent_id = path_params.get("agent_id", "")
+            mac_table_name = os.environ.get("MULTI_AGENT_CONFIG_TABLE_NAME", "")
+            if not mac_table_name:
+                return _api_response(503, {"error": "Multi-agent config table not configured"})
+            from .multi_agent import MultiAgentManager as MAM
+            mam = MAM()
+            config = mam.get_agent_config(agent_id, dynamodb.Table(mac_table_name))
+            if config is None:
+                return _api_response(404, {"error": f"Agent config not found: {agent_id}"})
+            return _api_response(200, config.to_dict())
+
+        # --- Phase 3 extended validation endpoint ---
+        if "/validation/extended" in resource and http_method == "POST":
+            from .extended_validation import ExtendedValidationSuite
+            suite = ExtendedValidationSuite()
+            results = []
+
+            cm_table_name = os.environ.get("CONTROL_MAPPING_TABLE_NAME", "")
+            if cm_table_name:
+                r = suite.test_control_mapping_completeness(dynamodb.Table(cm_table_name))
+                results.append(r)
+
+            report = suite.generate_compliance_report(results, "json")
+            return _api_response(200, report)
+
         return _api_response(404, {"error": "Route not found"})
 
     except ValueError as ve:
@@ -479,6 +560,34 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 dynamodb.Table(DECISION_HISTORY_TABLE_NAME)
             ) if DECISION_HISTORY_TABLE_NAME else None
 
+            # Phase 3 managers
+            privilege_escalation_detector = PrivilegeEscalationDetector()
+            cw_metrics_publisher = CloudWatchMetricsPublisher()
+            cloudwatch_client = boto3.client("cloudwatch")
+
+            exfiltration_detector = ExfiltrationDetector()
+            exfiltration_allowlist_table = (
+                dynamodb.Table(EXFILTRATION_ALLOWLIST_TABLE_NAME)
+                if EXFILTRATION_ALLOWLIST_TABLE_NAME else None
+            )
+
+            graduated_scope_reduction = GraduatedScopeReduction()
+            scope_reduction_history_table = (
+                dynamodb.Table(SCOPE_REDUCTION_HISTORY_TABLE_NAME)
+                if SCOPE_REDUCTION_HISTORY_TABLE_NAME else None
+            )
+
+            denial_pattern_table = (
+                dynamodb.Table(DENIAL_PATTERN_TABLE_NAME)
+                if DENIAL_PATTERN_TABLE_NAME else None
+            )
+
+            multi_agent_manager = MultiAgentManager()
+            multi_agent_config_table = (
+                dynamodb.Table(MULTI_AGENT_CONFIG_TABLE_NAME)
+                if MULTI_AGENT_CONFIG_TABLE_NAME else None
+            )
+
         except Exception as init_exc:
             # DynamoDB / S3 tables unreachable — deny all (Req 18.2)
             logger.error(
@@ -528,6 +637,57 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # 4. Threat detection (Req 12.1, 12.2, 12.3)
         # --------------------------------------------------------------
         risk_score_adjustment = 0
+
+        # ==============================================================
+        # Phase 3 pre-check — privilege escalation hardening (Req 27.1, 27.2)
+        # ==============================================================
+        if privilege_escalation_detector.is_self_modification(agent_id, action_request):
+            deny_result = privilege_escalation_detector.deny_and_log(
+                agent_id, action_request, "self_modification",
+            )
+            if denial_pattern_table is not None:
+                exceeded, count = privilege_escalation_detector.track_denial_pattern(
+                    agent_id, denial_pattern_table,
+                )
+                if exceeded and scope_table_resource is not None:
+                    sns_client = boto3.client("sns")
+                    topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
+                    privilege_escalation_detector.auto_reduce_scope(
+                        agent_id, scope_table_resource, sns_client, topic_arn,
+                    )
+            return deny_result
+
+        if privilege_escalation_detector.is_policy_modification(action_request):
+            deny_result = privilege_escalation_detector.deny_and_log(
+                agent_id, action_request, "policy_modification",
+            )
+            if denial_pattern_table is not None:
+                exceeded, count = privilege_escalation_detector.track_denial_pattern(
+                    agent_id, denial_pattern_table,
+                )
+                if exceeded and scope_table_resource is not None:
+                    sns_client = boto3.client("sns")
+                    topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
+                    privilege_escalation_detector.auto_reduce_scope(
+                        agent_id, scope_table_resource, sns_client, topic_arn,
+                    )
+            return deny_result
+
+        # ==============================================================
+        # Phase 3 pre-check — multi-agent cross-agent rules (Req 30.2, 30.3)
+        # ==============================================================
+        target_agent_id = action_request.get("target_resource", "")
+        if multi_agent_config_table is not None and target_agent_id:
+            allowed, violation_reason = multi_agent_manager.enforce_cross_agent_rules(
+                agent_id, target_agent_id, action_request,
+            )
+            if not allowed:
+                return _deny_response(
+                    reason=violation_reason,
+                    agent_id=agent_id,
+                    error_category="cross_agent_violation",
+                )
+
         if input_text and threat_detector._patterns:
             threat_result = threat_detector.evaluate(input_text, agent_id)
             if threat_result["classification"] == "denied":
@@ -765,6 +925,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             "timestamp": _iso_now(),
                         })
                     )
+                    # Phase 3: publish evidence failure metric (Req 25.1)
+                    try:
+                        cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
+                    except Exception:
+                        pass
             else:
                 safe_write_evidence(_write_evidence_to_s3, decision)
 
@@ -846,11 +1011,116 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     })
                 )
 
+        # ==============================================================
+        # Phase 3 post-decision — CloudWatch metrics (Req 25.1)
+        # ==============================================================
+        try:
+            cw_metrics_publisher.publish_decision_metric(
+                decision.verdict, cloudwatch_client,
+            )
+            cw_metrics_publisher.publish_risk_score_metric(
+                risk_assessment.risk_score, cloudwatch_client,
+            )
+        except Exception as cw_exc:
+            logger.error(
+                json.dumps({
+                    "event": "cloudwatch_metrics_publish_failed",
+                    "error": str(cw_exc),
+                    "decision_id": decision.decision_id,
+                    "timestamp": _iso_now(),
+                })
+            )
+
+        # ==============================================================
+        # Phase 3 post-decision — output exfiltration check (Req 28.1, 28.2)
+        # ==============================================================
+        output_text = event.get("output_text", "")
+        if output_text:
+            try:
+                exfil_config = {}
+                if exfiltration_allowlist_table is not None:
+                    allowlist = exfiltration_detector.load_allowlist(
+                        exfiltration_allowlist_table,
+                    )
+                    exfil_config["allowlist"] = allowlist
+                exfil_result = exfiltration_detector.evaluate_output(
+                    agent_id, output_text, scope_level, exfil_config,
+                )
+                if exfil_result.blocked:
+                    exfiltration_detector.block_and_log(
+                        agent_id, exfil_result,
+                    )
+                    return _deny_response(
+                        reason=f"Output blocked: {exfil_result.pattern_type} detected",
+                        agent_id=agent_id,
+                        error_category="exfiltration_blocked",
+                    )
+            except Exception as exfil_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "exfiltration_check_failed",
+                        "error": str(exfil_exc),
+                        "agent_id": agent_id,
+                        "timestamp": _iso_now(),
+                    })
+                )
+
+        # ==============================================================
+        # Phase 3 post-decision — graduated scope reduction (Req 29.1, 29.2)
+        # ==============================================================
+        if (decision_history is not None
+                and scope_reduction_history_table is not None
+                and scope_table_resource is not None):
+            try:
+                rolling_avg, dec_count = graduated_scope_reduction.compute_rolling_avg_risk(
+                    agent_id, dynamodb.Table(DECISION_HISTORY_TABLE_NAME),
+                )
+                if rolling_avg > 0:
+                    threshold = 70.0
+                    exceeded, duration = graduated_scope_reduction.check_sustained_threshold(
+                        agent_id, rolling_avg, threshold, 1800,
+                        scope_reduction_history_table,
+                    )
+                    if exceeded:
+                        cooldown_active, remaining = graduated_scope_reduction.check_cooldown(
+                            agent_id, scope_reduction_history_table,
+                        )
+                        if not cooldown_active:
+                            mode = graduated_scope_reduction.get_reduction_mode(
+                                dynamodb.Table(os.environ.get("RISK_CONFIG_TABLE_NAME", "")),
+                            )
+                            sns_client = boto3.client("sns")
+                            topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
+                            graduated_scope_reduction.execute_reduction(
+                                agent_id, mode, scope_table_resource,
+                                dynamodb.Table(PENDING_APPROVAL_TABLE_NAME) if PENDING_APPROVAL_TABLE_NAME else None,
+                                sns_client, topic_arn,
+                                {"rolling_avg": rolling_avg, "threshold": threshold,
+                                 "sustained_seconds": duration},
+                            )
+            except Exception as gsr_exc:
+                logger.error(
+                    json.dumps({
+                        "event": "graduated_scope_reduction_failed",
+                        "error": str(gsr_exc),
+                        "agent_id": agent_id,
+                        "timestamp": _iso_now(),
+                    })
+                )
+
         # --------------------------------------------------------------
         # 17. Record latency metric (Req 17.1, 17.2)
         # --------------------------------------------------------------
         latency_metric = tracker.record_latency(decision.decision_id)
         decision.latency_breakdown = latency_metric.component_latencies
+
+        # Phase 3: publish latency metric to CloudWatch (Req 25.1)
+        try:
+            cw_metrics_publisher.publish_latency_metric(
+                latency_metric.total_elapsed_ms, cloudwatch_client,
+            )
+        except Exception:
+            pass
 
         # --------------------------------------------------------------
         # 18. Return GovernanceDecision as JSON

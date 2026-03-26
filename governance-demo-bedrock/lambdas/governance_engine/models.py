@@ -926,3 +926,297 @@ class ComplianceMappingEntry:
             evidence_generated=data.get("evidence_generated", ""),
             compliance_status=data.get("compliance_status", "planned"),
         )
+
+
+@dataclass
+class AggregateMetrics:
+    """Aggregate governance metrics for a reporting period (NIST AI RMF MEASURE function).
+
+    Attributes:
+        period: Reporting period identifier (e.g., "monthly", "quarterly").
+        start_date: ISO 8601 start date of the reporting period.
+        end_date: ISO 8601 end date of the reporting period.
+        total_decisions: Total number of governance decisions in the period.
+        denial_rate: Fraction of decisions that were denied (0.0–1.0).
+        escalation_rate: Fraction of decisions that were escalated (0.0–1.0).
+        avg_risk_score: Average risk score across all decisions in the period.
+        risk_score_distribution: Distribution of risk scores by bucket (keys: "low_0_25", "medium_26_50", "high_51_75", "critical_76_100").
+        generated_at: ISO 8601 timestamp when the metrics were generated.
+    """
+
+    period: str
+    start_date: str
+    end_date: str
+    total_decisions: int = 0
+    denial_rate: float = 0.0
+    escalation_rate: float = 0.0
+    avg_risk_score: float = 0.0
+    risk_score_distribution: Dict[str, int] = field(default_factory=dict)
+    generated_at: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "period": self.period,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "total_decisions": self.total_decisions,
+            "denial_rate": self.denial_rate,
+            "escalation_rate": self.escalation_rate,
+            "avg_risk_score": self.avg_risk_score,
+            "risk_score_distribution": dict(self.risk_score_distribution),
+            "generated_at": self.generated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AggregateMetrics":
+        return cls(
+            period=data["period"],
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            total_decisions=data.get("total_decisions", 0),
+            denial_rate=data.get("denial_rate", 0.0),
+            escalation_rate=data.get("escalation_rate", 0.0),
+            avg_risk_score=data.get("avg_risk_score", 0.0),
+            risk_score_distribution=data.get("risk_score_distribution", {}),
+            generated_at=data.get("generated_at", ""),
+        )
+
+
+@dataclass
+class MeasureReport:
+    """NIST AI RMF MEASURE function report with metrics and trend analysis.
+
+    Attributes:
+        report_id: Unique identifier for the report.
+        period: Reporting period identifier (e.g., "monthly", "quarterly").
+        metrics: AggregateMetrics instance or dict of aggregate metrics.
+        trend_analysis: Dict of trend data comparing current period to previous periods.
+        threshold_comparison: Dict comparing metrics against configured thresholds (metric_name to {value, threshold, exceeded}).
+        generated_at: ISO 8601 timestamp when the report was generated.
+    """
+
+    report_id: str
+    period: str
+    metrics: Any = field(default_factory=dict)  # AggregateMetrics or dict
+    trend_analysis: Dict[str, str] = field(default_factory=dict)
+    threshold_comparison: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    generated_at: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        metrics_dict = (
+            self.metrics.to_dict()
+            if isinstance(self.metrics, AggregateMetrics)
+            else dict(self.metrics) if self.metrics else {}
+        )
+        return {
+            "report_id": self.report_id,
+            "period": self.period,
+            "metrics": metrics_dict,
+            "trend_analysis": dict(self.trend_analysis),
+            "threshold_comparison": dict(self.threshold_comparison),
+            "generated_at": self.generated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MeasureReport":
+        raw_metrics = data.get("metrics", {})
+        if isinstance(raw_metrics, AggregateMetrics):
+            metrics = raw_metrics
+        else:
+            metrics = AggregateMetrics.from_dict(raw_metrics) if raw_metrics else {}
+        return cls(
+            report_id=data["report_id"],
+            period=data["period"],
+            metrics=metrics,
+            trend_analysis=data.get("trend_analysis", {}),
+            threshold_comparison=data.get("threshold_comparison", {}),
+            generated_at=data.get("generated_at", ""),
+        )
+
+
+@dataclass
+class ManageReport:
+    """NIST AI RMF MANAGE function report with incident and remediation summaries.
+
+    Attributes:
+        report_id: Unique identifier for the report.
+        period: Reporting period identifier (e.g., "monthly", "quarterly").
+        incident_summaries: List of incident summary dicts for the period.
+        policy_change_summaries: List of policy change summary dicts for the period.
+        remediation_actions: List of remediation action dicts for the period.
+        generated_at: ISO 8601 timestamp when the report was generated.
+    """
+
+    report_id: str
+    period: str
+    incident_summaries: List[Dict[str, str]] = field(default_factory=list)
+    policy_change_summaries: List[Dict[str, str]] = field(default_factory=list)
+    remediation_actions: List[Dict[str, str]] = field(default_factory=list)
+    generated_at: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "report_id": self.report_id,
+            "period": self.period,
+            "incident_summaries": [dict(s) for s in self.incident_summaries],
+            "policy_change_summaries": [dict(s) for s in self.policy_change_summaries],
+            "remediation_actions": [dict(a) for a in self.remediation_actions],
+            "generated_at": self.generated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ManageReport":
+        return cls(
+            report_id=data["report_id"],
+            period=data["period"],
+            incident_summaries=data.get("incident_summaries", []),
+            policy_change_summaries=data.get("policy_change_summaries", []),
+            remediation_actions=data.get("remediation_actions", []),
+            generated_at=data.get("generated_at", ""),
+        )
+
+
+@dataclass
+class ExfiltrationDetectionResult:
+    """Result of evaluating agent output for data exfiltration patterns.
+
+    Attributes:
+        detection_id: Unique identifier for the detection result.
+        agent_id: Identifier of the agent whose output was evaluated.
+        pattern_type: Type of exfiltration pattern detected (e.g., "large_volume", "encoded_block", "external_endpoint").
+        matched_detail: Description of the matched pattern or detail.
+        output_size_bytes: Size of the evaluated output in bytes.
+        blocked: Whether the output was blocked.
+        risk_score_increase: Amount by which the agent's risk score was increased (integer).
+        timestamp: ISO 8601 timestamp of the detection.
+    """
+
+    detection_id: str
+    agent_id: str
+    pattern_type: str
+    matched_detail: str
+    output_size_bytes: int = 0
+    blocked: bool = False
+    risk_score_increase: int = 0
+    timestamp: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "detection_id": self.detection_id,
+            "agent_id": self.agent_id,
+            "pattern_type": self.pattern_type,
+            "matched_detail": self.matched_detail,
+            "output_size_bytes": self.output_size_bytes,
+            "blocked": self.blocked,
+            "risk_score_increase": self.risk_score_increase,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ExfiltrationDetectionResult":
+        return cls(
+            detection_id=data["detection_id"],
+            agent_id=data["agent_id"],
+            pattern_type=data["pattern_type"],
+            matched_detail=data["matched_detail"],
+            output_size_bytes=data.get("output_size_bytes", 0),
+            blocked=data.get("blocked", False),
+            risk_score_increase=data.get("risk_score_increase", 0),
+            timestamp=data.get("timestamp", ""),
+        )
+
+
+@dataclass
+class ScopeReductionEvent:
+    """Record of a graduated scope reduction event for an agent.
+
+    Attributes:
+        event_id: Unique identifier for the scope reduction event.
+        agent_id: Identifier of the agent whose scope was reduced.
+        previous_scope: Scope level before reduction.
+        new_scope: Scope level after reduction.
+        rolling_avg_risk_score: Rolling average risk score that triggered the reduction.
+        threshold: Configured risk threshold that was exceeded.
+        sustained_period_seconds: Duration in seconds the threshold was sustained.
+        reduction_mode: Mode of reduction — "automatic", "approval-gated", or "notify-only".
+        cooldown_remaining_seconds: Seconds remaining in cooldown before next reduction is allowed.
+        timestamp: ISO 8601 timestamp of the reduction event.
+    """
+
+    event_id: str
+    agent_id: str
+    previous_scope: int
+    new_scope: int
+    rolling_avg_risk_score: float = 0.0
+    threshold: float = 0.0
+    sustained_period_seconds: int = 0
+    reduction_mode: str = "approval-gated"
+    cooldown_remaining_seconds: int = 0
+    timestamp: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "agent_id": self.agent_id,
+            "previous_scope": self.previous_scope,
+            "new_scope": self.new_scope,
+            "rolling_avg_risk_score": self.rolling_avg_risk_score,
+            "threshold": self.threshold,
+            "sustained_period_seconds": self.sustained_period_seconds,
+            "reduction_mode": self.reduction_mode,
+            "cooldown_remaining_seconds": self.cooldown_remaining_seconds,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ScopeReductionEvent":
+        return cls(
+            event_id=data["event_id"],
+            agent_id=data["agent_id"],
+            previous_scope=data["previous_scope"],
+            new_scope=data["new_scope"],
+            rolling_avg_risk_score=data.get("rolling_avg_risk_score", 0.0),
+            threshold=data.get("threshold", 0.0),
+            sustained_period_seconds=data.get("sustained_period_seconds", 0),
+            reduction_mode=data.get("reduction_mode", "approval-gated"),
+            cooldown_remaining_seconds=data.get("cooldown_remaining_seconds", 0),
+            timestamp=data.get("timestamp", ""),
+        )
+
+
+@dataclass
+class MultiAgentConfig:
+    """Per-agent configuration for multi-agent governance support.
+
+    Attributes:
+        agent_id: Unique identifier for the agent.
+        policy_binding_ids: List of policy IDs bound to this agent.
+        risk_profile: Dict of agent-specific risk profile settings (metric name to weight).
+        evidence_partition: S3 key prefix for this agent's evidence records.
+        environment: Deployment environment — "dev", "staging", or "prod".
+    """
+
+    agent_id: str
+    policy_binding_ids: List[str] = field(default_factory=list)
+    risk_profile: Dict[str, float] = field(default_factory=dict)
+    evidence_partition: str = ""
+    environment: str = "dev"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "policy_binding_ids": list(self.policy_binding_ids),
+            "risk_profile": dict(self.risk_profile),
+            "evidence_partition": self.evidence_partition,
+            "environment": self.environment,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MultiAgentConfig":
+        return cls(
+            agent_id=data["agent_id"],
+            policy_binding_ids=data.get("policy_binding_ids", []),
+            risk_profile=data.get("risk_profile", {}),
+            evidence_partition=data.get("evidence_partition", ""),
+            environment=data.get("environment", "dev"),
+        )
