@@ -540,101 +540,8 @@ class GovernanceBedrockStack(Stack):
             self.governance_engine_lambda.function_arn,
         )
 
-        # --- Task 9.7: Seed DynamoDB tables with initial configuration ---
-
-        risk_config_items = [
-            {"config_key": "escalation_threshold", "value": 70,
-             "description": "Risk score threshold above which actions are escalated"},
-            {"config_key": "scope_level_weights",
-             "weights": {"0": 0, "1": 10, "2": 25, "3": 50, "4": 75},
-             "description": "Risk weight per scope level"},
-            {"config_key": "action_group_weights",
-             "weights": {"data_access": 10, "data_modification": 30,
-                         "deployment": 50, "configuration_change": 40,
-                         "emergency_action": 60},
-             "description": "Risk weight per action group category"},
-            {"config_key": "target_resource_weights",
-             "weights": {"production": 30, "staging": 15,
-                         "development": 5, "default": 10},
-             "description": "Risk weight per target resource type"},
-            {"config_key": "category_base_weights",
-             "weights": {"data_access": 5, "data_modification": 15,
-                         "deployment": 25, "configuration_change": 20,
-                         "emergency_action": 35},
-             "description": "Base risk weight per risk category"},
-            {"config_key": "history_factor_weight", "value": 5,
-             "description": "Risk weight multiplier per recent action in history"},
-        ]
-
-        for idx, item in enumerate(risk_config_items):
-            ddb_item = {"config_key": {"S": item["config_key"]}}
-            if "value" in item:
-                ddb_item["value"] = {"N": str(item["value"])}
-            if "weights" in item:
-                ddb_item["weights"] = {
-                    "M": {k: {"N": str(v)} for k, v in item["weights"].items()}
-                }
-            if "description" in item:
-                ddb_item["description"] = {"S": item["description"]}
-            cr.AwsCustomResource(
-                self, f"RiskConfigSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB", action="putItem",
-                    parameters={
-                        "TableName": self.risk_config_table.table_name,
-                        "Item": ddb_item,
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(f"RiskConfigSeed{idx}"),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.risk_config_table.table_arn],
-                    ),
-                ]),
-            )
-
-        framework_mapping_items = [
-            {"action_type": "data_access",
-             "iso_42001_controls": ["A.8.4", "A.6.2.2"],
-             "nist_ai_rmf_functions": ["GOVERN 1.1", "MAP 1.1"]},
-            {"action_type": "data_modification",
-             "iso_42001_controls": ["A.8.4", "A.8.5", "A.6.2.2"],
-             "nist_ai_rmf_functions": ["GOVERN 1.1", "GOVERN 1.2", "MAP 1.5"]},
-            {"action_type": "deployment",
-             "iso_42001_controls": ["A.8.2", "A.8.5", "A.6.2.1"],
-             "nist_ai_rmf_functions": ["GOVERN 1.2", "MAP 3.4", "MANAGE 1.1"]},
-            {"action_type": "configuration_change",
-             "iso_42001_controls": ["A.8.2", "A.8.4", "A.6.2.1"],
-             "nist_ai_rmf_functions": ["GOVERN 1.1", "GOVERN 1.2", "MANAGE 2.2"]},
-            {"action_type": "emergency_action",
-             "iso_42001_controls": ["A.8.2", "A.8.5", "A.6.2.1", "A.6.2.2"],
-             "nist_ai_rmf_functions": ["GOVERN 1.2", "MANAGE 1.1", "MANAGE 4.1"]},
-        ]
-
-        for idx, item in enumerate(framework_mapping_items):
-            ddb_item = {
-                "action_type": {"S": item["action_type"]},
-                "iso_42001_controls": {"L": [{"S": c} for c in item["iso_42001_controls"]]},
-                "nist_ai_rmf_functions": {"L": [{"S": f} for f in item["nist_ai_rmf_functions"]]},
-            }
-            cr.AwsCustomResource(
-                self, f"FrameworkMappingSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB", action="putItem",
-                    parameters={
-                        "TableName": self.framework_mapping_table.table_name,
-                        "Item": ddb_item,
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(f"FrameworkMappingSeed{idx}"),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.framework_mapping_table.table_arn],
-                    ),
-                ]),
-            )
+        # --- Task 9.7: Seed data defined below, deployed via consolidated SeedTablesLambda ---
+        # (see end of stack for the single Lambda + AwsCustomResource that seeds all tables)
 
         # --- Task 9.8: Upload sample policy definitions to PolicyBucket ---
 
@@ -704,127 +611,9 @@ class GovernanceBedrockStack(Stack):
             self.governance_roles_table.table_name,
         )
 
-        # --- Task 21.3: Update ScopeTable seed to include AgentIdentity fields ---
+        # --- Task 21.3: ScopeTable Phase1b seed — consolidated into SeedTablesLambda ---
 
-        self.scope_table_init_phase1b = cr.AwsCustomResource(
-            self,
-            "ScopeTableInitPhase1b",
-            on_create=cr.AwsSdkCall(
-                service="DynamoDB",
-                action="putItem",
-                parameters={
-                    "TableName": self.scope_table.table_name,
-                    "Item": {
-                        "agent_id": {"S": "demo-agent"},
-                        "scope_level": {"N": "1"},
-                        "updated_at": {"S": "2025-01-15T10:30:00Z"},
-                        "updated_by": {"S": "cdk-init"},
-                        "environment": {"S": "dev"},
-                        "status": {"S": "active"},
-                        "display_name": {"S": "Demo Agent"},
-                    },
-                },
-                physical_resource_id=cr.PhysicalResourceId.of("ScopeTableInitPhase1b"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements([
-                iam.PolicyStatement(
-                    actions=["dynamodb:PutItem"],
-                    resources=[self.scope_table.table_arn],
-                ),
-            ]),
-        )
-
-        # --- Task 21.4: Seed Phase 1b DynamoDB tables with initial data ---
-
-        # Seed AgentRegistryTable with demo agent
-        self.agent_registry_seed = cr.AwsCustomResource(
-            self,
-            "AgentRegistrySeed0",
-            on_create=cr.AwsSdkCall(
-                service="DynamoDB",
-                action="putItem",
-                parameters={
-                    "TableName": self.agent_registry_table.table_name,
-                    "Item": {
-                        "agent_id": {"S": "demo-agent"},
-                        "purpose": {"S": "Software Deployment Pipeline Agent"},
-                        "owner": {"S": "governance-admin"},
-                        "data_classes": {"L": [
-                            {"S": "pipeline_status"},
-                            {"S": "deployment_config"},
-                        ]},
-                        "tools": {"L": [
-                            {"S": "ReadPipelineStatus"},
-                            {"S": "ProposeChanges"},
-                        ]},
-                        "approved_scope": {"N": "2"},
-                        "environment": {"S": "dev"},
-                    },
-                },
-                physical_resource_id=cr.PhysicalResourceId.of("AgentRegistrySeed0"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements([
-                iam.PolicyStatement(
-                    actions=["dynamodb:PutItem"],
-                    resources=[self.agent_registry_table.table_arn],
-                ),
-            ]),
-        )
-
-        # Seed GovernanceRolesTable with initial role assignments
-        governance_role_seeds = [
-            {
-                "user_id": "governance-admin",
-                "role": "policy_author",
-                "scope": "global",
-                "assigned_by": "cdk-init",
-                "assigned_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "user_id": "governance-admin",
-                "role": "operator",
-                "scope": "global",
-                "assigned_by": "cdk-init",
-                "assigned_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "user_id": "demo-auditor",
-                "role": "auditor",
-                "scope": "global",
-                "assigned_by": "cdk-init",
-                "assigned_at": "2025-01-15T10:30:00Z",
-            },
-        ]
-
-        for idx, role_item in enumerate(governance_role_seeds):
-            ddb_item = {
-                "user_id": {"S": role_item["user_id"]},
-                "role": {"S": role_item["role"]},
-                "scope": {"S": role_item["scope"]},
-                "assigned_by": {"S": role_item["assigned_by"]},
-                "assigned_at": {"S": role_item["assigned_at"]},
-            }
-            cr.AwsCustomResource(
-                self,
-                f"GovernanceRoleSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB",
-                    action="putItem",
-                    parameters={
-                        "TableName": self.governance_roles_table.table_name,
-                        "Item": ddb_item,
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(
-                        f"GovernanceRoleSeed{idx}"
-                    ),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.governance_roles_table.table_arn],
-                    ),
-                ]),
-            )
+        # --- Task 21.4: Phase 1b seeds — consolidated into SeedTablesLambda ---
 
         # ===================================================================
         # Phase 1c — Evidence, Compliance, and Security Infrastructure
@@ -988,164 +777,7 @@ class GovernanceBedrockStack(Stack):
             self.immutable_evidence_bucket.bucket_name,
         )
 
-        # --- Task 35.6: Seed Phase 1c DynamoDB tables ---
-
-        # Seed ThreatPatternsTable with known-bad and suspicious patterns
-        threat_pattern_seeds = [
-            {
-                "pattern_id": "kb-sql-injection-1",
-                "category": "known_bad",
-                "pattern": "';\\s*drop\\s+table",
-                "description": "SQL injection: DROP TABLE attempt",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "kb-sql-injection-2",
-                "category": "known_bad",
-                "pattern": "or\\s+1\\s*=\\s*1",
-                "description": "SQL injection: OR 1=1 tautology",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "kb-prompt-injection-1",
-                "category": "known_bad",
-                "pattern": "ignore\\s+previous\\s+instructions",
-                "description": "Prompt injection: ignore previous instructions",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "kb-prompt-injection-2",
-                "category": "known_bad",
-                "pattern": "system:\\s*override",
-                "description": "Prompt injection: system override attempt",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "kb-disallowed-cmd-1",
-                "category": "known_bad",
-                "pattern": "rm\\s+-rf",
-                "description": "Disallowed command: rm -rf",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "kb-disallowed-cmd-2",
-                "category": "known_bad",
-                "pattern": "format\\s+c:",
-                "description": "Disallowed command: format c:",
-                "risk_weight": 100,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "sus-partial-prompt-1",
-                "category": "suspicious",
-                "pattern": "you\\s+are\\s+now",
-                "description": "Suspicious: partial prompt injection indicator",
-                "risk_weight": 30,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "sus-encoding-1",
-                "category": "suspicious",
-                "pattern": "%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}",
-                "description": "Suspicious: unusual URL encoding sequences",
-                "risk_weight": 20,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-            {
-                "pattern_id": "sus-length-1",
-                "category": "suspicious",
-                "pattern": ".{5000,}",
-                "description": "Suspicious: anomalous input length (>5000 chars)",
-                "risk_weight": 25,
-                "updated_at": "2025-01-15T10:30:00Z",
-            },
-        ]
-
-        for idx, tp in enumerate(threat_pattern_seeds):
-            ddb_item = {
-                "pattern_id": {"S": tp["pattern_id"]},
-                "category": {"S": tp["category"]},
-                "pattern": {"S": tp["pattern"]},
-                "description": {"S": tp["description"]},
-                "risk_weight": {"N": str(tp["risk_weight"])},
-                "updated_at": {"S": tp["updated_at"]},
-            }
-            cr.AwsCustomResource(
-                self,
-                f"ThreatPatternSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB",
-                    action="putItem",
-                    parameters={
-                        "TableName": self.threat_patterns_table.table_name,
-                        "Item": ddb_item,
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(
-                        f"ThreatPatternSeed{idx}"
-                    ),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.threat_patterns_table.table_arn],
-                    ),
-                ]),
-            )
-
-        # Seed ControlMappingTable from sample_data files
-        control_mapping_dir = os.path.join(
-            os.path.dirname(__file__), "sample_data", "control_mapping"
-        )
-
-        all_mappings = []
-        for filename in ["iso42001_mappings.json", "nist_ai_rmf_mappings.json"]:
-            filepath = os.path.join(control_mapping_dir, filename)
-            with open(filepath) as f:
-                data = json.load(f)
-            for m in data.get("mappings", []):
-                composite_id = f"{m['control_id']}#{m['implementation_component']}"
-                all_mappings.append({
-                    "control_id": composite_id,
-                    "framework": data["framework"],
-                    "control_name": m["control_name"],
-                    "implementation_component": m["implementation_component"],
-                    "evidence_generated": m["evidence_generated"],
-                })
-
-        for idx, cm in enumerate(all_mappings):
-            ddb_item = {
-                "control_id": {"S": cm["control_id"]},
-                "framework": {"S": cm["framework"]},
-                "control_name": {"S": cm["control_name"]},
-                "implementation_component": {"S": cm["implementation_component"]},
-                "evidence_generated": {"S": cm["evidence_generated"]},
-            }
-            cr.AwsCustomResource(
-                self,
-                f"ControlMappingSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB",
-                    action="putItem",
-                    parameters={
-                        "TableName": self.control_mapping_table.table_name,
-                        "Item": ddb_item,
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(
-                        f"ControlMappingSeed{idx}"
-                    ),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.control_mapping_table.table_arn],
-                    ),
-                ]),
-            )
+        # --- Task 35.6: Phase 1c seeds — consolidated into SeedTablesLambda ---
 
         # ===================================================================
         # Phase 2 — Human Oversight + Evidence Pipeline Infrastructure
@@ -1345,40 +977,7 @@ class GovernanceBedrockStack(Stack):
             destination_key_prefix="compliance/",
         )
 
-        # Seed PendingApprovalTable with a sample pending approval
-        self.pending_approval_seed = cr.AwsCustomResource(
-            self,
-            "PendingApprovalSeed0",
-            on_create=cr.AwsSdkCall(
-                service="DynamoDB",
-                action="putItem",
-                parameters={
-                    "TableName": self.pending_approval_table.table_name,
-                    "Item": {
-                        "approval_id": {"S": "sample-approval-001"},
-                        "decision_id": {"S": "sample-decision-001"},
-                        "agent_id": {"S": "demo-agent"},
-                        "action_requested": {"S": "StagingDeployment"},
-                        "risk_score": {"N": "75"},
-                        "escalation_reason": {"S": "Risk score 75 exceeds escalation threshold of 70"},
-                        "status": {"S": "pending"},
-                        "approver_id": {"S": ""},
-                        "approval_conditions": {"S": ""},
-                        "denial_reason": {"S": ""},
-                        "created_at": {"S": "2025-01-15T10:30:00Z"},
-                        "resolved_at": {"S": ""},
-                        "timeout_seconds": {"N": "3600"},
-                    },
-                },
-                physical_resource_id=cr.PhysicalResourceId.of("PendingApprovalSeed0"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements([
-                iam.PolicyStatement(
-                    actions=["dynamodb:PutItem"],
-                    resources=[self.pending_approval_table.table_arn],
-                ),
-            ]),
-        )
+        # Phase 2 seeds — consolidated into SeedTablesLambda
 
         # --- Task 53.2: Compliance Refresh Lambda and custom resource trigger ---
 
@@ -1598,138 +1197,7 @@ class GovernanceBedrockStack(Stack):
             self.metrics_threshold_table.table_name,
         )
 
-        # --- Task 69.4: Seed Phase 3 DynamoDB tables ---
-
-        # Seed ExfiltrationAllowlistTable with default approved endpoints
-        exfiltration_allowlist_seeds = [
-            "amazonaws.com",
-            "aws.amazon.com",
-            "github.com",
-        ]
-        for idx, endpoint in enumerate(exfiltration_allowlist_seeds):
-            cr.AwsCustomResource(
-                self,
-                f"ExfiltrationAllowlistSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB",
-                    action="putItem",
-                    parameters={
-                        "TableName": self.exfiltration_allowlist_table.table_name,
-                        "Item": {
-                            "endpoint_pattern": {"S": endpoint},
-                            "description": {"S": f"Default approved endpoint: {endpoint}"},
-                            "added_at": {"S": "2025-01-15T10:30:00Z"},
-                        },
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(
-                        f"ExfiltrationAllowlistSeed{idx}"
-                    ),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.exfiltration_allowlist_table.table_arn],
-                    ),
-                ]),
-            )
-
-        # Seed MetricsThresholdTable with default thresholds
-        metrics_threshold_seeds = [
-            {"metric_name": "denial_rate", "threshold": 0.3,
-             "description": "Maximum acceptable denial rate"},
-            {"metric_name": "escalation_rate", "threshold": 0.2,
-             "description": "Maximum acceptable escalation rate"},
-            {"metric_name": "avg_risk_score", "threshold": 60,
-             "description": "Maximum acceptable average risk score"},
-        ]
-        for idx, mt in enumerate(metrics_threshold_seeds):
-            cr.AwsCustomResource(
-                self,
-                f"MetricsThresholdSeed{idx}",
-                on_create=cr.AwsSdkCall(
-                    service="DynamoDB",
-                    action="putItem",
-                    parameters={
-                        "TableName": self.metrics_threshold_table.table_name,
-                        "Item": {
-                            "metric_name": {"S": mt["metric_name"]},
-                            "threshold": {"N": str(mt["threshold"])},
-                            "description": {"S": mt["description"]},
-                        },
-                    },
-                    physical_resource_id=cr.PhysicalResourceId.of(
-                        f"MetricsThresholdSeed{idx}"
-                    ),
-                ),
-                policy=cr.AwsCustomResourcePolicy.from_statements([
-                    iam.PolicyStatement(
-                        actions=["dynamodb:PutItem"],
-                        resources=[self.metrics_threshold_table.table_arn],
-                    ),
-                ]),
-            )
-
-        # Seed MultiAgentConfigTable with demo-agent configuration
-        cr.AwsCustomResource(
-            self,
-            "MultiAgentConfigSeed0",
-            on_create=cr.AwsSdkCall(
-                service="DynamoDB",
-                action="putItem",
-                parameters={
-                    "TableName": self.multi_agent_config_table.table_name,
-                    "Item": {
-                        "agent_id": {"S": "demo-agent"},
-                        "policy_binding_ids": {"L": [
-                            {"S": "default-deny"},
-                            {"S": "allow-read-at-scope-1"},
-                        ]},
-                        "risk_profile": {"M": {
-                            "base_risk": {"N": "10"},
-                            "escalation_threshold": {"N": "70"},
-                        }},
-                        "evidence_partition": {"S": "evidence/demo-agent/"},
-                        "environment": {"S": "dev"},
-                    },
-                },
-                physical_resource_id=cr.PhysicalResourceId.of("MultiAgentConfigSeed0"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements([
-                iam.PolicyStatement(
-                    actions=["dynamodb:PutItem"],
-                    resources=[self.multi_agent_config_table.table_arn],
-                ),
-            ]),
-        )
-
-        # Seed scope reduction config in RiskConfigTable
-        cr.AwsCustomResource(
-            self,
-            "ScopeReductionConfigSeed",
-            on_create=cr.AwsSdkCall(
-                service="DynamoDB",
-                action="putItem",
-                parameters={
-                    "TableName": self.risk_config_table.table_name,
-                    "Item": {
-                        "config_key": {"S": "scope_reduction_mode"},
-                        "value": {"S": "approval-gated"},
-                        "time_window_seconds": {"N": "3600"},
-                        "sustained_period_seconds": {"N": "1800"},
-                        "cooldown_seconds": {"N": "7200"},
-                        "high_risk_threshold": {"N": "70"},
-                        "description": {"S": "Graduated scope reduction configuration"},
-                    },
-                },
-                physical_resource_id=cr.PhysicalResourceId.of("ScopeReductionConfigSeed"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements([
-                iam.PolicyStatement(
-                    actions=["dynamodb:PutItem"],
-                    resources=[self.risk_config_table.table_arn],
-                ),
-            ]),
-        )
+        # --- Task 69.4: Phase 3 seeds — consolidated into SeedTablesLambda ---
 
         # --- Task 69.5: EventBridge rule for monthly MEASURE/MANAGE reports ---
 
@@ -1751,4 +1219,345 @@ class GovernanceBedrockStack(Stack):
                     "report_type": "measure_manage",
                 }),
             )
+        )
+        # ===================================================================
+        # Consolidated Seed Tables — single Lambda replaces all individual
+        # AwsCustomResource seed instances to avoid IAM policy size limits
+        # ===================================================================
+
+        # --- Seed Lambda Function ---
+
+        self.seed_tables_lambda = _lambda.Function(
+            self,
+            "SeedTablesLambda",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(os.path.dirname(__file__), "lambdas", "seed_tables")
+            ),
+            timeout=Duration.seconds(120),
+            memory_size=256,
+        )
+
+        # Grant the seed Lambda write access to ALL seeded tables
+        all_seed_table_arns = [
+            self.scope_table.table_arn,
+            self.risk_config_table.table_arn,
+            self.framework_mapping_table.table_arn,
+            self.agent_registry_table.table_arn,
+            self.governance_roles_table.table_arn,
+            self.threat_patterns_table.table_arn,
+            self.control_mapping_table.table_arn,
+            self.pending_approval_table.table_arn,
+            self.exfiltration_allowlist_table.table_arn,
+            self.metrics_threshold_table.table_arn,
+            self.multi_agent_config_table.table_arn,
+        ]
+
+        self.seed_tables_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["dynamodb:PutItem", "dynamodb:BatchWriteItem"],
+                resources=all_seed_table_arns,
+            )
+        )
+
+        # --- Build seed payload (native Python dicts for boto3 resource) ---
+
+        # Load control mapping data from sample_data files
+        control_mapping_dir = os.path.join(
+            os.path.dirname(__file__), "sample_data", "control_mapping"
+        )
+        control_mapping_items = []
+        for filename in ["iso42001_mappings.json", "nist_ai_rmf_mappings.json"]:
+            filepath = os.path.join(control_mapping_dir, filename)
+            with open(filepath) as f:
+                data = json.load(f)
+            for m in data.get("mappings", []):
+                composite_id = f"{m['control_id']}#{m['implementation_component']}"
+                control_mapping_items.append({
+                    "control_id": composite_id,
+                    "framework": data["framework"],
+                    "control_name": m["control_name"],
+                    "implementation_component": m["implementation_component"],
+                    "evidence_generated": m["evidence_generated"],
+                })
+
+        seed_payload = {
+            "seeds": [
+                # --- ScopeTable (Phase 1b update with AgentIdentity fields) ---
+                {
+                    "table_name": self.scope_table.table_name,
+                    "items": [
+                        {
+                            "agent_id": "demo-agent",
+                            "scope_level": 1,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                            "updated_by": "cdk-init",
+                            "environment": "dev",
+                            "status": "active",
+                            "display_name": "Demo Agent",
+                        },
+                    ],
+                },
+                # --- RiskConfigTable ---
+                {
+                    "table_name": self.risk_config_table.table_name,
+                    "items": [
+                        {
+                            "config_key": "escalation_threshold",
+                            "value": 70,
+                            "description": "Risk score threshold above which actions are escalated",
+                        },
+                        {
+                            "config_key": "scope_level_weights",
+                            "weights": {"0": 0, "1": 10, "2": 25, "3": 50, "4": 75},
+                            "description": "Risk weight per scope level",
+                        },
+                        {
+                            "config_key": "action_group_weights",
+                            "weights": {
+                                "data_access": 10, "data_modification": 30,
+                                "deployment": 50, "configuration_change": 40,
+                                "emergency_action": 60,
+                            },
+                            "description": "Risk weight per action group category",
+                        },
+                        {
+                            "config_key": "target_resource_weights",
+                            "weights": {
+                                "production": 30, "staging": 15,
+                                "development": 5, "default": 10,
+                            },
+                            "description": "Risk weight per target resource type",
+                        },
+                        {
+                            "config_key": "category_base_weights",
+                            "weights": {
+                                "data_access": 5, "data_modification": 15,
+                                "deployment": 25, "configuration_change": 20,
+                                "emergency_action": 35,
+                            },
+                            "description": "Base risk weight per risk category",
+                        },
+                        {
+                            "config_key": "history_factor_weight",
+                            "value": 5,
+                            "description": "Risk weight multiplier per recent action in history",
+                        },
+                        {
+                            "config_key": "scope_reduction_mode",
+                            "value": "approval-gated",
+                            "time_window_seconds": 3600,
+                            "sustained_period_seconds": 1800,
+                            "cooldown_seconds": 7200,
+                            "high_risk_threshold": 70,
+                            "description": "Graduated scope reduction configuration",
+                        },
+                    ],
+                },
+                # --- FrameworkMappingTable ---
+                {
+                    "table_name": self.framework_mapping_table.table_name,
+                    "items": [
+                        {
+                            "action_type": "data_access",
+                            "iso_42001_controls": ["A.8.4", "A.6.2.2"],
+                            "nist_ai_rmf_functions": ["GOVERN 1.1", "MAP 1.1"],
+                        },
+                        {
+                            "action_type": "data_modification",
+                            "iso_42001_controls": ["A.8.4", "A.8.5", "A.6.2.2"],
+                            "nist_ai_rmf_functions": ["GOVERN 1.1", "GOVERN 1.2", "MAP 1.5"],
+                        },
+                        {
+                            "action_type": "deployment",
+                            "iso_42001_controls": ["A.8.2", "A.8.5", "A.6.2.1"],
+                            "nist_ai_rmf_functions": ["GOVERN 1.2", "MAP 3.4", "MANAGE 1.1"],
+                        },
+                        {
+                            "action_type": "configuration_change",
+                            "iso_42001_controls": ["A.8.2", "A.8.4", "A.6.2.1"],
+                            "nist_ai_rmf_functions": ["GOVERN 1.1", "GOVERN 1.2", "MANAGE 2.2"],
+                        },
+                        {
+                            "action_type": "emergency_action",
+                            "iso_42001_controls": ["A.8.2", "A.8.5", "A.6.2.1", "A.6.2.2"],
+                            "nist_ai_rmf_functions": ["GOVERN 1.2", "MANAGE 1.1", "MANAGE 4.1"],
+                        },
+                    ],
+                },
+                # --- AgentRegistryTable ---
+                {
+                    "table_name": self.agent_registry_table.table_name,
+                    "items": [
+                        {
+                            "agent_id": "demo-agent",
+                            "purpose": "Software Deployment Pipeline Agent",
+                            "owner": "governance-admin",
+                            "data_classes": ["pipeline_status", "deployment_config"],
+                            "tools": ["ReadPipelineStatus", "ProposeChanges"],
+                            "approved_scope": 2,
+                            "environment": "dev",
+                        },
+                    ],
+                },
+                # --- GovernanceRolesTable ---
+                {
+                    "table_name": self.governance_roles_table.table_name,
+                    "items": [
+                        {
+                            "user_id": "governance-admin",
+                            "role": "policy_author",
+                            "scope": "global",
+                            "assigned_by": "cdk-init",
+                            "assigned_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "user_id": "governance-admin",
+                            "role": "operator",
+                            "scope": "global",
+                            "assigned_by": "cdk-init",
+                            "assigned_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "user_id": "demo-auditor",
+                            "role": "auditor",
+                            "scope": "global",
+                            "assigned_by": "cdk-init",
+                            "assigned_at": "2025-01-15T10:30:00Z",
+                        },
+                    ],
+                },
+                # --- ThreatPatternsTable ---
+                {
+                    "table_name": self.threat_patterns_table.table_name,
+                    "items": [
+                        {"pattern_id": "kb-sql-injection-1", "category": "known_bad",
+                         "pattern": "';\\s*drop\\s+table",
+                         "description": "SQL injection: DROP TABLE attempt",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "kb-sql-injection-2", "category": "known_bad",
+                         "pattern": "or\\s+1\\s*=\\s*1",
+                         "description": "SQL injection: OR 1=1 tautology",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "kb-prompt-injection-1", "category": "known_bad",
+                         "pattern": "ignore\\s+previous\\s+instructions",
+                         "description": "Prompt injection: ignore previous instructions",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "kb-prompt-injection-2", "category": "known_bad",
+                         "pattern": "system:\\s*override",
+                         "description": "Prompt injection: system override attempt",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "kb-disallowed-cmd-1", "category": "known_bad",
+                         "pattern": "rm\\s+-rf",
+                         "description": "Disallowed command: rm -rf",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "kb-disallowed-cmd-2", "category": "known_bad",
+                         "pattern": "format\\s+c:",
+                         "description": "Disallowed command: format c:",
+                         "risk_weight": 100, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "sus-partial-prompt-1", "category": "suspicious",
+                         "pattern": "you\\s+are\\s+now",
+                         "description": "Suspicious: partial prompt injection indicator",
+                         "risk_weight": 30, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "sus-encoding-1", "category": "suspicious",
+                         "pattern": "%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}",
+                         "description": "Suspicious: unusual URL encoding sequences",
+                         "risk_weight": 20, "updated_at": "2025-01-15T10:30:00Z"},
+                        {"pattern_id": "sus-length-1", "category": "suspicious",
+                         "pattern": ".{5000,}",
+                         "description": "Suspicious: anomalous input length (>5000 chars)",
+                         "risk_weight": 25, "updated_at": "2025-01-15T10:30:00Z"},
+                    ],
+                },
+                # --- ControlMappingTable (loaded from sample_data JSON files) ---
+                {
+                    "table_name": self.control_mapping_table.table_name,
+                    "items": control_mapping_items,
+                },
+                # --- PendingApprovalTable ---
+                {
+                    "table_name": self.pending_approval_table.table_name,
+                    "items": [
+                        {
+                            "approval_id": "sample-approval-001",
+                            "decision_id": "sample-decision-001",
+                            "agent_id": "demo-agent",
+                            "action_requested": "StagingDeployment",
+                            "risk_score": 75,
+                            "escalation_reason": "Risk score 75 exceeds escalation threshold of 70",
+                            "status": "pending",
+                            "approver_id": "",
+                            "approval_conditions": "",
+                            "denial_reason": "",
+                            "created_at": "2025-01-15T10:30:00Z",
+                            "resolved_at": "",
+                            "timeout_seconds": 3600,
+                        },
+                    ],
+                },
+                # --- ExfiltrationAllowlistTable ---
+                {
+                    "table_name": self.exfiltration_allowlist_table.table_name,
+                    "items": [
+                        {"endpoint_pattern": "amazonaws.com",
+                         "description": "Default approved endpoint: amazonaws.com",
+                         "added_at": "2025-01-15T10:30:00Z"},
+                        {"endpoint_pattern": "aws.amazon.com",
+                         "description": "Default approved endpoint: aws.amazon.com",
+                         "added_at": "2025-01-15T10:30:00Z"},
+                        {"endpoint_pattern": "github.com",
+                         "description": "Default approved endpoint: github.com",
+                         "added_at": "2025-01-15T10:30:00Z"},
+                    ],
+                },
+                # --- MetricsThresholdTable ---
+                {
+                    "table_name": self.metrics_threshold_table.table_name,
+                    "items": [
+                        {"metric_name": "denial_rate", "threshold": 0.3,
+                         "description": "Maximum acceptable denial rate"},
+                        {"metric_name": "escalation_rate", "threshold": 0.2,
+                         "description": "Maximum acceptable escalation rate"},
+                        {"metric_name": "avg_risk_score", "threshold": 60,
+                         "description": "Maximum acceptable average risk score"},
+                    ],
+                },
+                # --- MultiAgentConfigTable ---
+                {
+                    "table_name": self.multi_agent_config_table.table_name,
+                    "items": [
+                        {
+                            "agent_id": "demo-agent",
+                            "policy_binding_ids": ["default-deny", "allow-read-at-scope-1"],
+                            "risk_profile": {"base_risk": 10, "escalation_threshold": 70},
+                            "evidence_partition": "evidence/demo-agent/",
+                            "environment": "dev",
+                        },
+                    ],
+                },
+            ],
+        }
+
+        # --- Single AwsCustomResource to invoke the seed Lambda ---
+
+        self.seed_tables_trigger = cr.AwsCustomResource(
+            self,
+            "SeedTablesTrigger",
+            on_create=cr.AwsSdkCall(
+                service="Lambda",
+                action="invoke",
+                parameters={
+                    "FunctionName": self.seed_tables_lambda.function_name,
+                    "InvocationType": "RequestResponse",
+                    "Payload": json.dumps(seed_payload),
+                },
+                physical_resource_id=cr.PhysicalResourceId.of("SeedTablesTrigger"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["lambda:InvokeFunction"],
+                    resources=[self.seed_tables_lambda.function_arn],
+                ),
+            ]),
         )
