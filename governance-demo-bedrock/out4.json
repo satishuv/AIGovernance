@@ -1,1 +1,1 @@
-{"status": "denied", "error": "governance_denied", "message": "Action group 'ProductionDeployment' is not approved in the Tool/Model Registry", "decision_id": "4b241367-6ea1-4d8f-96b9-cfe018861426"}
+{"status": "denied", "error": "governance_denied", "message": "Action 'ProductionDeployment' denied by policy 'default-deny'. Policy outcome is 'deny'; risk score (95.0) is not considered when policy explicitly denies.", "decision_id": "ded0cdca-7760-44f8-ac83-1d06ce05f568"}
