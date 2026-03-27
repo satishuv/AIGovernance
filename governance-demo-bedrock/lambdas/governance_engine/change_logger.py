@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from governance_engine.models import ChangeRecord
+from models import ChangeRecord
 
 logger = logging.getLogger(__name__)
 

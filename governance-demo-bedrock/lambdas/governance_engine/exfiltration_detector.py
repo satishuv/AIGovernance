@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from governance_engine.models import ExfiltrationDetectionResult
+from models import ExfiltrationDetectionResult
 
 logger = logging.getLogger(__name__)
 

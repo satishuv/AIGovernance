@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 
-from governance_engine.models import ValidationResult
+from models import ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class ExtendedValidationSuite:
         end_date: str,
     ) -> ValidationResult:
         """Verify end-to-end hash chain integrity for evidence records."""
-        from governance_engine.evidence_integrity import EvidenceIntegrity
+        from evidence_integrity import EvidenceIntegrity
 
         now = datetime.utcnow().isoformat()
         integrity = EvidenceIntegrity()

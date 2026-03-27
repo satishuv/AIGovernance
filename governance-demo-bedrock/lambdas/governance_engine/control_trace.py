@@ -11,7 +11,7 @@ import json
 import logging
 from typing import List, Optional
 
-from governance_engine.models import ControlTrace
+from models import ControlTrace
 
 logger = logging.getLogger(__name__)
 

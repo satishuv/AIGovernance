@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from governance_engine.models import MultiAgentConfig
+from models import MultiAgentConfig
 
 logger = logging.getLogger(__name__)
 

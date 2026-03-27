@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from governance_engine.models import AgentIdentity
+from models import AgentIdentity
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class AgentIdentityManager:
         if change_log_table_name and evidence_bucket:
             try:
                 import boto3
-                from governance_engine.change_logger import ChangeLogger
+                from change_logger import ChangeLogger
 
                 dynamodb = boto3.resource("dynamodb")
                 s3_client = boto3.client("s3")

@@ -51,9 +51,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {"status": "skipped", "reason": msg}
 
     try:
-        from governance_engine.compliance_mapper import ComplianceMapper
-        from governance_engine.control_mapping import ControlMappingManager
-        from governance_engine.evidence_pipeline import EvidencePipeline
+        from compliance_mapper import ComplianceMapper
+        from control_mapping import ControlMappingManager
+        from evidence_pipeline import EvidencePipeline
 
         dynamodb = boto3.resource("dynamodb")
         s3_client = boto3.client("s3")

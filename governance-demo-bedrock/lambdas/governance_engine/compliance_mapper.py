@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from governance_engine.models import ComplianceMappingEntry
+from models import ComplianceMappingEntry
 
 logger = logging.getLogger(__name__)
 

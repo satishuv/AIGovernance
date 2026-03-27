@@ -15,7 +15,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from governance_engine.models import ThreatPattern
+from models import ThreatPattern
 
 logger = logging.getLogger(__name__)
 

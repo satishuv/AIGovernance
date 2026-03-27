@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import List
 
-from governance_engine.models import GovernanceRoleAssignment
+from models import GovernanceRoleAssignment
 
 logger = logging.getLogger(__name__)
 

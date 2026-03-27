@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from governance_engine.models import DecisionHistoryEntry, GovernanceDecision
+from models import DecisionHistoryEntry, GovernanceDecision
 
 logger = logging.getLogger(__name__)
 

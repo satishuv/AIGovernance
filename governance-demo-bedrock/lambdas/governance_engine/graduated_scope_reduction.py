@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 
-from governance_engine.models import ScopeReductionEvent
+from models import ScopeReductionEvent
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from governance_engine.models import AggregateMetrics, ManageReport, MeasureReport
+from models import AggregateMetrics, ManageReport, MeasureReport
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List
 
-from governance_engine.models import PolicyVersion
+from models import PolicyVersion
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +290,7 @@ class PolicyLifecycle:
         if change_log_table_name and evidence_bucket:
             try:
                 import boto3 as _boto3
-                from governance_engine.change_logger import ChangeLogger
+                from change_logger import ChangeLogger
 
                 dynamodb = _boto3.resource("dynamodb")
                 cl = ChangeLogger(dynamodb.Table(change_log_table_name))

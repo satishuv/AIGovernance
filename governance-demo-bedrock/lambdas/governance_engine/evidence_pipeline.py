@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from governance_engine.models import ControlTrace, EvidenceRecord, GovernanceDecision
+from models import ControlTrace, EvidenceRecord, GovernanceDecision
 
 logger = logging.getLogger(__name__)
 

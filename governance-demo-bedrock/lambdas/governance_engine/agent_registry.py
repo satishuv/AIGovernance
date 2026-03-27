@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from governance_engine.models import AgentRegistryEntry
+from models import AgentRegistryEntry
 
 logger = logging.getLogger(__name__)
 

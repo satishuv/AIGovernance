@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from governance_engine.models import GovernanceDecision, PendingApproval
+from models import GovernanceDecision, PendingApproval
 
 logger = logging.getLogger(__name__)
 
