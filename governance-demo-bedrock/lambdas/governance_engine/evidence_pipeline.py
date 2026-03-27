@@ -146,7 +146,7 @@ class EvidencePipeline:
         # Phase 3: publish evidence failure metric (Req 25.1)
         try:
             import boto3 as _boto3
-            from .cloudwatch_metrics import CloudWatchMetricsPublisher
+            from cloudwatch_metrics import CloudWatchMetricsPublisher
             _cw = _boto3.client("cloudwatch")
             CloudWatchMetricsPublisher().publish_evidence_failure_metric(_cw)
         except Exception:

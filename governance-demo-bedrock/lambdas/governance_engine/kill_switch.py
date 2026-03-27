@@ -104,7 +104,7 @@ class KillSwitchManager:
         # Phase 3: publish kill switch activation metric (Req 25.1)
         if cloudwatch_client is not None:
             try:
-                from .cloudwatch_metrics import CloudWatchMetricsPublisher
+                from cloudwatch_metrics import CloudWatchMetricsPublisher
                 CloudWatchMetricsPublisher().publish_kill_switch_metric(cloudwatch_client)
             except Exception:
                 pass

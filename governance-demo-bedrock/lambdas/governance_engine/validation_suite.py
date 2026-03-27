@@ -336,7 +336,7 @@ class MinimumValidationSuite:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            from .cloudwatch_metrics import CloudWatchMetricsPublisher
+            from cloudwatch_metrics import CloudWatchMetricsPublisher
 
             publisher = CloudWatchMetricsPublisher()
             checks = [
@@ -378,7 +378,7 @@ class MinimumValidationSuite:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            from .privilege_escalation import PrivilegeEscalationDetector
+            from privilege_escalation import PrivilegeEscalationDetector
 
             detector = PrivilegeEscalationDetector()
             self_mod = detector.is_self_modification(
@@ -411,7 +411,7 @@ class MinimumValidationSuite:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            from .exfiltration_detector import ExfiltrationDetector
+            from exfiltration_detector import ExfiltrationDetector
             import base64
 
             detector = ExfiltrationDetector()
@@ -449,7 +449,7 @@ class MinimumValidationSuite:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            from .graduated_scope_reduction import GraduatedScopeReduction
+            from graduated_scope_reduction import GraduatedScopeReduction
 
             gsr = GraduatedScopeReduction()
             methods = ["compute_rolling_avg_risk", "check_sustained_threshold",
@@ -483,7 +483,7 @@ class MinimumValidationSuite:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            from .multi_agent import MultiAgentManager
+            from multi_agent import MultiAgentManager
 
             mam = MultiAgentManager()
             partition_a = mam.get_evidence_partition("agent-a")

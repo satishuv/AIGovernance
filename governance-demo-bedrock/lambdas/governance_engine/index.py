@@ -371,7 +371,7 @@ def _handle_api_gateway_event(
 
         # --- Phase 3 report endpoints ---
         if "/reports/" in resource and http_method == "GET":
-            from .measure_manage import MeasureManageEngine
+            from measure_manage import MeasureManageEngine
 
             mm_engine = MeasureManageEngine()
             period = path_params.get("period", "monthly")
@@ -415,7 +415,7 @@ def _handle_api_gateway_event(
             mac_table_name = os.environ.get("MULTI_AGENT_CONFIG_TABLE_NAME", "")
             if not mac_table_name:
                 return _api_response(503, {"error": "Multi-agent config table not configured"})
-            from .multi_agent import MultiAgentManager as MAM
+            from multi_agent import MultiAgentManager as MAM
             mam = MAM()
             config = mam.get_agent_config(agent_id, dynamodb.Table(mac_table_name))
             if config is None:
@@ -424,7 +424,7 @@ def _handle_api_gateway_event(
 
         # --- Phase 3 extended validation endpoint ---
         if "/validation/extended" in resource and http_method == "POST":
-            from .extended_validation import ExtendedValidationSuite
+            from extended_validation import ExtendedValidationSuite
             suite = ExtendedValidationSuite()
             results = []
 
