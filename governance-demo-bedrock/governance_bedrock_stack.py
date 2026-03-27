@@ -196,7 +196,7 @@ class GovernanceBedrockStack(Stack):
                         iam.PolicyStatement(
                             actions=["bedrock:InvokeModel"],
                             resources=[
-                                f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+                                f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
                             ],
                         ),
                         iam.PolicyStatement(
@@ -244,7 +244,7 @@ class GovernanceBedrockStack(Stack):
             "BedrockAgent",
             agent_name="governance-demo-pipeline-agent",
             agent_resource_role_arn=self.bedrock_agent_role.role_arn,
-            foundation_model="anthropic.claude-3-haiku-20240307-v1:0",
+            foundation_model="anthropic.claude-haiku-4-5-20251001-v1:0",
             idle_session_ttl_in_seconds=600,
             instruction=agent_instruction,
             action_groups=[
