@@ -47,6 +47,20 @@ class DecimalEncoder(json.JSONEncoder):
             return float(o) if o % 1 else int(o)
         return super().default(o)
 
+
+# Monkey-patch the default JSON encoder so ALL json.dumps calls across
+# all governance engine modules handle DynamoDB Decimal values automatically.
+_original_default = json.JSONEncoder.default
+
+
+def _patched_default(self, o):
+    if isinstance(o, Decimal):
+        return float(o) if o % 1 else int(o)
+    return _original_default(self, o)
+
+
+json.JSONEncoder.default = _patched_default
+
 from agent_identity import AgentIdentityManager
 from agent_registry import AgentRegistry
 from control_trace import ControlTraceManager
