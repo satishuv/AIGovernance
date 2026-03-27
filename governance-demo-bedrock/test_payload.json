@@ -1,0 +1,4 @@
+{
+  "agent_id": "demo-agent",
+  "input_text": "Show me builds where name = ''; DROP TABLE ScopeTable; --"
+}

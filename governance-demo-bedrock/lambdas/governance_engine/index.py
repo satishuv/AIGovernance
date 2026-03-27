@@ -34,9 +34,18 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict
 
 import boto3
+
+
+class DecimalEncoder(json.JSONEncoder):
+    """Handle Decimal types from DynamoDB in JSON serialization."""
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return float(o) if o % 1 else int(o)
+        return super().default(o)
 
 from agent_identity import AgentIdentityManager
 from agent_registry import AgentRegistry
@@ -174,7 +183,7 @@ def _write_evidence_to_s3(decision: GovernanceDecision) -> None:
     s3_client.put_object(
         Bucket=EVIDENCE_BUCKET_NAME,
         Key=key,
-        Body=json.dumps(decision.to_dict()),
+        Body=json.dumps(decision.to_dict(), cls=DecimalEncoder),
         ContentType="application/json",
     )
 
@@ -1125,7 +1134,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # --------------------------------------------------------------
         # 18. Return GovernanceDecision as JSON
         # --------------------------------------------------------------
-        return decision.to_dict()
+        return json.loads(json.dumps(decision.to_dict(), cls=DecimalEncoder))
 
     except Exception as exc:
         # Catch-all: deny on any unexpected failure (Req 18.5)

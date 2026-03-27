@@ -1,0 +1,1 @@
+{"status": "denied", "error": "governance_denied", "message": "Governance pipeline failure: TypeError. Request denied as fail-safe.", "decision_id": "b82c2506-b038-415e-ab62-f944b887ed2c"}
