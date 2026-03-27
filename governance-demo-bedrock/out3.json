@@ -1,0 +1,1 @@
+{"status": "denied", "error": "governance_denied", "message": "Input denied by threat detection: matched known_bad pattern.", "decision_id": "630eaf1b-c462-4ad2-ba3a-557e32b112ee"}

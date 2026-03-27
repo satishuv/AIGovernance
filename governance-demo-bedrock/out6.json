@@ -1,0 +1,1 @@
+{"status": "denied", "error": "governance_denied", "message": "Action group 'ReadPipelineStatus' is not approved in the Tool/Model Registry", "decision_id": "8d2d86dc-4090-49ce-a198-827746d54d8e"}

@@ -1252,6 +1252,7 @@ class GovernanceBedrockStack(Stack):
             self.exfiltration_allowlist_table.table_arn,
             self.metrics_threshold_table.table_arn,
             self.multi_agent_config_table.table_arn,
+            self.tool_model_registry_table.table_arn,
         ]
 
         self.seed_tables_lambda.add_to_role_policy(
@@ -1468,6 +1469,32 @@ class GovernanceBedrockStack(Stack):
                          "pattern": ".{5000,}",
                          "description": "Suspicious: anomalous input length (>5000 chars)",
                          "risk_weight": 25, "updated_at": "2025-01-15T10:30:00Z"},
+                    ],
+                },
+                # --- ToolModelRegistryTable ---
+                {
+                    "table_name": self.tool_model_registry_table.table_name,
+                    "items": [
+                        {"entry_id": "tc-read-pipeline", "category": "tool_connector",
+                         "name": "ReadPipelineStatus", "version": "*",
+                         "approval_status": "approved", "approved_by": "governance-admin",
+                         "description": "Read pipeline status action group (Scope 1+)",
+                         "registered_at": "2025-01-15T10:30:00Z"},
+                        {"entry_id": "tc-propose-changes", "category": "tool_connector",
+                         "name": "ProposeChanges", "version": "*",
+                         "approval_status": "approved", "approved_by": "governance-admin",
+                         "description": "Propose changes action group (Scope 2+)",
+                         "registered_at": "2025-01-15T10:30:00Z"},
+                        {"entry_id": "tc-staging-deploy", "category": "tool_connector",
+                         "name": "StagingDeployment", "version": "*",
+                         "approval_status": "approved", "approved_by": "governance-admin",
+                         "description": "Staging deployment action group (Scope 3+)",
+                         "registered_at": "2025-01-15T10:30:00Z"},
+                        {"entry_id": "tc-production-deploy", "category": "tool_connector",
+                         "name": "ProductionDeployment", "version": "*",
+                         "approval_status": "approved", "approved_by": "governance-admin",
+                         "description": "Production deployment action group (Scope 4)",
+                         "registered_at": "2025-01-15T10:30:00Z"},
                     ],
                 },
                 # --- ControlMappingTable (loaded from sample_data JSON files) ---
