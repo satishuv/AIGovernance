@@ -11,7 +11,11 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-import jsonschema
+try:
+    import jsonschema
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
 
 from models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
 
@@ -26,8 +30,12 @@ _SCHEMA_PATH = os.path.join(_SCHEMA_DIR, "policy_definition_schema.json")
 
 def _load_schema() -> Dict[str, Any]:
     """Load the policy definition JSON Schema from disk."""
-    with open(_SCHEMA_PATH, "r") as f:
-        return json.load(f)
+    try:
+        with open(_SCHEMA_PATH, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        logger.warning("Policy schema not found at %s — schema validation disabled", _SCHEMA_PATH)
+        return {}
 
 
 class PolicyEngine:
@@ -177,6 +185,9 @@ class PolicyEngine:
             Invalid policies are rejected with a structured error log
             containing the policy_id and validation failure details.
         """
+        if not HAS_JSONSCHEMA:
+            logger.warning("jsonschema not available — skipping schema validation")
+            return True
         try:
             jsonschema.validate(instance=policy_dict, schema=self._schema)
             return True

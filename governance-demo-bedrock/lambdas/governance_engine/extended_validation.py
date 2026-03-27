@@ -74,7 +74,17 @@ class ExtendedValidationSuite:
         end_date: str,
     ) -> ValidationResult:
         """Verify end-to-end hash chain integrity for evidence records."""
-        from evidence_integrity import EvidenceIntegrity
+        try:
+            from evidence_integrity import EvidenceIntegrity
+        except ImportError:
+            return ValidationResult(
+                test_name="evidence_hash_chain_integrity",
+                passed=False,
+                evidence_record_ids=[],
+                control_trace_ids=[],
+                details="evidence_integrity module not available",
+                timestamp=datetime.utcnow().isoformat(),
+            )
 
         now = datetime.utcnow().isoformat()
         integrity = EvidenceIntegrity()
