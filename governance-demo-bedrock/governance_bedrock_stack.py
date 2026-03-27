@@ -165,7 +165,7 @@ class GovernanceBedrockStack(Stack):
         self.action_group_lambda = _lambda.Function(
             self,
             "ActionGroupLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "lambdas", "action_group")
@@ -317,7 +317,7 @@ class GovernanceBedrockStack(Stack):
         self.scope_enforcer_lambda = _lambda.Function(
             self,
             "ScopeEnforcerLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "lambdas", "scope_enforcer")
@@ -350,7 +350,7 @@ class GovernanceBedrockStack(Stack):
         self.kill_switch_lambda = _lambda.Function(
             self,
             "KillSwitchLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "lambdas", "kill_switch")
@@ -505,7 +505,7 @@ class GovernanceBedrockStack(Stack):
         self.governance_engine_lambda = _lambda.Function(
             self,
             "GovernanceEngineLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(
@@ -701,7 +701,7 @@ class GovernanceBedrockStack(Stack):
         self.kill_switch_phase1c_lambda = _lambda.Function(
             self,
             "KillSwitchPhase1cLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="kill_switch.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(
@@ -984,7 +984,7 @@ class GovernanceBedrockStack(Stack):
         self.compliance_refresh_lambda = _lambda.Function(
             self,
             "ComplianceRefreshLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="compliance_refresh.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(
@@ -1230,7 +1230,7 @@ class GovernanceBedrockStack(Stack):
         self.seed_tables_lambda = _lambda.Function(
             self,
             "SeedTablesLambda",
-            runtime=_lambda.Runtime.PYTHON_3_9,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "lambdas", "seed_tables")
