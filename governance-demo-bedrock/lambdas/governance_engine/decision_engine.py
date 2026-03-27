@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 
-from .models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
+from models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
 
 logger = logging.getLogger(__name__)
 

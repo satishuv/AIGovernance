@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 
-from .models import RiskAssessment
+from models import RiskAssessment
 
 logger = logging.getLogger(__name__)
 

@@ -38,32 +38,32 @@ from typing import Any, Dict
 
 import boto3
 
-from .agent_identity import AgentIdentityManager
-from .agent_registry import AgentRegistry
-from .control_trace import ControlTraceManager
-from .decision_engine import DecisionEngine
-from .environment_isolation import EnvironmentIsolation
-from .evidence_pipeline import EvidencePipeline
-from .fail_safe import safe_compute_risk, safe_evaluate_policy, safe_write_evidence
-from .kill_switch import KillSwitchManager
-from .latency import LatencyTracker
-from .models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
-from .policy_engine import PolicyEngine
-from .risk_scoring import RiskScoringEngine
-from .threat_detector import ThreatDetector
-from .tool_model_registry import ToolModelRegistry
+from agent_identity import AgentIdentityManager
+from agent_registry import AgentRegistry
+from control_trace import ControlTraceManager
+from decision_engine import DecisionEngine
+from environment_isolation import EnvironmentIsolation
+from evidence_pipeline import EvidencePipeline
+from fail_safe import safe_compute_risk, safe_evaluate_policy, safe_write_evidence
+from kill_switch import KillSwitchManager
+from latency import LatencyTracker
+from models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
+from policy_engine import PolicyEngine
+from risk_scoring import RiskScoringEngine
+from threat_detector import ThreatDetector
+from tool_model_registry import ToolModelRegistry
 
 # Phase 2 imports
-from .approval_workflow import ApprovalWorkflow
-from .change_logger import ChangeLogger
-from .decision_history import DecisionHistory
+from approval_workflow import ApprovalWorkflow
+from change_logger import ChangeLogger
+from decision_history import DecisionHistory
 
 # Phase 3 imports
-from .cloudwatch_metrics import CloudWatchMetricsPublisher
-from .exfiltration_detector import ExfiltrationDetector
-from .graduated_scope_reduction import GraduatedScopeReduction
-from .multi_agent import MultiAgentManager
-from .privilege_escalation import PrivilegeEscalationDetector
+from cloudwatch_metrics import CloudWatchMetricsPublisher
+from exfiltration_detector import ExfiltrationDetector
+from graduated_scope_reduction import GraduatedScopeReduction
+from multi_agent import MultiAgentManager
+from privilege_escalation import PrivilegeEscalationDetector
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

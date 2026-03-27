@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from .models import ValidationResult
+from models import ValidationResult
 
 logger = logging.getLogger(__name__)
 

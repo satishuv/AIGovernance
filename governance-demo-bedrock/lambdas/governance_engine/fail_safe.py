@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import boto3
 
-from .models import PolicyEvaluationResult, RiskAssessment
+from models import PolicyEvaluationResult, RiskAssessment
 
 logger = logging.getLogger(__name__)
 

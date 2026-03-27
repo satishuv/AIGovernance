@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 
 import jsonschema
 
-from .models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
+from models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
 
 logger = logging.getLogger(__name__)
 

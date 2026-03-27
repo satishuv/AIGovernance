@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Generator
 
-from .models import LatencyMetric
+from models import LatencyMetric
 
 logger = logging.getLogger(__name__)
 
