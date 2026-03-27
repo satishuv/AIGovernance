@@ -343,10 +343,7 @@ class GovernanceBedrockStack(Stack):
         self.scope_enforcer_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:InvokeAgent"],
-                resources=[
-                    self.bedrock_agent.attr_agent_arn,
-                    f"{self.bedrock_agent.attr_agent_arn}/*",
-                ],
+                resources=["*"],
             )
         )
 
