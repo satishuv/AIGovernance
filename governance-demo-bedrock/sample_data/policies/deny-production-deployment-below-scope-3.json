@@ -1,16 +1,11 @@
 {
-  "policy_id": "deny-production-deployment-below-scope-3",
-  "version": 2,
-  "name": "Deny Production Deployment Below Scope 3",
-  "description": "Denies production deployment actions for agents below scope level 3. Production deployments require elevated privileges. Matches any scope level; a higher-priority allow policy for scope 3+ overrides this.",
-  "priority": 50,
-  "conditions": {
-    "action_group": "ProductionDeployment",
-    "target_resource": "production"
-  },
+  "rule_name": "deny_production_below_scope_3",
+  "description": "Deny production deployments for agents below scope 3. Production access must be earned through demonstrated safe behavior.",
   "outcome": "deny",
-  "owner": "governance-admin",
-  "approval_status": "approved",
-  "created_at": "2025-01-15T00:00:00Z",
-  "updated_at": "2026-06-30T00:00:00Z"
+  "priority": 10,
+  "category": "preventive",
+  "conditions": [
+    {"field": "input.action_group", "op": "==", "value": "ProductionDeployment"},
+    {"field": "input.scope_level", "op": "<", "value": 3}
+  ]
 }

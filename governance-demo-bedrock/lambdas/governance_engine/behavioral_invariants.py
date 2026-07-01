@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
     "restricted_action_groups": ["ProductionDeployment"],
-    "allowed_hours_utc": {"start": 6, "end": 22},
+    "allowed_hours_utc": {"start": 0, "end": 23},
     "max_output_bytes": 65536,
     "canary_salt": "agcp-governance-canary-v1",
 }

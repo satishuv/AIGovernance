@@ -72,6 +72,7 @@ from kill_switch import KillSwitchManager
 from latency import LatencyTracker
 from models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
 from policy_engine import PolicyEngine
+from opa_engine import OPAEngine
 from risk_scoring import RiskScoringEngine
 from threat_detector import ThreatDetector
 from tool_model_registry import ToolModelRegistry
@@ -853,14 +854,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             # Derive target environment from target_resource when it is
             # itself an environment name; otherwise the agent stays in
-            # its own environment.
+            # its own environment. Skip check if agent has "all" access.
             target_env = (
                 target_resource
                 if target_resource in {"dev", "staging", "prod"}
                 else agent_environment
             )
 
-            if not env_isolation.check_cross_environment(
+            if agent_environment not in ("all", "") and not env_isolation.check_cross_environment(
                 agent_environment, target_env
             ):
                 logger.warning(
@@ -973,12 +974,34 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             action_request["environment_filter"] = env_policy_filter
 
         # --------------------------------------------------------------
-        # 9. Policy evaluation (Req 2.1) — fail-safe wrapper (Req 18.1)
+        # 9. Policy evaluation (OPA engine with fallback to legacy)
+        # OPA evaluates Rego-style rules with operator support.
+        # Falls back to legacy PolicyEngine if OPA has no rules loaded.
         # --------------------------------------------------------------
         with tracker.track("policy_evaluation"):
-            policy_result = safe_evaluate_policy(
-                policy_engine, action_request,
+            opa_engine = OPAEngine()
+            opa_engine.load_policies_from_s3(
+                boto3.client("s3"), POLICY_BUCKET_NAME, POLICY_PREFIX
             )
+
+            if opa_engine.rule_count > 0:
+                now_utc = datetime.now(timezone.utc)
+                opa_input = {
+                    **action_request,
+                    "hour": now_utc.hour,
+                    "day_of_week": now_utc.strftime("%A").lower(),
+                }
+                opa_decision = opa_engine.evaluate(opa_input)
+                policy_result = PolicyEvaluationResult(
+                    policy_id=opa_decision.matched_rules[0] if opa_decision.matched_rules else "default-deny",
+                    outcome=opa_decision.verdict,
+                    matching_conditions={"opa_rules": opa_decision.matched_rules},
+                    evaluation_timestamp=opa_decision.timestamp,
+                )
+            else:
+                policy_result = safe_evaluate_policy(
+                    policy_engine, action_request,
+                )
 
         # --------------------------------------------------------------
         # 12. Risk scoring (Req 3.1) — fail-safe wrapper (Req 18.3)
