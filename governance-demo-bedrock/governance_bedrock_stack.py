@@ -1216,6 +1216,238 @@ class GovernanceBedrockStack(Stack):
             cw_actions.SnsAction(self.operator_alerts_topic)
         )
 
+        # --- Governance Monitoring Dashboard ---
+
+        self.governance_dashboard = cloudwatch.Dashboard(
+            self,
+            "GovernanceDashboard",
+            dashboard_name="AIGovernance-Monitoring",
+        )
+
+        # Row 1: Decision Verdicts (allow/deny/escalate counts)
+        self.governance_dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Governance Verdicts (5min)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DecisionCount",
+                        dimensions_map={"Verdict": "allow"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="ALLOW",
+                        color="#2ca02c",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DecisionCount",
+                        dimensions_map={"Verdict": "deny"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="DENY",
+                        color="#d62728",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DecisionCount",
+                        dimensions_map={"Verdict": "escalate"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="ESCALATE",
+                        color="#ff7f0e",
+                    ),
+                ],
+                width=12,
+            ),
+            cloudwatch.GraphWidget(
+                title="Risk Score Distribution (5min)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="RiskScore",
+                        statistic="Average",
+                        period=Duration.minutes(5),
+                        label="Average Risk",
+                        color="#1f77b4",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="RiskScore",
+                        statistic="Maximum",
+                        period=Duration.minutes(5),
+                        label="Max Risk",
+                        color="#d62728",
+                    ),
+                ],
+                width=12,
+            ),
+        )
+
+        # Row 2: Security Events
+        self.governance_dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Security Blocks by Layer",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="SecurityBlock",
+                        dimensions_map={"Layer": "input_sanitizer"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="Input Sanitizer",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="SecurityBlock",
+                        dimensions_map={"Layer": "threat_detector"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="Threat Detector",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="SecurityBlock",
+                        dimensions_map={"Layer": "tool_auth"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="Tool Auth",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="SecurityBlock",
+                        dimensions_map={"Layer": "scope_enforcement"},
+                        statistic="Sum",
+                        period=Duration.minutes(5),
+                        label="Scope Enforcement",
+                    ),
+                ],
+                width=12,
+            ),
+            cloudwatch.GraphWidget(
+                title="Agent Health Score",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="AgentHealthScore",
+                        dimensions_map={"AgentId": "demo-agent"},
+                        statistic="Average",
+                        period=Duration.minutes(5),
+                        label="Health (0-100)",
+                        color="#2ca02c",
+                    ),
+                ],
+                left_y_axis=cloudwatch.YAxisProps(min=0, max=100),
+                width=12,
+            ),
+        )
+
+        # Row 3: Latency and Drift
+        self.governance_dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Governance Pipeline Latency (ms)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="PipelineLatency",
+                        statistic="Average",
+                        period=Duration.minutes(5),
+                        label="Avg Latency",
+                        color="#1f77b4",
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="PipelineLatency",
+                        statistic="p99",
+                        period=Duration.minutes(5),
+                        label="p99 Latency",
+                        color="#d62728",
+                    ),
+                ],
+                width=12,
+            ),
+            cloudwatch.GraphWidget(
+                title="Runtime Drift Score",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DriftScore",
+                        dimensions_map={"AgentId": "demo-agent"},
+                        statistic="Maximum",
+                        period=Duration.minutes(5),
+                        label="Drift (0-100)",
+                        color="#ff7f0e",
+                    ),
+                ],
+                left_y_axis=cloudwatch.YAxisProps(min=0, max=100),
+                width=12,
+            ),
+        )
+
+        # Row 4: OPA Policy and Compliance
+        self.governance_dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="OPA Policy Evaluation Time (ms)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="PolicyEvalTime",
+                        statistic="Average",
+                        period=Duration.minutes(5),
+                        label="Avg Eval Time",
+                    ),
+                ],
+                width=8,
+            ),
+            cloudwatch.SingleValueWidget(
+                title="Kill Switch Status",
+                metrics=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="KillSwitchActive",
+                        statistic="Maximum",
+                        period=Duration.minutes(1),
+                    ),
+                ],
+                width=4,
+            ),
+            cloudwatch.SingleValueWidget(
+                title="Total Decisions (24h)",
+                metrics=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DecisionCount",
+                        statistic="Sum",
+                        period=Duration.hours(24),
+                    ),
+                ],
+                width=4,
+            ),
+            cloudwatch.SingleValueWidget(
+                title="Denial Rate (24h)",
+                metrics=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="DenialRate",
+                        statistic="Average",
+                        period=Duration.hours(24),
+                    ),
+                ],
+                width=4,
+            ),
+            cloudwatch.SingleValueWidget(
+                title="Evidence Records (24h)",
+                metrics=[
+                    cloudwatch.Metric(
+                        namespace="AGCP/Governance",
+                        metric_name="EvidenceWriteCount",
+                        statistic="Sum",
+                        period=Duration.hours(24),
+                    ),
+                ],
+                width=4,
+            ),
+        )
+
         # --- Task 69.3: Grant Lambda access to Phase 3 tables and CloudWatch ---
 
         self.denial_pattern_table.grant_read_write_data(self.governance_engine_lambda)
