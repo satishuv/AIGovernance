@@ -550,6 +550,13 @@ class GovernanceBedrockStack(Stack):
             self.governance_engine_lambda.function_arn,
         )
 
+        # --- Per-tool-call governance: Action Group Lambda invokes Governance Engine ---
+        self.governance_engine_lambda.grant_invoke(self.action_group_lambda)
+        self.action_group_lambda.add_environment(
+            "GOVERNANCE_ENGINE_LAMBDA_ARN",
+            self.governance_engine_lambda.function_arn,
+        )
+
         # --- Task 9.7: Seed data defined below, deployed via consolidated SeedTablesLambda ---
         # (see end of stack for the single Lambda + AwsCustomResource that seeds all tables)
 

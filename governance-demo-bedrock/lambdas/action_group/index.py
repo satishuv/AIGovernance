@@ -445,20 +445,144 @@ def _resolve_route(action_group, api_path):
 
 
 # ---------------------------------------------------------------------------
+# Governance wrapper: per-tool-call security (defense-in-depth)
+# ---------------------------------------------------------------------------
+GOVERNANCE_ENGINE_ARN = os.environ.get("GOVERNANCE_ENGINE_LAMBDA_ARN", "")
+lambda_client = boto3.client("lambda")
+
+import re as _re
+
+_SENSITIVE_OUTPUT_PATTERNS = [
+    _re.compile(r"arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:[^\s\"']+"),
+    _re.compile(r"AKIA[0-9A-Z]{16}"),
+    _re.compile(r"\b\d{12}\b"),
+    _re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+"),
+    _re.compile(r"GovernanceBedrockStack-[A-Za-z0-9]+-[A-Za-z0-9]+"),
+]
+
+
+def _governance_check(agent_id, action_group, api_path, params_dict, scope_level):
+    """Invoke governance engine to authorize THIS specific tool call.
+
+    Returns (allowed: bool, explanation: str, decision_id: str).
+    """
+    if not GOVERNANCE_ENGINE_ARN:
+        return True, "governance_engine_not_configured", ""
+
+    payload = {
+        "agent_id": agent_id,
+        "action_group": action_group,
+        "target_resource": params_dict.get("targetEnv", params_dict.get("buildId", "default")),
+        "input_text": f"{api_path} {json.dumps(params_dict)}",
+        "scope_level": scope_level,
+        "tool_name": action_group,
+        "tool_parameters": params_dict,
+    }
+
+    try:
+        response = lambda_client.invoke(
+            FunctionName=GOVERNANCE_ENGINE_ARN,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload),
+        )
+        result = json.loads(response["Payload"].read())
+        verdict = result.get("verdict", "deny")
+        decision_id = result.get("decision_id", "")
+        explanation = result.get("explanation", "")
+
+        if verdict == "allow":
+            return True, explanation, decision_id
+        return False, explanation, decision_id
+
+    except Exception as exc:
+        logger.error(json.dumps({
+            "audit_event": "governance_check_failed",
+            "agent_id": agent_id,
+            "action_group": action_group,
+            "error": str(exc),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
+        return False, f"Governance check failed (fail-safe deny): {str(exc)}", ""
+
+
+def _output_guardrail(response_body):
+    """Validate and sanitize the action response before returning to agent.
+
+    Strips sensitive data (ARNs, credentials, internal paths) from the output.
+    Returns (safe: bool, sanitized_body: str, violations: list).
+    """
+    if not isinstance(response_body, str):
+        response_body = json.dumps(response_body)
+
+    violations = []
+    sanitized = response_body
+
+    for pattern in _SENSITIVE_OUTPUT_PATTERNS:
+        if pattern.search(response_body):
+            violations.append(f"output_exposure: {pattern.pattern[:30]}")
+            sanitized = pattern.sub("[REDACTED]", sanitized)
+
+    return len(violations) == 0, sanitized, violations
+
+
+# ---------------------------------------------------------------------------
 # Lambda entry point
 # ---------------------------------------------------------------------------
 def handler(event, context):
-    """Route Bedrock Agent action group invocations to the correct handler."""
+    """Route Bedrock Agent action group invocations with per-call governance.
+
+    Every tool call goes through:
+    1. PRE-EXECUTION: Governance check (authorize this specific call)
+    2. EXECUTION: Run the action handler
+    3. POST-EXECUTION: Output guardrail (sanitize response)
+    """
     action_group = event.get("actionGroup", "")
     api_path = event.get("apiPath", "")
     http_method = event.get("httpMethod", "GET")
     parameters = event.get("parameters", [])
     agent_id = event.get("agent", {}).get("id", "unknown")
+    session_attributes = event.get("sessionAttributes", {})
+    scope_level = int(session_attributes.get("scope_level", "1"))
 
     params_dict = _params_to_dict(parameters)
     outcome = "success"
 
     try:
+        # -----------------------------------------------------------------
+        # STEP 1: PRE-EXECUTION GOVERNANCE CHECK
+        # Every tool call must be authorized by the governance engine.
+        # This is defense-in-depth: even if the scope enforcer approved
+        # the session, each individual action is re-validated.
+        # -----------------------------------------------------------------
+        allowed, explanation, decision_id = _governance_check(
+            agent_id, action_group, api_path, params_dict, scope_level,
+        )
+
+        if not allowed:
+            outcome = "governance_denied"
+            logger.warning(json.dumps({
+                "audit_event": "tool_call_governance_denied",
+                "agent_id": agent_id,
+                "action_group": action_group,
+                "api_path": api_path,
+                "parameters": params_dict,
+                "decision_id": decision_id,
+                "explanation": explanation,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 403,
+                {
+                    "error": "Action denied by governance engine",
+                    "explanation": explanation,
+                    "decision_id": decision_id,
+                },
+            )
+
+        # -----------------------------------------------------------------
+        # STEP 2: EXECUTE THE ACTION
+        # -----------------------------------------------------------------
         handler_fn = _resolve_route(action_group, api_path)
 
         if handler_fn is None:
@@ -471,10 +595,33 @@ def handler(event, context):
 
         response = handler_fn(event, params_dict)
 
-        # Check if the handler returned an error
-        resp_status = (
-            response.get("response", {}).get("httpStatusCode", 200)
+        # -----------------------------------------------------------------
+        # STEP 3: POST-EXECUTION OUTPUT GUARDRAIL
+        # Validate the response before it goes back to the agent.
+        # Catches: leaked ARNs, credentials, internal paths.
+        # -----------------------------------------------------------------
+        resp_body = (
+            response.get("response", {})
+            .get("responseBody", {})
+            .get("application/json", {})
+            .get("body", "")
         )
+
+        if resp_body:
+            safe, sanitized, violations = _output_guardrail(resp_body)
+            if not safe:
+                logger.warning(json.dumps({
+                    "audit_event": "output_guardrail_triggered",
+                    "agent_id": agent_id,
+                    "action_group": action_group,
+                    "api_path": api_path,
+                    "violations": violations,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }))
+                response["response"]["responseBody"]["application/json"]["body"] = sanitized
+
+        # Check if the handler returned an error
+        resp_status = response.get("response", {}).get("httpStatusCode", 200)
         if resp_status >= 400:
             outcome = "error"
 
