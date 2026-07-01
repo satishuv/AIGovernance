@@ -419,8 +419,8 @@ def _handle_api_gateway_event(
             if not dh_table_name:
                 return _api_response(503, {"error": "Decision history table not configured"})
 
-            from datetime import datetime as dt, timedelta
-            now = dt.utcnow()
+            from datetime import datetime as dt, timedelta, timezone as tz
+            now = dt.now(tz.utc)
             end_date = now.isoformat()
             start_date = (now - timedelta(days=30)).isoformat()
 

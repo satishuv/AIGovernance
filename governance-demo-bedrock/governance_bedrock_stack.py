@@ -610,6 +610,10 @@ class GovernanceBedrockStack(Stack):
         self.governance_roles_table.grant_read_write_data(self.governance_engine_lambda)
 
         self.governance_engine_lambda.add_environment(
+            "SCOPE_TABLE_NAME",
+            self.scope_table.table_name,
+        )
+        self.governance_engine_lambda.add_environment(
             "AGENT_REGISTRY_TABLE_NAME",
             self.agent_registry_table.table_name,
         )

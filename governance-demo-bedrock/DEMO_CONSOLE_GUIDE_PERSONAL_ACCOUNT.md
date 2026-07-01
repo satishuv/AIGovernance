@@ -81,7 +81,7 @@ In the **Execution result**, you'll see:
 ### Step 1: Invoke Governance Engine (Production Deploy Denied)
 
 1. Go to **Lambda > Functions** tab
-2. Search for and click: `GovernanceBedrockStack-GovernanceEngineLambda76BBC-aZUy3DLvBpVS`
+2. Search for and click: `GovernanceBedrockStack-GovernanceEngineLambda*`
 3. Click the **Test** tab
 4. Click **Create new event**, name it `test-prod-deny`
 5. Replace the JSON with:
@@ -182,7 +182,7 @@ updated_by:    cdk-init
 ### Step 1: Invoke Governance Engine with Malicious Input
 
 1. Go to **Lambda > Functions** tab
-2. Click: `GovernanceBedrockStack-GovernanceEngineLambda76BBC-aZUy3DLvBpVS`
+2. Click: `GovernanceBedrockStack-GovernanceEngineLambda*`
 3. Click the **Test** tab
 4. Click **Create new event**, name it `test-prompt-injection`
 5. Replace with:
@@ -349,7 +349,7 @@ scope:      global
 ### Step 1: Invoke Governance Engine (Staging Deploy - Medium Risk)
 
 1. Go to **Lambda > Functions** tab
-2. Click: `GovernanceBedrockStack-GovernanceEngineLambda76BBC-aZUy3DLvBpVS`
+2. Click: `GovernanceBedrockStack-GovernanceEngineLambda*`
 3. Click the **Test** tab
 4. Click **Create new event**, name it `test-escalate`
 5. Replace with:
@@ -392,7 +392,7 @@ In **Execution result**, you'll see:
 ### Scenario 11a: Base64-encoded jailbreak
 
 1. Go to **Lambda > Functions** tab
-2. Click: `GovernanceBedrockStack-GovernanceEngineLambda76BBC-aZUy3DLvBpVS`
+2. Click: `GovernanceBedrockStack-GovernanceEngineLambda*`
 3. Click the **Test** tab
 4. Click **Create new event**, name it `test-base64-attack`
 5. Replace with:
@@ -548,7 +548,7 @@ In **Execution result**, you'll see:
 | Function | Full Name | Purpose |
 |----------|-----------|---------|
 | ScopeEnforcer | GovernanceBedrockStack-ScopeEnforcerLambda* | Entry point, invokes full pipeline |
-| GovernanceEngine | GovernanceBedrockStack-GovernanceEngineLambda76BBC-aZUy3DLvBpVS | Policy + risk evaluation |
+| GovernanceEngine | GovernanceBedrockStack-GovernanceEngineLambda* | Policy + risk evaluation |
 | ActionGroup | GovernanceBedrockStack-ActionGroupLambda* | Business logic (pipeline operations) |
 | KillSwitch | GovernanceBedrockStack-KillSwitchLambda* | Emergency shutdown |
 
