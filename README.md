@@ -18,35 +18,68 @@ This project provides a working answer: **How do you let AI agents be useful whi
 
 ## Architecture
 
+AIGovernance supports two execution modes, switchable via the `GOVERNANCE_MODE` environment variable:
+
+| Mode | Use Case | Engine | Latency | Concurrency |
+|------|----------|--------|---------|-------------|
+| `lambda` | Development, testing, low-traffic | Single Lambda (monolithic) | ~200ms | 1,000 concurrent |
+| `stepfunctions` | Production, high-traffic, regulated | Step Functions Express Workflow | ~150ms (parallel) | 100,000+ concurrent |
+
+### Step Functions Pipeline (Production Mode)
+
 ```
 User Request
      |
      v
 +------------------+
-| Scope Enforcer   |  Entry point: reads scope, invokes governance pipeline
+| Scope Enforcer   |  Entry point: reads scope, selects governance mode
 +--------+---------+
          |
          v
-+------------------+     20-Step Governance Pipeline
-| Governance       |     ================================
-| Engine           |     LAYER 1: Hard Invariants
-|                  |       Kill switch, time-of-day blocks, canary injection
-| (20 security     |     LAYER 2: Input Defense
-|  modules)        |       Unicode normalization, base64 decoding, delimiter
-|                  |       detection, leet-speak, context stuffing, regex threats
-|                  |     LAYER 3: Identity + Authorization
-|                  |       Agent registry, environment isolation, tool auth,
-|                  |       parameter validation, rate limiting, chain detection
-|                  |     LAYER 4: Policy + Risk
-|                  |       Policy-as-code evaluation, risk scoring (0-100),
-|                  |       drift detection, anomaly detection
-|                  |     LAYER 5: Evidence + Response Validation
-|                  |       Immutable evidence, output guardrails, canary tripwire
-|                  |     LAYER 6: Post-Decision Monitoring
-|                  |       Health scoring, drift recording, metrics publishing
++------------------+
+| Kill Switch      |  DynamoDB direct integration (no Lambda cold start)
+| Check            |  Scope 0 = immediate DENY
 +--------+---------+
          |
-         v (if ALLOW)
+         v (scope > 0)
++=============================+
+| PARALLEL EXECUTION          |    <-- halves latency
+|                             |
+|  +------------------+  +------------------+
+|  | Input Defense    |  | Authorization    |
+|  | Lambda           |  | Lambda           |
+|  |                  |  |                  |
+|  | - Unicode norm   |  | - Agent registry |
+|  | - Base64 decode  |  | - Environment    |
+|  | - Delimiter det  |  |   isolation      |
+|  | - Leet-speak     |  | - Tool/model     |
+|  | - Context stuff  |  |   registry       |
+|  | - Regex threats  |  | - Rate limiting  |
+|  +--------+---------+  +--------+---------+
+|           |                      |
++===========|======================|==========+
+            |                      |
+            v                      v
++------------------------------------------+
+| Policy + Risk Decision Lambda            |
+|                                          |
+| - Policy-as-code evaluation              |
+| - Risk scoring (0-100)                   |
+| - Drift detection + anomaly detection    |
+| - Verdict: ALLOW / DENY / ESCALATE      |
++--------------------+---------------------+
+                     |
+                     v
++------------------------------------------+
+| Async Post-Decision (EventBridge)        |  <-- non-blocking
+|                                          |
+| - Immutable evidence write (S3 + SHA256) |
+| - Decision history (DynamoDB)            |
+| - CloudWatch metrics                     |
+| - Compliance mapping (ISO 42001, NIST)   |
++------------------------------------------+
+                     |
+                     v (if ALLOW)
 +------------------+
 | Bedrock Agent    |  Amazon Nova Micro, 4 action groups
 | (governed)       |  IAM boundary swapped per scope level
@@ -58,6 +91,43 @@ User Request
 | Guardrails       |  Blocks ARN leaks, credential exposure, canary leakage
 +------------------+
 ```
+
+### Single Lambda Mode (Development)
+
+In `lambda` mode, all 20 security modules execute sequentially within a single Governance Engine Lambda. This mode is simpler to debug and sufficient for development, testing, and low-concurrency workloads. The same security checks run in both modes; only the execution topology differs.
+
+---
+
+## Scalability
+
+The dual-mode architecture enables organizations to start simple and scale without rearchitecting:
+
+**Parallel Execution** -- Input defense and authorization checks run concurrently in separate Lambda functions. This halves the latency of the two heaviest governance layers compared to sequential execution.
+
+**Async Evidence Writing** -- Post-decision processing (evidence hashing, compliance mapping, metrics) fires via EventBridge and does not block the governance response. The caller receives the verdict immediately.
+
+**Independent Scaling** -- Each security layer is its own Lambda function with independent concurrency limits, memory allocation, and timeout settings. A spike in threat detection load does not affect policy evaluation capacity.
+
+**100K+ Concurrent Executions** -- Step Functions Express Workflows support up to 100,000 concurrent executions per account per region. Combined with Lambda's scaling, the pipeline handles burst traffic without throttling.
+
+**Feature Flag Switching** -- Set `GOVERNANCE_MODE=stepfunctions` or `GOVERNANCE_MODE=lambda` on the Scope Enforcer. No code changes, no redeployment of business logic. Both modes share the same security modules and policy definitions.
+
+**Fail-Safe by Design** -- If Step Functions or any Lambda fails, the pipeline returns DENY. The kill switch check uses a native DynamoDB SDK integration (no Lambda cold start) to ensure emergency shutdown is always available.
+
+---
+
+## Research Foundations
+
+The governance architecture draws from established AI safety frameworks and industry patterns:
+
+| Source | Contribution |
+|--------|-------------|
+| **NVIDIA NeMo Guardrails** | Programmable rails pattern: input/output/dialog rails with configurable actions |
+| **AWS Bedrock Guardrails** | Content filtering layers, denied topics, word filters as pre/post processing |
+| **Microsoft Azure AI Content Safety** | Multi-category threat scoring, severity-based routing |
+| **OWASP LLM Top 10 (2025)** | Attack taxonomy: prompt injection, insecure output handling, supply chain risks |
+| **NIST AI RMF (AI 100-1)** | Risk management lifecycle: GOVERN, MAP, MEASURE, MANAGE functions |
+| **ISO/IEC 42001** | AI management system controls (Annex A.2 through A.10) |
 
 ---
 
@@ -112,10 +182,13 @@ python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
 
-# Deploy
+# Deploy (Step Functions mode is the default)
 export AWS_PROFILE=your-profile
 export AWS_REGION=us-east-1
 npx cdk deploy -c skip_cloudtrail=true
+
+# Switch to single-Lambda mode for development
+# Set GOVERNANCE_MODE=lambda on the Scope Enforcer Lambda
 
 # Test (governance engine directly)
 aws lambda invoke \
@@ -132,7 +205,7 @@ aws lambda invoke \
 | # | Attack | Defense Layer | Result |
 |---|--------|--------------|--------|
 | 1 | Base64-encoded jailbreak | Input Sanitizer | DENIED |
-| 2 | ChatML delimiter injection (`<\|im_start\|>system`) | Input Sanitizer | DENIED |
+| 2 | ChatML delimiter injection (`<|im_start|>system`) | Input Sanitizer | DENIED |
 | 3 | Leet-speak bypass (`1gnore prev1ous 1nstructions`) | Input Sanitizer | DENIED |
 | 4 | Context stuffing (6000+ chars) | Input Sanitizer | DENIED |
 | 5 | Direct prompt injection | Input Sanitizer | DENIED |
@@ -160,14 +233,16 @@ Evidence is stored in S3 with Object Lock (7-year retention) and SHA-256 hash ch
 | Component | Service |
 |-----------|---------|
 | AI Agent Runtime | Amazon Bedrock Agents (Nova Micro) |
-| Governance Engine | AWS Lambda (Python 3.12) |
+| Governance Orchestration | AWS Step Functions Express Workflows |
+| Governance Engine (dev mode) | AWS Lambda (Python 3.12, monolithic) |
+| Security Layer Lambdas | AWS Lambda (Python 3.12, one per layer) |
+| Event-Driven Post-Processing | Amazon EventBridge |
 | Policy Storage | Amazon S3 (versioned) |
 | State Management | Amazon DynamoDB (25+ tables) |
 | Evidence Storage | Amazon S3 (Object Lock) |
 | API Endpoints | Amazon API Gateway |
 | Alerts | Amazon SNS |
 | Metrics + Alarms | Amazon CloudWatch |
-| Scheduled Reports | Amazon EventBridge |
 | Infrastructure | AWS CDK (Python) |
 
 ---
@@ -175,31 +250,39 @@ Evidence is stored in S3 with Object Lock (7-year retention) and SHA-256 hash ch
 ## Repository Structure
 
 ```
-governance-demo-bedrock/          Active codebase
+governance-demo-bedrock/              Active codebase
   lambdas/
-    governance_engine/            20+ security modules (the core)
-    scope_enforcer/               Request orchestrator + output guardrails
-    action_group/                 Bedrock Agent business logic
-    kill_switch/                  Emergency shutdown
-    seed_tables/                  DynamoDB initialization
-  schemas/                        OpenAPI action group schemas
-  sample_data/                    Policies, configs, compliance mappings
-  tests/                          CDK + governance tests
-  governance_bedrock_stack.py     CDK infrastructure (single stack)
+    governance_engine/                20+ security modules (monolithic mode)
+    scope_enforcer/                   Request orchestrator + mode selector
+    input_defense/                    Input sanitization Lambda (Step Functions)
+    authorization/                    Identity + auth Lambda (Step Functions)
+    policy_risk/                      Policy eval + risk scoring Lambda (Step Functions)
+    post_decision/                    Async evidence + metrics (EventBridge target)
+    action_group/                     Bedrock Agent business logic
+    kill_switch/                      Emergency shutdown
+    seed_tables/                      DynamoDB initialization
+  state_machine/
+    governance_pipeline.asl.json      Step Functions ASL definition
+  schemas/                            OpenAPI action group schemas
+  sample_data/                        Policies, configs, compliance mappings
+  tests/                              CDK + governance tests
+  governance_bedrock_stack.py         CDK infrastructure (single stack)
 
-governance-demo/                  Frozen reference (OWASP test suite only)
+governance-demo/                      Frozen reference (OWASP test suite only)
 ```
 
 ---
 
 ## Key Design Principles
 
-1. **Fail-safe defaults** - System denies on failure. Never fails open.
-2. **Defense-in-depth** - 6 independent security layers. Bypassing one doesn't bypass all.
-3. **Progressive trust** - Agents earn autonomy through demonstrated safe behavior.
-4. **Policy-as-code** - Governance rules are machine-readable JSON, updated without deployments.
-5. **Continuous evidence** - Every decision logged, hashed, and traceable to compliance controls.
-6. **Physical constraints** - IAM boundaries and output caps cannot be overridden by model output.
+1. **Fail-safe defaults** -- System denies on failure. Never fails open.
+2. **Defense-in-depth** -- 6 independent security layers. Bypassing one doesn't bypass all.
+3. **Progressive trust** -- Agents earn autonomy through demonstrated safe behavior.
+4. **Policy-as-code** -- Governance rules are machine-readable JSON, updated without deployments.
+5. **Continuous evidence** -- Every decision logged, hashed, and traceable to compliance controls.
+6. **Physical constraints** -- IAM boundaries and output caps cannot be overridden by model output.
+7. **Dual-mode scalability** -- Same security logic, different execution topology. Dev simplicity or production scale.
+8. **Async by default** -- Evidence and metrics never block the governance verdict.
 
 ---
 

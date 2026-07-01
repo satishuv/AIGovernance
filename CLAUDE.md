@@ -27,6 +27,10 @@ cdk synth
 ada credentials update --account 917914785227 --provider isengard --role Admin --once
 npx cdk deploy -c skip_cloudtrail=true
 
+# Deploy to personal account (full Bedrock access)
+export AWS_PROFILE=personal
+npx cdk deploy -c skip_cloudtrail=true --require-approval never
+
 # Destroy
 npx cdk destroy -c skip_cloudtrail=true
 ```
@@ -41,14 +45,17 @@ cd governance-demo-bedrock
 # All tests
 python -m pytest tests/ -v
 
-# Single test file
-python -m pytest tests/test_governance_engine_units.py -v
+# CDK stack infrastructure tests (20 tests)
+python -m pytest tests/test_governance_bedrock_stack.py -v
 
-# Single test
-python -m pytest tests/test_governance_engine_units.py::TestPolicyEngine::test_allow_verdict -v
+# Governance engine unit tests (110 tests)
+python -m pytest tests/test_governance_engine_units.py -v
 
 # OWASP security tests (tests governance-demo-bedrock lambdas for LLM security vulnerabilities)
 python -m pytest tests/test_security_governance.py -v
+
+# Single test
+python -m pytest tests/test_governance_engine_units.py::TestPolicyEngine::test_allow_verdict -v
 
 # governance-demo tests (read-only reference, 94 tests)
 cd ../governance-demo
@@ -57,33 +64,68 @@ python -m pytest tests/ -v
 
 ## Architecture
 
-### Governance Pipeline (14 steps)
+### Governance Pipeline (20 steps, dual-mode execution)
 
-Every agent action request passes through:
+The pipeline runs in two modes controlled by the `GOVERNANCE_MODE` environment variable on the Scope Enforcer Lambda:
+
+**Mode 1: Single Lambda (`GOVERNANCE_MODE=lambda`)**
+All 20 steps execute sequentially in one Governance Engine Lambda invocation. Best for low-traffic or development environments.
+
+**Mode 2: Step Functions Express (`GOVERNANCE_MODE=step_functions`)**
+Steps are distributed across 4 focused Lambdas with parallel execution. The state machine (`governance-pipeline`, EXPRESS type) provides:
+- Kill switch check via direct DynamoDB read (no Lambda cold start)
+- Parallel branches: InputDefense + Authorization run concurrently
+- Sequential policy/risk evaluation after parallel checks pass
+- Async post-decision processing via EventBridge (evidence write does not block response)
+- Supports 1000+ concurrent executions
+
+### Pipeline Steps (all 20)
+
 1. Kill Switch check
-2. Threat Detection (prompt injection, SQL injection)
-3. Agent Identity check
-4. Agent Registry check
-5. Environment Isolation
-6. Data Class Access check
-7. Tool/Model Registry check
-8. Policy Evaluation (policy-as-code from S3)
-9. Risk Scoring (0-100)
-10. Decision Engine (ALLOW / DENY / ESCALATE)
-11. Evidence Write (SHA-256 hashed, immutable S3)
-12. Control Trace (ISO 42001 + NIST AI RMF)
-13. Decision History
-14. CloudWatch Metrics
+2. Input Sanitization (XSS, encoding normalization)
+3. Threat Detection (prompt injection, SQL injection, base64 evasion, ChatML, leet-speak)
+4. Agent Identity check
+5. Agent Registry check
+6. Environment Isolation
+7. Separation of Duties
+8. Data Class Access check
+9. Tool/Model Registry check
+10. Policy Evaluation (policy-as-code from S3)
+11. Risk Scoring (0-100, weighted factors)
+12. Decision Engine (ALLOW / DENY / ESCALATE)
+13. Evidence Write (SHA-256 hashed, immutable S3)
+14. Evidence Chain Verification
+15. Control Trace (ISO 42001 + NIST AI RMF)
+16. Decision History
+17. Output Guardrails
+18. Behavioral Invariants check
+19. Runtime Drift Detection
+20. CloudWatch Metrics + Continuous Monitoring
 
 ### Lambda Functions
 
 | Lambda | Purpose | Location |
 |--------|---------|----------|
-| Scope Enforcer | Entry point; reads scope, invokes governance engine, swaps IAM boundaries, calls Bedrock Agent | `lambdas/scope_enforcer/index.py` |
-| Governance Engine | Orchestrates the 14-step governance pipeline | `lambdas/governance_engine/index.py` (+ 20 sibling modules) |
+| Scope Enforcer | Entry point; reads scope, routes to governance mode, swaps IAM boundaries, calls Bedrock Agent | `lambdas/scope_enforcer/index.py` |
+| Governance Engine | Orchestrates all 20 steps in single-Lambda mode | `lambdas/governance_engine/index.py` (+ 20 sibling modules) |
 | Action Group | Bedrock Agent action handler; 8 operations across 4 action groups | `lambdas/action_group/index.py` |
 | Kill Switch | Emergency shutdown: scope to 0 + deny-all IAM policy | `lambdas/kill_switch/index.py` |
 | Seed Tables | DynamoDB initialization (custom resource) | `lambdas/seed_tables/index.py` |
+| **InputDefense** | Step Functions mode: threat detection, input sanitization, encoding normalization | `lambdas/input_defense/index.py` |
+| **Authorization** | Step Functions mode: agent identity, registry, environment isolation, data class | `lambdas/authorization/index.py` |
+| **PolicyRisk** | Step Functions mode: policy evaluation, risk scoring, decision engine | `lambdas/policy_risk/index.py` |
+| **PostDecision** | Step Functions mode (async via EventBridge): evidence write, control traces, metrics | `lambdas/post_decision/index.py` |
+
+### Step Functions State Machine
+
+| Property | Value |
+|----------|-------|
+| Name | governance-pipeline |
+| Type | EXPRESS |
+| ARN | arn:aws:states:us-east-1:831926627799:stateMachine:governance-pipeline |
+| Definition | `state_machine/governance_pipeline.asl.json` |
+
+Flow: KillSwitchCheck (DynamoDB) --> ParallelDefenseChecks [InputDefense, Authorization] --> PolicyRiskDecision --> FireAsyncPostProcessing (EventBridge) --> ReturnDecision
 
 ### Scope Levels
 
@@ -97,7 +139,7 @@ Every agent action request passes through:
 
 ### CDK Stack
 
-Single stack in `governance_bedrock_stack.py`. Key resources: S3 buckets (data + immutable evidence), DynamoDB tables (scope, pending, agent registry, decision history), 4 IAM permission boundary policies, Bedrock Agent with 4 action groups (OpenAPI schemas in `schemas/`), CloudWatch alarms, SNS topics, EventBridge rules.
+Single stack in `governance_bedrock_stack.py`. Key resources: S3 buckets (data + immutable evidence), DynamoDB tables (scope, pending, agent registry, decision history), 4 IAM permission boundary policies, Bedrock Agent with 4 action groups (OpenAPI schemas in `schemas/`), Step Functions Express state machine, 4 focused pipeline Lambdas, EventBridge rule for async post-decision, CloudWatch alarms, SNS topics.
 
 ## Lambda Import Rules
 
@@ -114,6 +156,8 @@ Lambda deploys files flat to `/var/task/`. Within `lambdas/governance_engine/`:
 - Never store tokens, passwords, or secrets in any file.
 - The `governance-demo/` folder is frozen. All new work targets `governance-demo-bedrock/` exclusively.
 - Deployed to Isengard account 917914785227, us-east-1. Bedrock InvokeModel is blocked by account SCP (known issue, CTI filed).
+- Also deployed to personal account 831926627799, us-east-1 (full Bedrock access, no SCP restrictions).
+- `GOVERNANCE_MODE` feature flag controls execution mode. Default after Phase 5 deploy is `step_functions`.
 
 ## Test Payloads for Live Lambda Invocation
 
