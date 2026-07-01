@@ -25,76 +25,103 @@ AIGovernance supports two execution modes, switchable via the `GOVERNANCE_MODE` 
 | `lambda` | Development, testing, low-traffic | Single Lambda (monolithic) | ~200ms | 1,000 concurrent |
 | `stepfunctions` | Production, high-traffic, regulated | Step Functions Express Workflow | ~150ms (parallel) | 100,000+ concurrent |
 
-### Step Functions Pipeline (Production Mode)
+### Production Architecture (Step Functions)
 
 ```
-User Request
-     |
-     v
-+------------------+
-| Scope Enforcer   |  Entry point: reads scope, selects governance mode
-+--------+---------+
-         |
-         v
-+------------------+
-| Kill Switch      |  DynamoDB direct integration (no Lambda cold start)
-| Check            |  Scope 0 = immediate DENY
-+--------+---------+
-         |
-         v (scope > 0)
-+=============================+
-| PARALLEL EXECUTION          |    <-- halves latency
-|                             |
-|  +------------------+  +------------------+
-|  | Input Defense    |  | Authorization    |
-|  | Lambda           |  | Lambda           |
-|  |                  |  |                  |
-|  | - Unicode norm   |  | - Agent registry |
-|  | - Base64 decode  |  | - Environment    |
-|  | - Delimiter det  |  |   isolation      |
-|  | - Leet-speak     |  | - Tool/model     |
-|  | - Context stuff  |  |   registry       |
-|  | - Regex threats  |  | - Rate limiting  |
-|  +--------+---------+  +--------+---------+
-|           |                      |
-+===========|======================|==========+
-            |                      |
-            v                      v
-+------------------------------------------+
-| Policy + Risk Decision Lambda            |
-|                                          |
-| - Policy-as-code evaluation              |
-| - Risk scoring (0-100)                   |
-| - Drift detection + anomaly detection    |
-| - Verdict: ALLOW / DENY / ESCALATE      |
-+--------------------+---------------------+
-                     |
-                     v
-+------------------------------------------+
-| Async Post-Decision (EventBridge)        |  <-- non-blocking
-|                                          |
-| - Immutable evidence write (S3 + SHA256) |
-| - Decision history (DynamoDB)            |
-| - CloudWatch metrics                     |
-| - Compliance mapping (ISO 42001, NIST)   |
-+------------------------------------------+
-                     |
-                     v (if ALLOW)
-+------------------+
-| Bedrock Agent    |  Amazon Nova Micro, 4 action groups
-| (governed)       |  IAM boundary swapped per scope level
-+--------+---------+
-         |
-         v
-+------------------+
-| Output           |  Validates response before returning to user
-| Guardrails       |  Blocks ARN leaks, credential exposure, canary leakage
-+------------------+
+                              User Request
+                                   |
+                                   v
+                          +------------------+
+                          | Scope Enforcer   |  Reads scope level (0-4)
+                          +--------+---------+
+                                   |
+                                   v
++==========================================================================+
+|                    GOVERNANCE SECURITY WRAPPER                            |
+|                    (runs IN PARALLEL with agent actions)                  |
+|                                                                          |
+|  +------------------------------------------------------------------+   |
+|  |  LAYER 1: Kill Switch + Behavioral Invariants                     |   |
+|  |  (hard limits no model can override)                              |   |
+|  +------------------------------------------------------------------+   |
+|                                   |                                      |
+|                  +----------------+----------------+                     |
+|                  |     PARALLEL EXECUTION          |                     |
+|                  |                                 |                     |
+|  +---------------------------+  +---------------------------+           |
+|  | Input Defense Lambda      |  | Authorization Lambda      |           |
+|  |                           |  |                           |           |
+|  | - Unicode normalization   |  | - Agent identity          |           |
+|  | - Base64/hex decoding     |  | - Agent registry          |           |
+|  | - ChatML/Llama delimiters |  | - Environment isolation   |           |
+|  | - Leet-speak detection    |  | - Tool/model approval     |           |
+|  | - Context stuffing        |  | - Per-tool rate limits    |           |
+|  | - Regex threat patterns   |  | - Tool chain detection    |           |
+|  +---------------------------+  +---------------------------+           |
+|                  |                                 |                     |
+|                  +----------------+----------------+                     |
+|                                   |                                      |
+|  +------------------------------------------------------------------+   |
+|  |  Policy + Risk Decision Lambda                                    |   |
+|  |  - Policy-as-code (S3)   - Risk scoring (0-100)                   |   |
+|  |  - Drift detection       - Verdict: ALLOW / DENY / ESCALATE      |   |
+|  +------------------------------------------------------------------+   |
+|                                                                          |
++==========================================================================+
+                                   |
+              +--------------------+--------------------+
+              |                    |                    |
+         DENY |               ESCALATE            ALLOW |
+              v                    v                    v
+     +-------------+     +----------------+   +------------------+
+     | Blocked     |     | Human Approval |   | Bedrock Agent    |
+     | (explain    |     | Queue (SNS +   |   | (Amazon Nova     |
+     |  why)       |     |  API Gateway)  |   |  Micro)          |
+     +-------------+     +----------------+   +--------+---------+
+                                                       |
+                                              Scope determines which
+                                              action groups are available:
+                                                       |
+                          +----------------------------+----------------------------+
+                          |              |              |              |             |
+                     Scope 1        Scope 2        Scope 3        Scope 4          |
+                          |              |              |              |             |
+                          v              v              v              v             |
+                  +-------------+ +-------------+ +-------------+ +-------------+  |
+                  | ReadPipeline| | Propose     | | Staging     | | Production  |  |
+                  | Status      | | Changes     | | Deployment  | | Deployment  |  |
+                  |             | |             | |             | |             |  |
+                  | - Build     | | - Draft     | | - Deploy to | | - Deploy to |  |
+                  |   status    | |   deploy    | |   staging   | |   prod      |  |
+                  | - Test      | |   plans     | | - Run       | | - Canary    |  |
+                  |   results   | | - Rollback  | |   integ     | |   analysis  |  |
+                  | - Config    | |   strategy  | |   tests     | | - Auto      |  |
+                  |   state     | |             | | - Promote   | |   rollback  |  |
+                  +------+------+ +------+------+ +------+------+ +------+------+  |
+                         |               |               |               |          |
+                         +-------+-------+-------+-------+-------+------+          |
+                                 |                                                  |
+                                 v                                                  |
+                  +------------------------------------------------------------------+
+                  |  Output Guardrails (validates EVERY response before returning)   |
+                  |  - System prompt leak detection    - Canary tripwire             |
+                  |  - ARN/credential exposure         - Response size limits        |
+                  +------------------------------------------------------------------+
+                                 |
+                                 v
+                  +------------------------------------------------------------------+
+                  |  Async Post-Decision (EventBridge, non-blocking)                 |
+                  |  - Immutable evidence (S3 + SHA256)  - Decision history          |
+                  |  - Control traces (ISO 42001, NIST)  - CloudWatch metrics        |
+                  |  - Continuous health monitoring       - Drift baseline update    |
+                  +------------------------------------------------------------------+
 ```
 
-### Single Lambda Mode (Development)
+**Key insight:** The governance security wrapper runs as a sidecar around the agent's SDLC actions. Security is not a blocker that sits in front of the agent; it wraps every action, validating inputs before and outputs after. The agent's 4 action groups (the actual CI/CD pipeline work) execute inside this security envelope.
 
-In `lambda` mode, all 20 security modules execute sequentially within a single Governance Engine Lambda. This mode is simpler to debug and sufficient for development, testing, and low-concurrency workloads. The same security checks run in both modes; only the execution topology differs.
+### Development Mode (Single Lambda)
+
+In `lambda` mode, all 20 security modules execute sequentially within a single Governance Engine Lambda. Same checks, simpler topology. Best for debugging and low-traffic environments.
 
 ---
 
