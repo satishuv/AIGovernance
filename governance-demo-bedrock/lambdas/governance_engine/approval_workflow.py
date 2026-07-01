@@ -11,7 +11,7 @@ Requirements: 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from models import GovernanceDecision, PendingApproval
@@ -43,7 +43,7 @@ class ApprovalWorkflow:
         Returns:
             The generated approval_id.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         approval_id = str(uuid.uuid4())
 
         approval = PendingApproval(
@@ -116,7 +116,7 @@ class ApprovalWorkflow:
                     "audit_event": "approvers_notified",
                     "approval_id": approval.approval_id,
                     "topic_arn": topic_arn,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -153,7 +153,7 @@ class ApprovalWorkflow:
                         "approval_id": approval_id,
                         "approver_id": approver_id,
                         "agent_owner_id": agent_owner_id,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
             )
@@ -161,7 +161,7 @@ class ApprovalWorkflow:
                 "Separation of duties violation: approver cannot be the agent owner."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"approval_id": approval_id},
@@ -208,7 +208,7 @@ class ApprovalWorkflow:
         Returns:
             The updated PendingApproval record.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"approval_id": approval_id},
@@ -256,10 +256,10 @@ class ApprovalWorkflow:
             return None
 
         created = datetime.fromisoformat(approval.created_at)
-        elapsed = (datetime.utcnow() - created).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - created).total_seconds()
 
         if elapsed >= approval.timeout_seconds:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
 
             self._table.update_item(
                 Key={"approval_id": approval_id},
@@ -311,7 +311,7 @@ class ApprovalWorkflow:
         Returns:
             The S3 key where the evidence was written.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         s3_key = (
             f"evidence/{environment}/approvals/"
             f"{now.strftime('%Y/%m/%d')}/{approval.approval_id}.json"

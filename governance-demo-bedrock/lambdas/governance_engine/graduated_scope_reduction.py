@@ -10,7 +10,7 @@ Requirements: 29.1, 29.2, 29.3, 29.4, 29.5, 29.6
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Tuple
 
 from models import ScopeReductionEvent
@@ -34,7 +34,7 @@ class GraduatedScopeReduction:
         """
         from boto3.dynamodb.conditions import Key
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         start = (now - timedelta(seconds=time_window_seconds)).isoformat()
         try:
             response = decision_history_table.query(
@@ -66,7 +66,7 @@ class GraduatedScopeReduction:
         Returns:
             Tuple of (exceeded, duration_seconds).
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if rolling_avg < threshold:
             try:
                 dynamodb_table.update_item(
@@ -113,7 +113,7 @@ class GraduatedScopeReduction:
         """
         from boto3.dynamodb.conditions import Key
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         try:
             response = dynamodb_table.query(
                 KeyConditionExpression=Key("agent_id").eq(agent_id),
@@ -155,7 +155,7 @@ class GraduatedScopeReduction:
         Returns:
             ScopeReductionEvent with reduction details.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         event_id = str(uuid.uuid4())
 
         # Get current scope
@@ -270,6 +270,6 @@ class GraduatedScopeReduction:
             logger.error(json.dumps({
                 "event": "get_reduction_mode_failed",
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return "approval-gated"

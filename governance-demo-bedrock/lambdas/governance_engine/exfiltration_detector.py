@@ -12,7 +12,7 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from models import ExfiltrationDetectionResult
@@ -39,7 +39,7 @@ class ExfiltrationDetector:
                         ) -> ExfiltrationDetectionResult:
         """Evaluate agent output for exfiltration patterns."""
         config = config or {}
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         det_id = str(uuid.uuid4())
         size = len(output_text.encode("utf-8"))
         size_limits = config.get("size_limits", DEFAULT_SIZE_LIMITS)
@@ -121,7 +121,7 @@ class ExfiltrationDetector:
                       detection_result: ExfiltrationDetectionResult,
                       risk_scoring_engine=None) -> Dict[str, Any]:
         """Block output, log exfiltration attempt, increase risk score."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         record = {
             "audit_event": "exfiltration_blocked",
             "detection_id": detection_result.detection_id,
@@ -159,7 +159,7 @@ class ExfiltrationDetector:
         except Exception as exc:
             logger.error(json.dumps({
                 "event": "load_allowlist_failed", "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             self._allowlist_cache = self._allowlist_cache or []
         return self._allowlist_cache

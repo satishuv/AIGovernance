@@ -68,7 +68,7 @@ WHERE DOES IT RUN?
 
 The entire platform runs on AWS using native services:
 
-AI Agent Runtime: Amazon Bedrock Agents (Claude 3 Haiku)
+AI Agent Runtime: Amazon Bedrock Agents (Amazon Nova Micro)
 Governance Engine: AWS Lambda (Python)
 Policy and Configuration Storage: Amazon DynamoDB
 Policy Definitions: Amazon S3 (versioned)

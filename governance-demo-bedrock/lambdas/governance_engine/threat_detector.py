@@ -12,7 +12,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from models import ThreatPattern
@@ -57,7 +57,7 @@ class ThreatDetector:
             json.dumps({
                 "audit_event": "threat_patterns_loaded",
                 "pattern_count": len(self._patterns),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
         )
         return self._patterns
@@ -75,7 +75,7 @@ class ThreatDetector:
             Dict with classification ("clean"/"denied"/"suspicious"),
             matched_patterns list, and risk_score_adjustment.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         matched_patterns: List[Dict[str, Any]] = []
         classification = "clean"
         risk_score_adjustment = 0
@@ -142,7 +142,7 @@ class ThreatDetector:
                 "audit_event": "threat_pattern_added",
                 "pattern_id": pattern.pattern_id,
                 "category": pattern.category,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
         )
         return pattern

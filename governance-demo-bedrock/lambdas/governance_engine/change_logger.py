@@ -10,7 +10,7 @@ Requirements: 21.1, 21.2, 21.3, 21.4
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from models import ChangeRecord
@@ -52,7 +52,7 @@ class ChangeLogger:
         Returns:
             The created ChangeRecord.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
 
         record = ChangeRecord(
@@ -128,7 +128,7 @@ class ChangeLogger:
         Returns:
             The created ChangeRecord.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
 
         record = ChangeRecord(

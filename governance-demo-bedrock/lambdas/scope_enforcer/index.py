@@ -26,10 +26,57 @@ Environment variables:
 import json
 import logging
 import os
+import re as _re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
+
+# ---------------------------------------------------------------------------
+# Output Guardrails (lightweight, inline for scope enforcer)
+# ---------------------------------------------------------------------------
+_SENSITIVE_PATTERNS = [
+    _re.compile(r"arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:[^\s\"']+"),  # AWS ARNs
+    _re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access keys
+    _re.compile(r"\b\d{12}\b"),  # Account IDs
+    _re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+"),  # JWT tokens
+    _re.compile(r"(?:BEGIN|END) (?:RSA |EC )?PRIVATE KEY"),  # Private keys
+]
+
+_INTERNAL_PATTERNS = [
+    _re.compile(r"GovernanceBedrockStack-[A-Za-z0-9]+-[A-Za-z0-9]+"),  # Lambda/resource names
+    _re.compile(r"s3://[a-z0-9.-]+governance[a-z0-9.-]*"),  # Internal S3 buckets
+    _re.compile(r"(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}"),  # Internal IPs
+]
+
+
+def _validate_agent_output(response_text, canary_tokens=None):
+    """Validate agent output for sensitive data leakage.
+
+    Returns (safe, redacted_text, violations).
+    """
+    violations = []
+    redacted = response_text
+
+    for pattern in _SENSITIVE_PATTERNS:
+        if pattern.search(response_text):
+            violations.append(f"Sensitive data pattern: {pattern.pattern[:40]}")
+            redacted = pattern.sub("[REDACTED]", redacted)
+
+    for pattern in _INTERNAL_PATTERNS:
+        if pattern.search(response_text):
+            violations.append(f"Internal path exposure: {pattern.pattern[:40]}")
+            redacted = pattern.sub("[REDACTED]", redacted)
+
+    if canary_tokens:
+        for token in canary_tokens:
+            if token in response_text:
+                violations.append(f"CRITICAL: Canary token leaked: {token}")
+                redacted = redacted.replace(token, "[CANARY-REDACTED]")
+
+    safe = len(violations) == 0
+    return safe, redacted, violations
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -73,7 +120,7 @@ def update_scope_level(agent_id, new_scope):
         UpdateExpression="SET scope_level = :s, updated_at = :t, updated_by = :u",
         ExpressionAttributeValues={
             ":s": new_scope,
-            ":t": datetime.utcnow().isoformat(),
+            ":t": datetime.now(timezone.utc).isoformat(),
             ":u": "scope_enforcer",
         },
     )
@@ -81,7 +128,7 @@ def update_scope_level(agent_id, new_scope):
         "event": "scope_updated",
         "agent_id": agent_id,
         "new_scope": new_scope,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }))
 
 
@@ -125,7 +172,7 @@ def swap_permission_boundary(scope_level):
         "role_name": ACTION_GROUP_LAMBDA_ROLE_NAME,
         "scope_level": scope_level,
         "boundary_arn": boundary_arn,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }))
 
 
@@ -254,7 +301,7 @@ def create_pending_approval(agent_id, input_text, governance_decision):
     """
     table = dynamodb.Table(PENDING_TABLE_NAME)
     request_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
 
     table.put_item(Item={
         "request_id": request_id,
@@ -340,7 +387,7 @@ def handler(event, context):
                 "failure_detail": str(gov_exc),
                 "fallback_action_taken": "deny",
                 "agent_id": agent_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return {
                 "status": "denied",
@@ -361,7 +408,7 @@ def handler(event, context):
                 "agent_id": agent_id,
                 "decision_id": governance_decision.get("decision_id", ""),
                 "explanation": explanation,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return {
                 "status": "denied",
@@ -380,7 +427,7 @@ def handler(event, context):
                 "decision_id": governance_decision.get("decision_id", ""),
                 "request_id": request_id,
                 "explanation": explanation,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return {
                 "status": "escalated",
@@ -401,6 +448,20 @@ def handler(event, context):
 
         # Step 7: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)
         response_text = invoke_bedrock_agent(input_text, session_attributes)
+
+        # Step 8: Output guardrails -- validate agent response before returning
+        canary_tokens = governance_decision.get("_canary_tokens", []) if governance_decision else []
+        output_safe, redacted_response, output_violations = _validate_agent_output(
+            response_text, canary_tokens
+        )
+        if not output_safe:
+            logger.warning(json.dumps({
+                "audit_event": "output_guardrail_triggered",
+                "agent_id": agent_id,
+                "violations": output_violations,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            response_text = redacted_response
 
         return {
             "status": "success",

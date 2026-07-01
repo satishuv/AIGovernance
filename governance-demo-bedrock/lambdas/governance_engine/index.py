@@ -88,6 +88,14 @@ from graduated_scope_reduction import GraduatedScopeReduction
 from multi_agent import MultiAgentManager
 from privilege_escalation import PrivilegeEscalationDetector
 
+# Phase 4 imports
+from input_sanitizer import InputSanitizer
+from output_guardrails import OutputGuardrails
+from behavioral_invariants import BehavioralInvariantsEnforcer
+from runtime_drift_detection import RuntimeDriftDetector
+from continuous_monitoring import ContinuousMonitoringManager
+from tool_execution_auth import ToolExecutionAuthManager
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -116,6 +124,11 @@ EXFILTRATION_ALLOWLIST_TABLE_NAME = os.environ.get("EXFILTRATION_ALLOWLIST_TABLE
 SCOPE_REDUCTION_HISTORY_TABLE_NAME = os.environ.get("SCOPE_REDUCTION_HISTORY_TABLE_NAME", "")
 MULTI_AGENT_CONFIG_TABLE_NAME = os.environ.get("MULTI_AGENT_CONFIG_TABLE_NAME", "")
 METRICS_THRESHOLD_TABLE_NAME = os.environ.get("METRICS_THRESHOLD_TABLE_NAME", "")
+
+# Phase 4 environment variables
+RUNTIME_DRIFT_TABLE_NAME = os.environ.get("RUNTIME_DRIFT_TABLE_NAME", "")
+AGENT_HEALTH_TABLE_NAME = os.environ.get("AGENT_HEALTH_TABLE_NAME", "")
+TOOL_AUTH_TABLE_NAME = os.environ.get("TOOL_AUTH_TABLE_NAME", "")
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +669,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     error_category="kill_switch_active",
                 )
 
+        # ==============================================================
+        # Phase 4 pre-check — behavioral invariants (hard limits)
+        # ==============================================================
+        invariants_enforcer = BehavioralInvariantsEnforcer()
+        canary_tokens = []
+        pre_invariants = invariants_enforcer.enforce_pre_request(action_request)
+        if not pre_invariants.passed:
+            return _deny_response(
+                reason=f"Behavioral invariant violated: {pre_invariants.block_reason}",
+                agent_id=agent_id,
+                error_category="behavioral_invariant_violation",
+            )
+        canary_tokens = pre_invariants.canary_tokens
+
         # --------------------------------------------------------------
         # 4. Threat detection (Req 12.1, 12.2, 12.3)
         # --------------------------------------------------------------
@@ -710,6 +737,44 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     agent_id=agent_id,
                     error_category="cross_agent_violation",
                 )
+
+        # ==============================================================
+        # Phase 4 pre-check — runtime drift detection
+        # ==============================================================
+        runtime_drift_table = None
+        if RUNTIME_DRIFT_TABLE_NAME:
+            runtime_drift_table = dynamodb.Table(RUNTIME_DRIFT_TABLE_NAME)
+            drift_detector = RuntimeDriftDetector()
+            drift_result = drift_detector.compute_drift_score(
+                agent_id,
+                action_request.get("action_group", ""),
+                action_request.get("target_resource", ""),
+                action_request.get("scope_level", 1),
+                runtime_drift_table,
+            )
+            if drift_result.baseline_present:
+                if drift_result.drift_score > 80:
+                    return _deny_response(
+                        reason=f"Agent behavior drift critical: score {drift_result.drift_score:.0f}/100. {drift_result.factors}",
+                        agent_id=agent_id,
+                        error_category="runtime_drift_critical",
+                    )
+                elif drift_result.drift_score > 50:
+                    risk_score_adjustment += int(drift_result.drift_score * 0.3)
+
+        # ==============================================================
+        # Phase 4 pre-check — input sanitization (before threat detection)
+        # ==============================================================
+        input_sanitizer = InputSanitizer()
+        if input_text:
+            sanitization = input_sanitizer.sanitize(input_text)
+            if sanitization.blocked:
+                return _deny_response(
+                    reason=f"Input blocked by advanced sanitization: {sanitization.block_reason}",
+                    agent_id=agent_id,
+                    error_category="input_sanitization_blocked",
+                )
+            input_text = sanitization.sanitized_text
 
         if input_text and threat_detector._patterns:
             threat_result = threat_detector.evaluate(input_text, agent_id)
@@ -873,6 +938,26 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     agent_id=agent_id,
                     error_category="unapproved_tool_model",
                 )
+
+        # ==============================================================
+        # Phase 4 pre-check — tool execution authorization
+        # ==============================================================
+        tool_auth_table = None
+        if TOOL_AUTH_TABLE_NAME:
+            tool_auth_table = dynamodb.Table(TOOL_AUTH_TABLE_NAME)
+            tool_exec_auth = ToolExecutionAuthManager()
+            tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
+            tool_parameters = event.get("tool_parameters", {})
+            if tool_name:
+                tool_auth_result = tool_exec_auth.authorize_tool(
+                    agent_id, tool_name, tool_parameters, tool_auth_table,
+                )
+                if not tool_auth_result.authorized:
+                    return _deny_response(
+                        reason=f"Tool execution denied: {tool_auth_result.denial_reason}",
+                        agent_id=agent_id,
+                        error_category="tool_auth_denied",
+                    )
 
         # ==============================================================
         # Phase 1a pipeline — policy evaluation -> risk -> decision
@@ -1055,6 +1140,61 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
 
         # ==============================================================
+        # Phase 4 post-decision — continuous monitoring + drift recording
+        # ==============================================================
+        if AGENT_HEALTH_TABLE_NAME:
+            try:
+                health_table = dynamodb.Table(AGENT_HEALTH_TABLE_NAME)
+                health_monitor = ContinuousMonitoringManager()
+                health_state = health_monitor.update_health(
+                    agent_id, decision.verdict, risk_assessment.risk_score if risk_assessment else 0,
+                    health_table,
+                )
+                logger.info(json.dumps({
+                    "event": "agent_health_updated",
+                    "agent_id": agent_id,
+                    "health_score": health_state.health_score,
+                    "status": health_state.status,
+                    "timestamp": _iso_now(),
+                }))
+            except Exception as health_exc:
+                logger.error(json.dumps({
+                    "event": "health_update_failed",
+                    "error": str(health_exc),
+                    "timestamp": _iso_now(),
+                }))
+
+        if runtime_drift_table is not None:
+            try:
+                drift_detector = RuntimeDriftDetector()
+                drift_detector.record_activity(
+                    agent_id,
+                    action_request.get("action_group", ""),
+                    action_request.get("target_resource", ""),
+                    action_request.get("scope_level", 1),
+                    runtime_drift_table,
+                )
+            except Exception as drift_exc:
+                logger.error(json.dumps({
+                    "event": "drift_recording_failed",
+                    "error": str(drift_exc),
+                    "timestamp": _iso_now(),
+                }))
+
+        if tool_auth_table is not None and decision.verdict == "allow":
+            try:
+                tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
+                if tool_name:
+                    tool_exec_auth = ToolExecutionAuthManager()
+                    tool_exec_auth.record_tool_call(agent_id, tool_name, tool_auth_table)
+            except Exception as tool_exc:
+                logger.error(json.dumps({
+                    "event": "tool_call_recording_failed",
+                    "error": str(tool_exc),
+                    "timestamp": _iso_now(),
+                }))
+
+        # ==============================================================
         # Phase 3 post-decision — output exfiltration check (Req 28.1, 28.2)
         # ==============================================================
         output_text = event.get("output_text", "")
@@ -1148,7 +1288,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # --------------------------------------------------------------
         # 18. Return GovernanceDecision as JSON
         # --------------------------------------------------------------
-        return json.loads(json.dumps(decision.to_dict(), cls=DecimalEncoder))
+        response_body = decision.to_dict()
+        if canary_tokens:
+            response_body["_canary_tokens"] = canary_tokens
+        return json.loads(json.dumps(response_body, cls=DecimalEncoder))
 
     except Exception as exc:
         # Catch-all: deny on any unexpected failure (Req 18.5)

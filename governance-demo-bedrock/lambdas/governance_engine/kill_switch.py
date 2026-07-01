@@ -10,7 +10,7 @@ Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class KillSwitchManager:
         Returns:
             Dict with activation details including affected agent IDs.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         affected_agent_ids: List[str] = []
 
         # Scan agent registry for all agents
@@ -145,7 +145,7 @@ class KillSwitchManager:
                 "required to deactivate the kill switch."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Clear kill_switch_active flag
         scope_table.put_item(
@@ -200,7 +200,7 @@ class KillSwitchManager:
             A deny decision dict if active, or an empty dict if inactive.
         """
         if self.is_active(scope_table):
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             logger.warning(
                 json.dumps(
                     {

@@ -10,7 +10,7 @@ Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 21.2
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from models import PolicyVersion
@@ -43,7 +43,7 @@ class PolicyLifecycle:
         Returns:
             The created PolicyVersion record.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Determine next version number (monotonically increasing)
         history = self.get_policy_history(policy_id, dynamodb_table)
@@ -156,7 +156,7 @@ class PolicyLifecycle:
                 f"cannot be the same as author '{author_id}'."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         logger.info(
             json.dumps({
@@ -202,7 +202,7 @@ class PolicyLifecycle:
         Raises:
             ValueError: If the target version archive is not found.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         history = self.get_policy_history(policy_id, dynamodb_table)
         current_version = max(v.version for v in history) if history else 0
 
@@ -310,7 +310,7 @@ class PolicyLifecycle:
                         "event": "policy_change_logging_failed",
                         "error": str(cl_exc),
                         "policy_id": policy_id,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
                 )
 

@@ -9,7 +9,7 @@ Requirements: 22.1, 22.2, 22.3, 22.4
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from models import DecisionHistoryEntry, GovernanceDecision
@@ -41,7 +41,7 @@ class DecisionHistory:
         Returns:
             The created DecisionHistoryEntry.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Extract policy_id from policy_result dict
         policy_id = ""

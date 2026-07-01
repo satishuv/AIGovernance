@@ -10,7 +10,7 @@ Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 19.6, 21.1
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from models import AgentIdentity
@@ -52,7 +52,7 @@ class AgentIdentityManager:
                 f"Must be one of {sorted(VALID_ENVIRONMENTS)}."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         identity = AgentIdentity(
             agent_id=agent_id,
             display_name=display_name,
@@ -130,7 +130,7 @@ class AgentIdentityManager:
             raise ValueError(f"Agent '{agent_id}' not found.")
 
         previous_scope = agent.scope_level
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"agent_id": agent_id},
@@ -206,7 +206,7 @@ class AgentIdentityManager:
         if agent is None:
             raise ValueError(f"Agent '{agent_id}' not found.")
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"agent_id": agent_id},

@@ -11,7 +11,7 @@ Requirements: 19.1, 19.2, 19.3, 19.4, 19.5, 19.6
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class EnvironmentIsolation:
         if requesting_agent_env == target_env:
             return True
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         logger.warning(
             json.dumps(
                 {

@@ -48,7 +48,7 @@ Scope Enforcer Lambda
     ├─ Bedrock: InvokeAgent (with session attributes)
     │       │
     │       ▼
-    │   Bedrock Agent (Claude 3 Haiku)
+    │   Bedrock Agent (Amazon Nova Micro)
     │       │
     │       ▼
     │   Action Group Lambda

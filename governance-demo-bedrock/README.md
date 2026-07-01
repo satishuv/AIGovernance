@@ -1,5 +1,9 @@
 # Agentic AI Governance Demo — Amazon Bedrock Edition
 
+> **This is the primary demo.** Deploy this, present this, share this.
+>
+> The folder `governance-demo/` in this repo is a separate, minimal Lambda reference implementation. It is NOT a second demo. It exists solely as a clean reference that the OWASP LLM security test suite (`tests/test_security_governance.py`) validates against. You do not need to deploy or explain it.
+
 A production-ready reference architecture demonstrating **scope-based governance** for autonomous AI agents built on [Amazon Bedrock Agents](https://aws.amazon.com/bedrock/agents/).
 
 This project accompanies the whitepaper *"Building Trustworthy Agentic AI"* and shows how to enforce graduated autonomy, real-time scope control, and an emergency kill switch — all deployed as a single AWS CDK stack.
@@ -24,7 +28,7 @@ This project accompanies the whitepaper *"Building Trustworthy Agentic AI"* and 
            │ bedrock-agent-runtime:InvokeAgent
            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                    Bedrock Agent (Claude 3 Haiku)             │
+│                    Bedrock Agent (Amazon Nova Micro)           │
 │                                                              │
 │  Action Groups (graduated by scope level):                   │
 │  ┌──────────────────┐  ┌──────────────────┐                 │
@@ -104,7 +108,7 @@ governance-demo-bedrock/
 
 - Python 3.9+
 - [AWS CDK v2](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) (`npm install -g aws-cdk`)
-- AWS account with Bedrock model access enabled for `anthropic.claude-3-haiku-20240307-v1:0`
+- AWS account with Bedrock model access enabled for `amazon.nova-micro-v1:0`
 - AWS CLI configured with appropriate credentials
 
 ---
@@ -145,7 +149,7 @@ Every user request flows through the **Scope Enforcer Lambda**, which:
 
 ### 2. Bedrock Agent (Decision Maker)
 
-The agent uses Claude 3 Haiku to interpret natural language requests and route them to the appropriate action group. Session attributes tell the agent which action groups are permitted at the current scope level.
+The agent uses Amazon Nova Micro to interpret natural language requests and route them to the appropriate action group. Session attributes tell the agent which action groups are permitted at the current scope level.
 
 ### 3. Action Group Lambda (Executor)
 

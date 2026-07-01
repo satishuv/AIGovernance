@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -96,7 +96,7 @@ def _error_response(action_group, api_path, http_method, message):
 def _audit_log(agent_id, action_group, api_path, parameters, outcome):
     """Emit a structured JSON audit log entry."""
     entry = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "agent_id": agent_id,
         "action_group": action_group,
         "api_path": api_path,
@@ -167,7 +167,7 @@ def handle_draft_deployment_plan(event, params):
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
     request_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     try:
         table = dynamodb.Table(PENDING_TABLE_NAME)
         table.put_item(Item={
@@ -206,7 +206,7 @@ def handle_draft_rollback_strategy(event, params):
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
     request_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     try:
         table = dynamodb.Table(PENDING_TABLE_NAME)
         table.put_item(Item={
@@ -246,7 +246,7 @@ def handle_deploy_to_staging(event, params):
             "Missing required parameter: buildId",
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     record = {
         "buildId": build_id,
         "environment": "staging",
@@ -288,7 +288,7 @@ def handle_trigger_tests(event, params):
             "Missing required parameters: buildId and testSuite",
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     record = {
         "buildId": build_id,
         "testSuite": test_suite,
@@ -332,7 +332,7 @@ def handle_deploy_to_production(event, params):
             "Missing required parameter: buildId",
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     record = {
         "buildId": build_id,
         "environment": "production",
@@ -374,7 +374,7 @@ def handle_rollback_deployment(event, params):
             "Missing required parameters: buildId and rollbackTargetBuildId",
         )
     agent_id = event.get("agent", {}).get("id", "unknown")
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     record = {
         "buildId": build_id,
         "rollbackTargetBuildId": rollback_target,

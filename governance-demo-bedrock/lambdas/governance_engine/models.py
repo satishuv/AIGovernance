@@ -6,6 +6,7 @@ serialization via to_dict() and from_dict() class methods.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 
@@ -167,7 +168,7 @@ class RiskAssessment:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "risk_score": self.risk_score,
+            "risk_score": Decimal(str(self.risk_score)),
             "risk_category": self.risk_category,
             "factors_applied": dict(self.factors_applied),
             "escalation_flagged": self.escalation_flagged,
@@ -219,12 +220,12 @@ class GovernanceDecision:
             "agent_id": self.agent_id,
             "action_requested": self.action_requested,
             "policy_result": dict(self.policy_result),
-            "risk_score": self.risk_score,
+            "risk_score": Decimal(str(self.risk_score)),
             "verdict": self.verdict,
             "explanation": self.explanation,
             "framework_mapping": list(self.framework_mapping),
             "timestamp": self.timestamp,
-            "latency_breakdown": dict(self.latency_breakdown),
+            "latency_breakdown": {k: Decimal(str(v)) for k, v in self.latency_breakdown.items()},
         }
 
     @classmethod
@@ -264,8 +265,8 @@ class LatencyMetric:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "decision_id": self.decision_id,
-            "total_elapsed_ms": self.total_elapsed_ms,
-            "component_latencies": dict(self.component_latencies),
+            "total_elapsed_ms": Decimal(str(self.total_elapsed_ms)),
+            "component_latencies": {k: Decimal(str(v)) for k, v in self.component_latencies.items()},
             "budget_exceeded": self.budget_exceeded,
             "timestamp": self.timestamp,
         }
@@ -495,7 +496,7 @@ class EvidenceRecord:
             "agent_id": self.agent_id,
             "action_requested": self.action_requested,
             "policy_result": self.policy_result,
-            "risk_score": self.risk_score,
+            "risk_score": Decimal(str(self.risk_score)),
             "verdict": self.verdict,
             "timestamp": self.timestamp,
             "framework_mapping": list(self.framework_mapping),
@@ -732,7 +733,7 @@ class PendingApproval:
             "decision_id": self.decision_id,
             "agent_id": self.agent_id,
             "action_requested": self.action_requested,
-            "risk_score": self.risk_score,
+            "risk_score": Decimal(str(self.risk_score)),
             "escalation_reason": self.escalation_reason,
             "status": self.status,
             "approver_id": self.approver_id,
@@ -853,7 +854,7 @@ class DecisionHistoryEntry:
             "decision_id": self.decision_id,
             "action_requested": self.action_requested,
             "verdict": self.verdict,
-            "risk_score": self.risk_score,
+            "risk_score": Decimal(str(self.risk_score)),
             "control_ids": list(self.control_ids),
             "policy_id": self.policy_id,
             "environment": self.environment,

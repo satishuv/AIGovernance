@@ -9,7 +9,7 @@ Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from models import ToolModelRegistryEntry
@@ -68,7 +68,7 @@ class ToolModelRegistry:
 
         self._table.put_item(Item=entry.to_dict())
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         logger.info(
             json.dumps(
                 {
@@ -110,7 +110,7 @@ class ToolModelRegistry:
                 "Approving a tool/model entry requires the 'policy_approver' role."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"entry_id": entry_id},
@@ -144,7 +144,7 @@ class ToolModelRegistry:
             entry_id: Unique identifier of the entry to revoke.
             requester_id: Identity of the person requesting revocation.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self._table.update_item(
             Key={"entry_id": entry_id},

@@ -11,7 +11,7 @@ Requirements: 24.1, 24.2, 24.3, 24.4
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from models import AggregateMetrics, ManageReport, MeasureReport
@@ -65,7 +65,7 @@ class MeasureManageEngine:
             else:
                 distribution["critical_76_100"] += 1
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         return AggregateMetrics(
             period="monthly",
             start_date=start_date,
@@ -93,7 +93,7 @@ class MeasureManageEngine:
             MeasureReport with risk metrics, trend analysis, and threshold flags.
         """
         report_id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Threshold comparison
         threshold_comparison: Dict[str, Dict[str, Any]] = {}
@@ -146,7 +146,7 @@ class MeasureManageEngine:
             ManageReport with incident summaries, policy changes, and remediation actions.
         """
         report_id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Incident summaries — denied and escalated decisions
         decisions = self._scan_decisions_in_range(
@@ -224,7 +224,7 @@ class MeasureManageEngine:
                 })
 
         if exceeded:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             alert = {
                 "alert_type": "measure_threshold_exceeded",
                 "exceeded_metrics": exceeded,
@@ -268,7 +268,7 @@ class MeasureManageEngine:
         Returns:
             Dict mapping report type to S3 key.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         prefix = f"compliance/nist_ai_rmf/{now.strftime('%Y/%m')}"
         keys: Dict[str, str] = {}
 

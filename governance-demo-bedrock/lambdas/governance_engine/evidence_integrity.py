@@ -10,7 +10,7 @@ Requirements: 15.1, 15.2, 15.3, 15.5, 15.6
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class EvidenceIntegrity:
         if computed_hash == stored_hash:
             return True
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         violation = {
             "audit_event": "evidence_integrity_violation",
             "evidence_id": evidence_id,
@@ -142,7 +142,7 @@ class EvidenceIntegrity:
             chain_valid = True
             if previous_hash and record_previous_hash != previous_hash:
                 chain_valid = False
-                now = datetime.utcnow().isoformat()
+                now = datetime.now(timezone.utc).isoformat()
                 violation = {
                     "audit_event": "hash_chain_violation",
                     "evidence_id": evidence_id,
@@ -191,6 +191,6 @@ class EvidenceIntegrity:
                     json.dumps({
                         "audit_event": "sns_alert_failed",
                         "error": str(exc),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
                 )

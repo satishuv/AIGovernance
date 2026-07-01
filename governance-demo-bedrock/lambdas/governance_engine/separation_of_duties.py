@@ -10,7 +10,7 @@ Requirements: 11.1, 11.2, 11.3, 11.4, 11.5
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from models import GovernanceRoleAssignment
@@ -65,7 +65,7 @@ class SeparationOfDuties:
                 f"'{scope}' violates separation-of-duties constraints."
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         assignment = GovernanceRoleAssignment(
             user_id=user_id,
             role=role,
@@ -161,7 +161,7 @@ class SeparationOfDuties:
             "policy_author" in scoped_roles
             and "policy_approver" in scoped_roles
         ):
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             logger.warning(
                 json.dumps(
                     {
@@ -178,7 +178,7 @@ class SeparationOfDuties:
 
         # Check constraint (b): operator + auditor
         if "operator" in existing_role_names and "auditor" in existing_role_names:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             logger.warning(
                 json.dumps(
                     {

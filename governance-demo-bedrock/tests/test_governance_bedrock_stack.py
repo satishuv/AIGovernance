@@ -32,7 +32,7 @@ class TestBedrockAgent:
 
     def test_bedrock_agent_exists_with_correct_model(self, template):
         template.has_resource_properties("AWS::Bedrock::Agent", {
-            "FoundationModel": "anthropic.claude-3-haiku-20240307-v1:0",
+            "FoundationModel": "amazon.nova-micro-v1:0",
         })
 
     def test_bedrock_agent_has_instruction(self, template):
@@ -122,7 +122,7 @@ class TestActionGroupLambda:
 
     def test_action_group_lambda_runtime(self, template):
         template.has_resource_properties("AWS::Lambda::Function", {
-            "Runtime": "python3.9",
+            "Runtime": "python3.12",
             "Timeout": 60,
             "MemorySize": 512,
         })
@@ -201,9 +201,9 @@ class TestPermissionBoundaries:
             },
         })
 
-    def test_four_managed_policies_exist(self, template):
-        """Verify at least 4 managed policies exist (the 4 scope boundaries)."""
-        template.resource_count_is("AWS::IAM::ManagedPolicy", 4)
+    def test_scope_boundary_managed_policies_exist(self, template):
+        """Verify at least 4 managed policies exist (the 4 scope boundaries + service role policies)."""
+        template.resource_count_is("AWS::IAM::ManagedPolicy", 6)
 
 
 # --- Requirement 16.5: Kill Switch Lambda exists ---
@@ -213,7 +213,7 @@ class TestKillSwitchLambda:
 
     def test_kill_switch_lambda_exists(self, template):
         template.has_resource_properties("AWS::Lambda::Function", {
-            "Runtime": "python3.9",
+            "Runtime": "python3.12",
             "Timeout": 10,
             "MemorySize": 128,
         })
@@ -226,7 +226,7 @@ class TestScopeEnforcerLambda:
 
     def test_scope_enforcer_lambda_exists(self, template):
         template.has_resource_properties("AWS::Lambda::Function", {
-            "Runtime": "python3.9",
+            "Runtime": "python3.12",
             "Timeout": 90,
             "MemorySize": 256,
         })

@@ -12,7 +12,7 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from models import ControlTrace, EvidenceRecord, GovernanceDecision
@@ -46,7 +46,7 @@ class EvidencePipeline:
         Returns:
             The created EvidenceRecord, or None if all retries fail.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         evidence_id = str(uuid.uuid4())
 
         risk_category = getattr(decision, "risk_category", "data_access")
@@ -125,7 +125,7 @@ class EvidencePipeline:
                             "attempt": attempt + 1,
                             "backoff_seconds": backoff,
                             "error": str(exc),
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                 )
@@ -139,7 +139,7 @@ class EvidencePipeline:
                     "decision_id": decision.decision_id,
                     "retries_exhausted": MAX_RETRIES,
                     "error": str(last_error),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -203,7 +203,7 @@ class EvidencePipeline:
                         "environment": environment,
                         "agent_id": agent_id,
                         "error": str(exc),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
             )
@@ -238,7 +238,7 @@ class EvidencePipeline:
         Returns:
             List of ControlTrace objects.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         traces = []
         for control_id in framework_mapping:
             trace = ControlTrace(

@@ -9,7 +9,7 @@ Requirements: 23.1, 23.2, 23.3, 23.4
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from models import ComplianceMappingEntry
@@ -107,7 +107,7 @@ class ComplianceMapper:
                 {
                     "audit_event": "iso42001_mapping_generated",
                     "entry_count": len(entries),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -176,7 +176,7 @@ class ComplianceMapper:
                 {
                     "audit_event": "nist_ai_rmf_mapping_generated",
                     "entry_count": len(entries),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -224,7 +224,7 @@ class ComplianceMapper:
                     "audit_event": "compliance_mapping_exported_json",
                     "output_path": output_path,
                     "entry_count": len(entries),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -296,7 +296,7 @@ class ComplianceMapper:
                     "audit_event": "compliance_mapping_exported_markdown",
                     "output_path": output_path,
                     "entry_count": len(entries),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )
@@ -356,7 +356,7 @@ class ComplianceMapper:
                     "paths": paths,
                     "iso_entry_count": len(iso_entries),
                     "nist_entry_count": len(nist_entries),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
         )

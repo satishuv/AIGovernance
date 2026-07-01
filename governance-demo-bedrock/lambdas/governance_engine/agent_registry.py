@@ -9,7 +9,7 @@ Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 19.1, 19.6
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from models import AgentRegistryEntry
@@ -67,7 +67,7 @@ class AgentRegistry:
 
         self._table.put_item(Item=entry.to_dict())
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         logger.info(
             json.dumps(
                 {
@@ -143,7 +143,7 @@ class AgentRegistry:
             ExpressionAttributeValues=expression_attr_values,
         )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         logger.info(
             json.dumps(
                 {

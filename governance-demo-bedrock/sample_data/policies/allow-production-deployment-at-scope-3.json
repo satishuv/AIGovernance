@@ -1,0 +1,17 @@
+{
+  "policy_id": "allow-production-deployment-at-scope-3",
+  "version": 1,
+  "name": "Allow Production Deployment at Scope 3+",
+  "description": "Allows production deployment actions for agents at scope level 3. Agents must have earned scope 3 or higher to deploy to production.",
+  "priority": 40,
+  "conditions": {
+    "scope_level": 3,
+    "action_group": "ProductionDeployment",
+    "target_resource": "production"
+  },
+  "outcome": "allow",
+  "owner": "governance-admin",
+  "approval_status": "approved",
+  "created_at": "2026-06-30T00:00:00Z",
+  "updated_at": "2026-06-30T00:00:00Z"
+}

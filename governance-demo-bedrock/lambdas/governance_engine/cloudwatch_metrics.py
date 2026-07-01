@@ -9,7 +9,7 @@ Requirements: 25.1, 25.2
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class CloudWatchMetricsPublisher:
                         "Dimensions": [
                             {"Name": "Verdict", "Value": verdict},
                         ],
-                        "Timestamp": datetime.utcnow(),
+                        "Timestamp": datetime.now(timezone.utc),
                         "Value": 1,
                         "Unit": "Count",
                         "StorageResolution": STORAGE_RESOLUTION,
@@ -49,7 +49,7 @@ class CloudWatchMetricsPublisher:
                 "event": "publish_decision_metric_failed",
                 "verdict": verdict,
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
 
     def publish_latency_metric(
@@ -67,7 +67,7 @@ class CloudWatchMetricsPublisher:
                 MetricData=[
                     {
                         "MetricName": "PolicyEvalLatency",
-                        "Timestamp": datetime.utcnow(),
+                        "Timestamp": datetime.now(timezone.utc),
                         "Value": latency_ms,
                         "Unit": "Milliseconds",
                         "StorageResolution": STORAGE_RESOLUTION,
@@ -79,7 +79,7 @@ class CloudWatchMetricsPublisher:
                 "event": "publish_latency_metric_failed",
                 "latency_ms": latency_ms,
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
 
     def publish_risk_score_metric(
@@ -97,7 +97,7 @@ class CloudWatchMetricsPublisher:
                 MetricData=[
                     {
                         "MetricName": "AverageRiskScore",
-                        "Timestamp": datetime.utcnow(),
+                        "Timestamp": datetime.now(timezone.utc),
                         "Value": risk_score,
                         "Unit": "None",
                         "StorageResolution": STORAGE_RESOLUTION,
@@ -109,7 +109,7 @@ class CloudWatchMetricsPublisher:
                 "event": "publish_risk_score_metric_failed",
                 "risk_score": risk_score,
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
 
     def publish_kill_switch_metric(self, cloudwatch_client) -> None:
@@ -124,7 +124,7 @@ class CloudWatchMetricsPublisher:
                 MetricData=[
                     {
                         "MetricName": "KillSwitchActivationCount",
-                        "Timestamp": datetime.utcnow(),
+                        "Timestamp": datetime.now(timezone.utc),
                         "Value": 1,
                         "Unit": "Count",
                         "StorageResolution": STORAGE_RESOLUTION,
@@ -135,7 +135,7 @@ class CloudWatchMetricsPublisher:
             logger.error(json.dumps({
                 "event": "publish_kill_switch_metric_failed",
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
 
     def publish_evidence_failure_metric(self, cloudwatch_client) -> None:
@@ -150,7 +150,7 @@ class CloudWatchMetricsPublisher:
                 MetricData=[
                     {
                         "MetricName": "EvidenceWriteFailureCount",
-                        "Timestamp": datetime.utcnow(),
+                        "Timestamp": datetime.now(timezone.utc),
                         "Value": 1,
                         "Unit": "Count",
                         "StorageResolution": STORAGE_RESOLUTION,
@@ -161,5 +161,5 @@ class CloudWatchMetricsPublisher:
             logger.error(json.dumps({
                 "event": "publish_evidence_failure_metric_failed",
                 "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))

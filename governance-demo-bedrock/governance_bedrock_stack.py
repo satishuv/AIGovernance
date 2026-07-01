@@ -194,9 +194,13 @@ class GovernanceBedrockStack(Stack):
                 "BedrockAgentPolicy": iam.PolicyDocument(
                     statements=[
                         iam.PolicyStatement(
-                            actions=["bedrock:InvokeModel"],
+                            actions=[
+                                "bedrock:InvokeModel",
+                                "bedrock:InvokeModelWithResponseStream",
+                            ],
                             resources=[
-                                f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+                                f"arn:aws:bedrock:{self.region}::foundation-model/amazon.nova-micro-v1:0",
+                                f"arn:aws:bedrock:{self.region}::foundation-model/amazon.nova-lite-v1:0",
                             ],
                         ),
                         iam.PolicyStatement(
@@ -244,7 +248,7 @@ class GovernanceBedrockStack(Stack):
             "BedrockAgent",
             agent_name="governance-demo-pipeline-agent",
             agent_resource_role_arn=self.bedrock_agent_role.role_arn,
-            foundation_model="anthropic.claude-haiku-4-5-20251001-v1:0",
+            foundation_model="amazon.nova-micro-v1:0",
             idle_session_ttl_in_seconds=600,
             instruction=agent_instruction,
             action_groups=[
@@ -342,7 +346,12 @@ class GovernanceBedrockStack(Stack):
         )
         self.scope_enforcer_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["bedrock:InvokeAgent"],
+                actions=[
+                    "bedrock:InvokeAgent",
+                    "bedrock:InvokeModel",
+                    "bedrock-agent-runtime:InvokeAgent",
+                    "bedrock-agent:InvokeAgent"
+                ],
                 resources=["*"],
             )
         )
@@ -1102,6 +1111,50 @@ class GovernanceBedrockStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # --- Phase 4: Advanced Security Tables ---
+
+        # Runtime Drift Table: behavioral baselines and drift tracking
+        self.runtime_drift_table = dynamodb.Table(
+            self,
+            "RuntimeDriftTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="record_type", type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl_expiry",
+        )
+
+        # Agent Health Table: continuous health monitoring
+        self.agent_health_table = dynamodb.Table(
+            self,
+            "AgentHealthTable",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="record_type", type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl_expiry",
+        )
+
+        # Tool Auth Table: per-tool authorization rules, chains, rate limits
+        self.tool_auth_table = dynamodb.Table(
+            self,
+            "ToolAuthTable",
+            partition_key=dynamodb.Attribute(
+                name="pk", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="sk", type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl_expiry",
+        )
+
         # --- Task 69.2: CloudWatch alarms ---
 
         self.policy_eval_latency_alarm = cloudwatch.Alarm(
@@ -1169,6 +1222,11 @@ class GovernanceBedrockStack(Stack):
         self.multi_agent_config_table.grant_read_write_data(self.governance_engine_lambda)
         self.metrics_threshold_table.grant_read_write_data(self.governance_engine_lambda)
 
+        # Phase 4 table permissions
+        self.runtime_drift_table.grant_read_write_data(self.governance_engine_lambda)
+        self.agent_health_table.grant_read_write_data(self.governance_engine_lambda)
+        self.tool_auth_table.grant_read_write_data(self.governance_engine_lambda)
+
         self.governance_engine_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["cloudwatch:PutMetricData"],
@@ -1195,6 +1253,17 @@ class GovernanceBedrockStack(Stack):
         self.governance_engine_lambda.add_environment(
             "METRICS_THRESHOLD_TABLE_NAME",
             self.metrics_threshold_table.table_name,
+        )
+
+        # Phase 4 environment variables
+        self.governance_engine_lambda.add_environment(
+            "RUNTIME_DRIFT_TABLE_NAME", self.runtime_drift_table.table_name
+        )
+        self.governance_engine_lambda.add_environment(
+            "AGENT_HEALTH_TABLE_NAME", self.agent_health_table.table_name
+        )
+        self.governance_engine_lambda.add_environment(
+            "TOOL_AUTH_TABLE_NAME", self.tool_auth_table.table_name
         )
 
         # --- Task 69.4: Phase 3 seeds — consolidated into SeedTablesLambda ---
@@ -1253,6 +1322,9 @@ class GovernanceBedrockStack(Stack):
             self.metrics_threshold_table.table_arn,
             self.multi_agent_config_table.table_arn,
             self.tool_model_registry_table.table_arn,
+            self.runtime_drift_table.table_arn,
+            self.agent_health_table.table_arn,
+            self.tool_auth_table.table_arn,
         ]
 
         self.seed_tables_lambda.add_to_role_policy(
@@ -1560,6 +1632,104 @@ class GovernanceBedrockStack(Stack):
                             "risk_profile": {"base_risk": 10, "escalation_threshold": 70},
                             "evidence_partition": "evidence/demo-agent/",
                             "environment": "dev",
+                        },
+                    ],
+                },
+                # --- RuntimeDriftTable (Phase 4) ---
+                {
+                    "table_name": self.runtime_drift_table.table_name,
+                    "items": [
+                        {
+                            "agent_id": "demo-agent",
+                            "record_type": "baseline",
+                            "action_group_frequencies": {
+                                "ReadPipelineStatus": 0.7,
+                                "ProposeChanges": 0.2,
+                                "StagingDeployment": 0.08,
+                                "ProductionDeployment": 0.02,
+                            },
+                            "target_resources": ["pipeline_status", "deployment_config"],
+                            "avg_risk_score": 22,
+                            "window_hours": 24,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                    ],
+                },
+                # --- AgentHealthTable (Phase 4) ---
+                {
+                    "table_name": self.agent_health_table.table_name,
+                    "items": [
+                        {
+                            "agent_id": "demo-agent",
+                            "record_type": "health_state",
+                            "health_score": 85,
+                            "status": "healthy",
+                            "last_action_at": "2025-01-15T10:30:00Z",
+                            "denial_rate_1h": 0.05,
+                            "avg_latency_ms": 120,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                    ],
+                },
+                # --- ToolAuthTable (Phase 4) ---
+                {
+                    "table_name": self.tool_auth_table.table_name,
+                    "items": [
+                        {
+                            "pk": "RULE#ReadPipelineStatus",
+                            "sk": "CONFIG",
+                            "tool_name": "ReadPipelineStatus",
+                            "rate_limit": 30,
+                            "rate_window_seconds": 60,
+                            "allowed_agents": ["demo-agent"],
+                            "min_scope": 1,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "pk": "RULE#ProposeChanges",
+                            "sk": "CONFIG",
+                            "tool_name": "ProposeChanges",
+                            "rate_limit": 10,
+                            "rate_window_seconds": 60,
+                            "allowed_agents": ["demo-agent"],
+                            "min_scope": 2,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "pk": "RULE#ProductionDeployment",
+                            "sk": "CONFIG",
+                            "tool_name": "ProductionDeployment",
+                            "rate_limit": 2,
+                            "rate_window_seconds": 3600,
+                            "allowed_agents": ["demo-agent"],
+                            "min_scope": 4,
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "pk": "RULE#SensitiveDataExport",
+                            "sk": "CONFIG",
+                            "tool_name": "SensitiveDataExport",
+                            "rate_limit": 0,
+                            "rate_window_seconds": 60,
+                            "allowed_agents": [],
+                            "min_scope": 99,
+                            "blocked": True,
+                            "block_reason": "Sensitive data export is globally blocked",
+                            "updated_at": "2025-01-15T10:30:00Z",
+                        },
+                        {
+                            "pk": "CHAIN#exfiltration_pattern",
+                            "sk": "DEFINITION",
+                            "chain_name": "exfiltration_pattern",
+                            "description": "Detects potential data exfiltration via tool chaining",
+                            "sequence": [
+                                "ReadPipelineStatus",
+                                "SensitiveDataExport",
+                            ],
+                            "window_seconds": 300,
+                            "action": "DENY",
+                            "risk_boost": 50,
+                            "updated_at": "2025-01-15T10:30:00Z",
                         },
                     ],
                 },

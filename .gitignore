@@ -20,10 +20,24 @@ governance-demo/payload.json
 governance-demo/kill_payload.json
 governance-demo/kill_output.json
 
-# Pytest cache
+# Pytest cache and Hypothesis
 .pytest_cache/
 governance-demo/.pytest_cache/
+.hypothesis/
 
 # Deploy logs (contain request tokens that trigger secret scanners)
 *.log
-governance-demo-bedrock/deploy.log
+
+# Ad-hoc test outputs and Lambda invocation results
+governance-demo-bedrock/out*.json
+governance-demo-bedrock/t[0-9]*.json
+governance-demo-bedrock/t_*.json
+governance-demo-bedrock/test_*.json
+governance-demo-bedrock/output*.json
+governance-demo-bedrock/response*.json
+governance-demo-bedrock/*_response.json
+governance-demo-bedrock/lambda_env*.json
+governance-demo-bedrock/invoke_test_body.json
+governance-demo-bedrock/update_env.json
+governance-demo-bedrock/routing.json
+governance-demo-bedrock/demo_report.html

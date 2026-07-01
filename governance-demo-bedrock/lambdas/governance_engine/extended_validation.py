@@ -11,7 +11,7 @@ Requirements: 26.1, 26.2, 26.3, 26.4
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from models import ValidationResult
@@ -45,7 +45,7 @@ class ExtendedValidationSuite:
         self, control_mapping_table
     ) -> ValidationResult:
         """Verify every capability maps to at least one framework control."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         items = self._scan_all(control_mapping_table)
         mapped = {i.get("implementation_component", "") for i in items}
         unmapped = [c for c in IMPLEMENTED_CAPABILITIES if c not in mapped]
@@ -83,10 +83,10 @@ class ExtendedValidationSuite:
                 evidence_record_ids=[],
                 control_trace_ids=[],
                 details="evidence_integrity module not available",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         integrity = EvidenceIntegrity()
         try:
             results = integrity.verify_hash_chain(
@@ -116,7 +116,7 @@ class ExtendedValidationSuite:
         self, pending_approval_table, evidence_bucket: str
     ) -> ValidationResult:
         """Verify approval workflow creates and resolves approvals correctly."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         issues: List[str] = []
         items = self._scan_all(pending_approval_table)
 
@@ -148,7 +148,7 @@ class ExtendedValidationSuite:
         change_log_table,
     ) -> ValidationResult:
         """Verify MEASURE and MANAGE reports generate with correct structure."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         issues: List[str] = []
         try:
             metrics = measure_manage_engine.compute_aggregate_metrics(
@@ -185,7 +185,7 @@ class ExtendedValidationSuite:
         decision_history_table,
     ) -> ValidationResult:
         """Verify every ControlTrace references valid evidence and decision."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         orphaned: List[str] = []
         traces = self._scan_all(control_trace_table)
 
@@ -211,7 +211,7 @@ class ExtendedValidationSuite:
         output_format: str = "json",
     ) -> str:
         """Produce structured compliance validation report."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         gaps = self.detect_gaps(results)
 
         if output_format == "markdown":

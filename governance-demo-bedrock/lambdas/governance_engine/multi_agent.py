@@ -10,7 +10,7 @@ Requirements: 30.1, 30.2, 30.3, 30.4, 30.5
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from models import MultiAgentConfig
@@ -32,7 +32,7 @@ class MultiAgentManager:
                 logger.warning(json.dumps({
                     "event": "agent_config_not_found",
                     "agent_id": agent_id,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }))
                 return None
             return MultiAgentConfig.from_dict(item)
@@ -40,7 +40,7 @@ class MultiAgentManager:
             logger.error(json.dumps({
                 "event": "get_agent_config_failed",
                 "agent_id": agent_id, "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return None
 
@@ -74,7 +74,7 @@ class MultiAgentManager:
             logger.error(json.dumps({
                 "event": "get_agent_policy_bindings_failed",
                 "agent_id": agent_id, "error": str(exc),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return []
 
@@ -107,7 +107,7 @@ class MultiAgentManager:
                 "requesting_agent": requesting_agent_id,
                 "target_agent": target_agent_id,
                 "action_group": action_group,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             return False, reason
 
@@ -122,7 +122,7 @@ class MultiAgentManager:
                     "requesting_agent": requesting_agent_id,
                     "target_agent": target_agent_id,
                     "target_resource": target_resource,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }))
                 return False, reason
 
@@ -142,7 +142,7 @@ class MultiAgentManager:
         Returns:
             Combined report with per-agent breakdowns and cross-agent totals.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         per_agent: Dict[str, Any] = {}
         total_decisions = 0
         total_denials = 0

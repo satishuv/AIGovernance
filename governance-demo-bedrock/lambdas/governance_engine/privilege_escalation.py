@@ -10,7 +10,7 @@ Requirements: 27.1, 27.2, 27.3, 27.4
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class PrivilegeEscalationDetector:
     def deny_and_log(self, agent_id: str, action_request: Dict[str, Any],
                      violation_type: str) -> Dict[str, Any]:
         """Log escalation attempt and return deny decision dict."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         record = {
             "event_id": str(uuid.uuid4()),
             "audit_event": "privilege_escalation_attempt",
@@ -68,7 +68,7 @@ class PrivilegeEscalationDetector:
                              time_window_seconds: int = 300,
                              threshold: int = 5) -> Tuple[bool, int]:
         """Increment denial counter; return (exceeded, count)."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         window_key = now.strftime("%Y-%m-%dT%H")
         try:
             response = dynamodb_table.update_item(
@@ -106,7 +106,7 @@ class PrivilegeEscalationDetector:
                           change_logger=None, s3_client=None,
                           evidence_bucket: str = "") -> Dict[str, Any]:
         """Reduce agent scope by one level and notify operator via SNS."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         response = scope_table.get_item(Key={"agent_id": agent_id})
         current_scope = int(response.get("Item", {}).get("scope_level", 1))
         new_scope = max(0, current_scope - 1)

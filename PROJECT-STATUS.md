@@ -81,7 +81,8 @@ Architecture:
 - Audit: CloudTrail + CloudWatch
 - Kill-switch: Lambda that revokes agent permissions immediately
 
-Folder: `governance-demo/`
+Folder: `governance-demo-bedrock/` (active codebase)
+Note: `governance-demo/` is frozen and read-only (used only by the OWASP test suite).
 
 Use Case Scenario: Software Deployment Pipeline Agent
 - Industry: Technology / Software Development
@@ -99,5 +100,5 @@ Use Case Scenario: Software Deployment Pipeline Agent
 2. Never use em dashes anywhere
 3. Never store secrets, tokens, or passwords in any file
 4. Work step by step, explain everything clearly
-5. All code changes go in the `governance-demo/` folder
+5. All code changes go in the `governance-demo-bedrock/` folder (governance-demo/ is frozen)
 6. Commit often with conventional commit messages
