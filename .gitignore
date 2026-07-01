@@ -1,3 +1,7 @@
+# Claude Code (local only, never commit)
+CLAUDE.md
+.claude/
+
 *.docx
 *.tmp
 ~$*
