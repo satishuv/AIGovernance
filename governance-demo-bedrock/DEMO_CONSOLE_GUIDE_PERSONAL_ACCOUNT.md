@@ -228,8 +228,10 @@ In **Execution result**, you'll see:
 4. Navigate to `policies/` folder
 5. You'll see 3 policy files:
    - `allow-read-at-scope-1.json` - Allows read at any scope
-   - `default-deny.json` - Default deny-all
-   - `deny-production-deployment-below-scope-3.json` - Prod requires Scope 3+
+   - `allow-production-deployment-at-scope-3.json` - Allows prod deploy at scope 3+
+   - `deny-production-deployment-below-scope-3.json` - Denies prod below scope 3
+   - `escalate-staging-deploy.json` - Staging deploys need human approval
+   - `default-deny.json` - Catch-all deny (lowest priority)
 
 ### Step 2: View Policy Content
 

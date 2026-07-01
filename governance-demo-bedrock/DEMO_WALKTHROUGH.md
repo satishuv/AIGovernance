@@ -12,8 +12,8 @@ and one action group.
 | Item | Value |
 |---|---|
 | Agent Name | governance-demo-pipeline-agent |
-| Agent ID | ENPWN03B8X |
-| Agent Alias | live (KPRIIWN63Z) |
+| Agent ID | SDUBJBXSLR |
+| Agent Alias | live (PRKR23ZXOV) |
 | Foundation Model | amazon.nova-micro-v1:0 |
 | Region | us-east-1 |
 | Stack | GovernanceBedrockStack |
