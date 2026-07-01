@@ -20,6 +20,7 @@ from aws_cdk import (
     aws_cloudwatch_actions as cw_actions,
     aws_events as events,
     aws_events_targets as targets,
+    aws_stepfunctions as sfn,
     custom_resources as cr,
 )
 from constructs import Construct
@@ -1289,6 +1290,211 @@ class GovernanceBedrockStack(Stack):
                 }),
             )
         )
+
+        # ===================================================================
+        # Phase 5 — Scalable Step Functions Pipeline
+        # ===================================================================
+
+        # --- 5.1: Input Defense Lambda (threat detection + sanitization) ---
+
+        self.input_defense_lambda = _lambda.Function(
+            self,
+            "InputDefenseLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler_input_defense.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            environment={
+                "THREAT_PATTERNS_TABLE_NAME": self.threat_patterns_table.table_name,
+            },
+        )
+        self.threat_patterns_table.grant_read_data(self.input_defense_lambda)
+
+        # --- 5.2: Authorization Lambda (identity + registry + tool auth) ---
+
+        self.authorization_lambda = _lambda.Function(
+            self,
+            "AuthorizationLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler_authorization.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            environment={
+                "SCOPE_TABLE_NAME": self.scope_table.table_name,
+                "AGENT_REGISTRY_TABLE_NAME": self.agent_registry_table.table_name,
+                "TOOL_MODEL_REGISTRY_TABLE_NAME": self.tool_model_registry_table.table_name,
+                "TOOL_AUTH_TABLE_NAME": self.tool_auth_table.table_name,
+            },
+        )
+        self.scope_table.grant_read_data(self.authorization_lambda)
+        self.agent_registry_table.grant_read_data(self.authorization_lambda)
+        self.tool_model_registry_table.grant_read_data(self.authorization_lambda)
+        self.tool_auth_table.grant_read_write_data(self.authorization_lambda)
+
+        # --- 5.3: Policy and Risk Lambda (policy eval + risk scoring + decision) ---
+
+        self.policy_risk_lambda = _lambda.Function(
+            self,
+            "PolicyRiskLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler_policy_risk.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(15),
+            memory_size=256,
+            environment={
+                "POLICY_BUCKET_NAME": self.policy_bucket.bucket_name,
+                "POLICY_PREFIX": "policies/",
+                "RISK_CONFIG_TABLE_NAME": self.risk_config_table.table_name,
+                "FRAMEWORK_MAPPING_TABLE_NAME": self.framework_mapping_table.table_name,
+                "RUNTIME_DRIFT_TABLE_NAME": self.runtime_drift_table.table_name,
+            },
+        )
+        self.policy_bucket.grant_read(self.policy_risk_lambda)
+        self.risk_config_table.grant_read_data(self.policy_risk_lambda)
+        self.framework_mapping_table.grant_read_data(self.policy_risk_lambda)
+        self.runtime_drift_table.grant_read_data(self.policy_risk_lambda)
+
+        # --- 5.4: Post-Decision Lambda (evidence, health, history - async) ---
+
+        self.post_decision_lambda = _lambda.Function(
+            self,
+            "PostDecisionLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler_post_decision.handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(
+                    os.path.dirname(__file__), "lambdas", "governance_engine"
+                )
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "EVIDENCE_BUCKET_NAME": self.evidence_bucket.bucket_name,
+                "IMMUTABLE_EVIDENCE_BUCKET_NAME": self.immutable_evidence_bucket.bucket_name,
+                "AGENT_HEALTH_TABLE_NAME": self.agent_health_table.table_name,
+                "DECISION_HISTORY_TABLE_NAME": self.decision_history_table.table_name,
+                "RUNTIME_DRIFT_TABLE_NAME": self.runtime_drift_table.table_name,
+                "CONTROL_TRACE_TABLE_NAME": self.control_trace_table.table_name,
+            },
+        )
+        self.evidence_bucket.grant_read_write(self.post_decision_lambda)
+        self.immutable_evidence_bucket.grant_read_write(self.post_decision_lambda)
+        self.agent_health_table.grant_read_write_data(self.post_decision_lambda)
+        self.decision_history_table.grant_read_write_data(self.post_decision_lambda)
+        self.runtime_drift_table.grant_read_write_data(self.post_decision_lambda)
+        self.control_trace_table.grant_read_write_data(self.post_decision_lambda)
+
+        # --- 5.5: Step Functions IAM Role ---
+
+        self.sfn_pipeline_role = iam.Role(
+            self,
+            "GovernancePipelineRole",
+            assumed_by=iam.ServicePrincipal("states.amazonaws.com"),
+            inline_policies={
+                "GovernancePipelinePolicy": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["lambda:InvokeFunction"],
+                            resources=[
+                                self.input_defense_lambda.function_arn,
+                                self.authorization_lambda.function_arn,
+                                self.policy_risk_lambda.function_arn,
+                                self.post_decision_lambda.function_arn,
+                            ],
+                        ),
+                        iam.PolicyStatement(
+                            actions=["dynamodb:GetItem"],
+                            resources=[self.scope_table.table_arn],
+                        ),
+                        iam.PolicyStatement(
+                            actions=["events:PutEvents"],
+                            resources=[
+                                f"arn:aws:events:{self.region}:{self.account}:event-bus/default",
+                            ],
+                        ),
+                    ]
+                ),
+            },
+        )
+
+        # --- 5.6: Step Functions Express State Machine ---
+
+        _state_machine_path = os.path.join(
+            os.path.dirname(__file__), "state_machine", "governance_pipeline.asl.json"
+        )
+        with open(_state_machine_path) as f:
+            _asl_definition = f.read()
+
+        # Substitute resource ARNs and table names into the ASL template
+        _asl_definition = _asl_definition.replace(
+            "${ScopeTableName}", self.scope_table.table_name
+        )
+        _asl_definition = _asl_definition.replace(
+            "${InputDefenseLambdaArn}", self.input_defense_lambda.function_arn
+        )
+        _asl_definition = _asl_definition.replace(
+            "${AuthorizationLambdaArn}", self.authorization_lambda.function_arn
+        )
+        _asl_definition = _asl_definition.replace(
+            "${PolicyRiskLambdaArn}", self.policy_risk_lambda.function_arn
+        )
+        _asl_definition = _asl_definition.replace(
+            "${PostDecisionLambdaArn}", self.post_decision_lambda.function_arn
+        )
+
+        self.governance_pipeline = sfn.CfnStateMachine(
+            self,
+            "GovernancePipelineStateMachine",
+            state_machine_name="governance-pipeline",
+            state_machine_type="EXPRESS",
+            definition_string=_asl_definition,
+            role_arn=self.sfn_pipeline_role.role_arn,
+        )
+
+        # --- 5.7: EventBridge Rule for async post-decision processing ---
+
+        self.post_decision_rule = events.Rule(
+            self,
+            "PostDecisionEventRule",
+            event_pattern=events.EventPattern(
+                source=["governance.pipeline"],
+                detail_type=["GovernanceDecision"],
+            ),
+        )
+        self.post_decision_rule.add_target(
+            targets.LambdaFunction(self.post_decision_lambda)
+        )
+
+        # --- 5.8: Add governance mode env vars to scope enforcer ---
+
+        self.scope_enforcer_lambda.add_environment(
+            "GOVERNANCE_MODE", "step_functions"
+        )
+        self.scope_enforcer_lambda.add_environment(
+            "GOVERNANCE_PIPELINE_ARN",
+            self.governance_pipeline.attr_arn,
+        )
+        self.scope_enforcer_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["states:StartSyncExecution"],
+                resources=[self.governance_pipeline.attr_arn],
+            )
+        )
+
         # ===================================================================
         # Consolidated Seed Tables — single Lambda replaces all individual
         # AwsCustomResource seed instances to avoid IAM policy size limits
