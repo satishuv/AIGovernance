@@ -63,8 +63,9 @@ AIGovernance supports two execution modes, switchable via the `GOVERNANCE_MODE` 
 |                                   |                                      |
 |  +------------------------------------------------------------------+   |
 |  |  Policy + Risk Decision Lambda                                    |   |
-|  |  - Policy-as-code (S3)   - Risk scoring (0-100)                   |   |
-|  |  - Drift detection       - Verdict: ALLOW / DENY / ESCALATE      |   |
+|  |  - OPA policy engine (Rego-subset, priority-based resolution)     |   |
+|  |  - Risk scoring (0-100)  - Drift detection                        |   |
+|  |  - Verdict: ALLOW / DENY / ESCALATE                               |   |
 |  +------------------------------------------------------------------+   |
 |                                                                          |
 +==========================================================================+
@@ -167,7 +168,7 @@ The governance architecture draws from established AI safety frameworks and indu
 | Threat Detector | `threat_detector.py` | SQL injection, prompt injection (regex), destructive commands |
 | Tool Execution Auth | `tool_execution_auth.py` | SQL injection in parameters, unauthorized tools, rate limit abuse, dangerous tool chains |
 | Runtime Drift | `runtime_drift_detection.py` | Behavioral deviation from baseline, scope creep, unusual action patterns |
-| Policy Engine | `policy_engine.py` | Policy violations, scope-exceeding actions |
+| OPA Policy Engine | `opa_engine.py` | Policy violations, scope-exceeding actions (Rego-subset evaluation with priority resolution) |
 | Output Guardrails | `output_guardrails.py` | System prompt leakage, ARN/credential exposure, canary token leakage |
 | Continuous Monitoring | `continuous_monitoring.py` | Health degradation, statistical anomalies, sustained risk patterns |
 
@@ -264,7 +265,8 @@ Evidence is stored in S3 with Object Lock (7-year retention) and SHA-256 hash ch
 | Governance Engine (dev mode) | AWS Lambda (Python 3.12, monolithic) |
 | Security Layer Lambdas | AWS Lambda (Python 3.12, one per layer) |
 | Event-Driven Post-Processing | Amazon EventBridge |
-| Policy Storage | Amazon S3 (versioned) |
+| Policy Engine | OPA (Open Policy Agent) Rego-subset, embedded or external |
+| Policy Storage | Amazon S3 (versioned, JSON + Rego files) |
 | State Management | Amazon DynamoDB (25+ tables) |
 | Evidence Storage | Amazon S3 (Object Lock) |
 | API Endpoints | Amazon API Gateway |
