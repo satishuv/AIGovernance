@@ -445,96 +445,86 @@ def _resolve_route(action_group, api_path):
 
 
 # ---------------------------------------------------------------------------
-# Governance wrapper: per-tool-call security (defense-in-depth)
+# Per-tool-call security (lightweight, inline, <15ms overhead)
+#
+# Design rationale: The full 20-step governance pipeline already ran at
+# session entry (Scope Enforcer). Re-running it per tool call would be
+# redundant and slow. Instead, the action group enforces:
+#   1. Scope-action-group mapping (is this tool permitted at current scope?)
+#   2. Parameter validation (no injection in param values)
+#   3. Output sanitization (strip leaked ARNs/credentials from response)
+#
+# These are FAST inline checks (~15ms total), not another Lambda invocation.
 # ---------------------------------------------------------------------------
-GOVERNANCE_ENGINE_ARN = os.environ.get("GOVERNANCE_ENGINE_LAMBDA_ARN", "")
-lambda_client = boto3.client("lambda")
-
 import re as _re
+
+SCOPE_ACTION_GROUPS = {
+    1: ["ReadPipelineStatus"],
+    2: ["ReadPipelineStatus", "ProposeChanges"],
+    3: ["ReadPipelineStatus", "ProposeChanges", "StagingDeployment"],
+    4: ["ReadPipelineStatus", "ProposeChanges", "StagingDeployment", "ProductionDeployment"],
+}
+
+_PARAM_INJECTION_PATTERNS = [
+    _re.compile(r"['\";].*(?:DROP|DELETE|INSERT|UPDATE|EXEC)", _re.IGNORECASE),
+    _re.compile(r"<script[^>]*>", _re.IGNORECASE),
+    _re.compile(r"\.\./\.\./"),
+    _re.compile(r"<\|im_start\|>|<\|im_end\|>|\[INST\]"),
+    _re.compile(r"(?:^|\s)(?:rm|del|format|shutdown)\s+[-/]", _re.IGNORECASE),
+]
 
 _SENSITIVE_OUTPUT_PATTERNS = [
     _re.compile(r"arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:[^\s\"']+"),
     _re.compile(r"AKIA[0-9A-Z]{16}"),
-    _re.compile(r"\b\d{12}\b"),
     _re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+"),
     _re.compile(r"GovernanceBedrockStack-[A-Za-z0-9]+-[A-Za-z0-9]+"),
+    _re.compile(r"(?:BEGIN|END)\s+(?:RSA\s+)?PRIVATE\s+KEY"),
 ]
 
 
-def _governance_check(agent_id, action_group, api_path, params_dict, scope_level):
-    """Invoke governance engine to authorize THIS specific tool call.
-
-    Returns (allowed: bool, explanation: str, decision_id: str).
-    """
-    if not GOVERNANCE_ENGINE_ARN:
-        return True, "governance_engine_not_configured", ""
-
-    payload = {
-        "agent_id": agent_id,
-        "action_group": action_group,
-        "target_resource": params_dict.get("targetEnv", params_dict.get("buildId", "default")),
-        "input_text": f"{api_path} {json.dumps(params_dict)}",
-        "scope_level": scope_level,
-        "tool_name": action_group,
-        "tool_parameters": params_dict,
-    }
-
-    try:
-        response = lambda_client.invoke(
-            FunctionName=GOVERNANCE_ENGINE_ARN,
-            InvocationType="RequestResponse",
-            Payload=json.dumps(payload),
-        )
-        result = json.loads(response["Payload"].read())
-        verdict = result.get("verdict", "deny")
-        decision_id = result.get("decision_id", "")
-        explanation = result.get("explanation", "")
-
-        if verdict == "allow":
-            return True, explanation, decision_id
-        return False, explanation, decision_id
-
-    except Exception as exc:
-        logger.error(json.dumps({
-            "audit_event": "governance_check_failed",
-            "agent_id": agent_id,
-            "action_group": action_group,
-            "error": str(exc),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }))
-        return False, f"Governance check failed (fail-safe deny): {str(exc)}", ""
+def _check_scope_permits_action(scope_level, action_group):
+    """Verify the current scope allows this action group. O(1) lookup."""
+    permitted = SCOPE_ACTION_GROUPS.get(scope_level, [])
+    return action_group in permitted
 
 
-def _output_guardrail(response_body):
-    """Validate and sanitize the action response before returning to agent.
+def _check_parameter_safety(params_dict):
+    """Scan all parameter values for injection attacks. Returns (safe, violation)."""
+    for name, value in params_dict.items():
+        if not isinstance(value, str):
+            continue
+        for pattern in _PARAM_INJECTION_PATTERNS:
+            if pattern.search(value):
+                return False, f"Injection detected in parameter '{name}': {pattern.pattern[:40]}"
+    return True, ""
 
-    Strips sensitive data (ARNs, credentials, internal paths) from the output.
-    Returns (safe: bool, sanitized_body: str, violations: list).
-    """
+
+def _sanitize_output(response_body):
+    """Strip sensitive patterns from response. Returns (sanitized, violations)."""
     if not isinstance(response_body, str):
         response_body = json.dumps(response_body)
 
     violations = []
     sanitized = response_body
-
     for pattern in _SENSITIVE_OUTPUT_PATTERNS:
-        if pattern.search(response_body):
-            violations.append(f"output_exposure: {pattern.pattern[:30]}")
+        if pattern.search(sanitized):
+            violations.append(f"sensitive_pattern: {pattern.pattern[:30]}")
             sanitized = pattern.sub("[REDACTED]", sanitized)
 
-    return len(violations) == 0, sanitized, violations
+    return sanitized, violations
 
 
 # ---------------------------------------------------------------------------
 # Lambda entry point
 # ---------------------------------------------------------------------------
 def handler(event, context):
-    """Route Bedrock Agent action group invocations with per-call governance.
+    """Route Bedrock Agent action group invocations with inline security.
 
-    Every tool call goes through:
-    1. PRE-EXECUTION: Governance check (authorize this specific call)
-    2. EXECUTION: Run the action handler
-    3. POST-EXECUTION: Output guardrail (sanitize response)
+    Per-tool-call defense-in-depth (lightweight, ~15ms overhead):
+    1. SCOPE CHECK: Is this action group permitted at current scope level?
+    2. PARAMETER CHECK: Do any parameter values contain injection attacks?
+    3. EXECUTION: Run the action handler.
+    4. OUTPUT CHECK: Strip any leaked ARNs/credentials from the response.
     """
     action_group = event.get("actionGroup", "")
     api_path = event.get("apiPath", "")
@@ -549,39 +539,49 @@ def handler(event, context):
 
     try:
         # -----------------------------------------------------------------
-        # STEP 1: PRE-EXECUTION GOVERNANCE CHECK
-        # Every tool call must be authorized by the governance engine.
-        # This is defense-in-depth: even if the scope enforcer approved
-        # the session, each individual action is re-validated.
+        # CHECK 1: Scope permits this action group?
+        # Physical constraint: even if the agent is jailbroken and tries
+        # to call ProductionDeployment at scope 1, it's blocked here.
         # -----------------------------------------------------------------
-        allowed, explanation, decision_id = _governance_check(
-            agent_id, action_group, api_path, params_dict, scope_level,
-        )
-
-        if not allowed:
-            outcome = "governance_denied"
+        if not _check_scope_permits_action(scope_level, action_group):
+            outcome = "scope_denied"
             logger.warning(json.dumps({
-                "audit_event": "tool_call_governance_denied",
+                "audit_event": "tool_scope_violation",
                 "agent_id": agent_id,
                 "action_group": action_group,
-                "api_path": api_path,
-                "parameters": params_dict,
-                "decision_id": decision_id,
-                "explanation": explanation,
+                "scope_level": scope_level,
+                "permitted": SCOPE_ACTION_GROUPS.get(scope_level, []),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             _audit_log(agent_id, action_group, api_path, params_dict, outcome)
             return _build_response(
                 action_group, api_path, http_method, 403,
-                {
-                    "error": "Action denied by governance engine",
-                    "explanation": explanation,
-                    "decision_id": decision_id,
-                },
+                {"error": f"Action '{action_group}' not permitted at scope {scope_level}"},
             )
 
         # -----------------------------------------------------------------
-        # STEP 2: EXECUTE THE ACTION
+        # CHECK 2: Parameter injection detection
+        # Catches SQL injection, path traversal, script injection in
+        # tool parameters. Fast regex scan, <5ms.
+        # -----------------------------------------------------------------
+        param_safe, param_violation = _check_parameter_safety(params_dict)
+        if not param_safe:
+            outcome = "param_injection_blocked"
+            logger.warning(json.dumps({
+                "audit_event": "tool_parameter_injection",
+                "agent_id": agent_id,
+                "action_group": action_group,
+                "violation": param_violation,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 403,
+                {"error": f"Parameter validation failed: {param_violation}"},
+            )
+
+        # -----------------------------------------------------------------
+        # EXECUTE: Run the action handler
         # -----------------------------------------------------------------
         handler_fn = _resolve_route(action_group, api_path)
 
@@ -596,9 +596,9 @@ def handler(event, context):
         response = handler_fn(event, params_dict)
 
         # -----------------------------------------------------------------
-        # STEP 3: POST-EXECUTION OUTPUT GUARDRAIL
-        # Validate the response before it goes back to the agent.
-        # Catches: leaked ARNs, credentials, internal paths.
+        # CHECK 3: Output sanitization
+        # Strip any leaked ARNs, credentials, or internal paths from
+        # the response before it goes back to the agent's context.
         # -----------------------------------------------------------------
         resp_body = (
             response.get("response", {})
@@ -608,19 +608,17 @@ def handler(event, context):
         )
 
         if resp_body:
-            safe, sanitized, violations = _output_guardrail(resp_body)
-            if not safe:
+            sanitized, violations = _sanitize_output(resp_body)
+            if violations:
                 logger.warning(json.dumps({
-                    "audit_event": "output_guardrail_triggered",
+                    "audit_event": "output_sanitized",
                     "agent_id": agent_id,
                     "action_group": action_group,
-                    "api_path": api_path,
                     "violations": violations,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }))
                 response["response"]["responseBody"]["application/json"]["body"] = sanitized
 
-        # Check if the handler returned an error
         resp_status = response.get("response", {}).get("httpStatusCode", 200)
         if resp_status >= 400:
             outcome = "error"
