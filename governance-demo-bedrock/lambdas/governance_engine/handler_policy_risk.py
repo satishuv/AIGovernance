@@ -18,10 +18,11 @@ from datetime import datetime, timezone
 import boto3
 
 from policy_engine import PolicyEngine
+from opa_engine import OPAEngine
 from risk_scoring import RiskScoringEngine
 from decision_engine import DecisionEngine
 from runtime_drift_detection import RuntimeDriftDetector
-from models import GovernanceDecision
+from models import GovernanceDecision, PolicyEvaluationResult
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,9 +107,29 @@ def handler(event, context):
         except Exception as e:
             logger.error(json.dumps({"event": "drift_check_failed", "error": str(e)}))
 
-    # 2. Policy Evaluation
-    policy_engine = _cached_policy_engine()
-    policy_result = policy_engine.evaluate(action_request)
+    # 2. Policy Evaluation (OPA with legacy fallback)
+    opa_engine = OPAEngine()
+    if POLICY_BUCKET_NAME:
+        s3_client = boto3.client("s3")
+        opa_engine.load_policies_from_s3(s3_client, POLICY_BUCKET_NAME, POLICY_PREFIX)
+
+    if opa_engine.rule_count > 0:
+        now_utc = datetime.now(timezone.utc)
+        opa_input = {
+            **action_request,
+            "hour": now_utc.hour,
+            "day_of_week": now_utc.strftime("%A").lower(),
+        }
+        opa_decision = opa_engine.evaluate(opa_input)
+        policy_result = PolicyEvaluationResult(
+            policy_id=opa_decision.matched_rules[0] if opa_decision.matched_rules else "default-deny",
+            outcome=opa_decision.verdict,
+            matching_conditions={"opa_rules": opa_decision.matched_rules},
+            evaluation_timestamp=opa_decision.timestamp,
+        )
+    else:
+        policy_engine = _cached_policy_engine()
+        policy_result = policy_engine.evaluate(action_request)
 
     # 3. Risk Scoring
     risk_engine = RiskScoringEngine()

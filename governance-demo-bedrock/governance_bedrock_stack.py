@@ -1499,6 +1499,8 @@ class GovernanceBedrockStack(Stack):
         self.governance_engine_lambda.add_environment(
             "TOOL_AUTH_TABLE_NAME", self.tool_auth_table.table_name
         )
+        self.governance_engine_lambda.add_environment("OPA_MODE", "embedded")
+        self.governance_engine_lambda.add_environment("OPA_ENDPOINT", "")
 
         # --- Task 69.4: Phase 3 seeds — consolidated into SeedTablesLambda ---
 
@@ -1594,6 +1596,8 @@ class GovernanceBedrockStack(Stack):
                 "RISK_CONFIG_TABLE_NAME": self.risk_config_table.table_name,
                 "FRAMEWORK_MAPPING_TABLE_NAME": self.framework_mapping_table.table_name,
                 "RUNTIME_DRIFT_TABLE_NAME": self.runtime_drift_table.table_name,
+                "OPA_MODE": "embedded",
+                "OPA_ENDPOINT": "",
             },
         )
         self.policy_bucket.grant_read(self.policy_risk_lambda)

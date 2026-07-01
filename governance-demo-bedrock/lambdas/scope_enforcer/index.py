@@ -88,11 +88,14 @@ ACTION_GROUP_LAMBDA_ROLE_NAME = os.environ.get("ACTION_GROUP_LAMBDA_ROLE_NAME", 
 SCOPE_BOUNDARY_ARNS = json.loads(os.environ.get("SCOPE_BOUNDARY_ARNS", "{}"))
 GOVERNANCE_ENGINE_LAMBDA_ARN = os.environ.get("GOVERNANCE_ENGINE_LAMBDA_ARN", "")
 PENDING_TABLE_NAME = os.environ.get("PENDING_TABLE_NAME", "")
+GOVERNANCE_MODE = os.environ.get("GOVERNANCE_MODE", "lambda")
+GOVERNANCE_PIPELINE_ARN = os.environ.get("GOVERNANCE_PIPELINE_ARN", "")
 
 dynamodb = boto3.resource("dynamodb")
 iam = boto3.client("iam")
 bedrock_agent_runtime = boto3.client("bedrock-agent-runtime")
 lambda_client = boto3.client("lambda")
+sfn_client = boto3.client("stepfunctions")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -269,18 +272,33 @@ def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=
         "scope_level": scope_level,
     }
 
-    response = lambda_client.invoke(
-        FunctionName=GOVERNANCE_ENGINE_LAMBDA_ARN,
-        InvocationType="RequestResponse",
-        Payload=json.dumps(payload),
-    )
+    # Invoke governance pipeline (mode-dependent)
+    if GOVERNANCE_MODE == "step_functions" and GOVERNANCE_PIPELINE_ARN:
+        sfn_response = sfn_client.start_sync_execution(
+            stateMachineArn=GOVERNANCE_PIPELINE_ARN,
+            input=json.dumps(payload),
+        )
+        if sfn_response["status"] == "SUCCEEDED":
+            response_payload = json.loads(sfn_response.get("output", "{}"))
+        else:
+            response_payload = {
+                "verdict": "deny",
+                "error_category": "governance_pipeline_failure",
+                "explanation": "Step Functions execution failed (fail-safe deny)",
+            }
+    else:
+        response = lambda_client.invoke(
+            FunctionName=GOVERNANCE_ENGINE_LAMBDA_ARN,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload),
+        )
 
-    # Check for Lambda-level errors (function error, timeout)
-    if "FunctionError" in response:
-        error_payload = response["Payload"].read().decode("utf-8")
-        raise Exception(f"Governance Engine Lambda error: {error_payload}")
+        # Check for Lambda-level errors (function error, timeout)
+        if "FunctionError" in response:
+            error_payload = response["Payload"].read().decode("utf-8")
+            raise Exception(f"Governance Engine Lambda error: {error_payload}")
 
-    response_payload = json.loads(response["Payload"].read().decode("utf-8"))
+        response_payload = json.loads(response["Payload"].read().decode("utf-8"))
 
     # Validate the response contains a verdict
     if "verdict" not in response_payload:
