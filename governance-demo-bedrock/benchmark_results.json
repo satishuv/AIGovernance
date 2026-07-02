@@ -1,0 +1,102 @@
+{
+  "lambda_mode": {
+    "allow_read": {
+      "scenario": "allow_read",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 900.8,
+      "p90_ms": 4064.3,
+      "p99_ms": 4064.3,
+      "avg_ms": 1556.1,
+      "min_ms": 819.7,
+      "max_ms": 4064.3,
+      "stddev_ms": 1407.5
+    },
+    "deny_policy": {
+      "scenario": "deny_policy",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 877.0,
+      "p90_ms": 1319.2,
+      "p99_ms": 1319.2,
+      "avg_ms": 950.7,
+      "min_ms": 817.2,
+      "max_ms": 1319.2,
+      "stddev_ms": 208.3
+    },
+    "deny_injection": {
+      "scenario": "deny_injection",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 855.9,
+      "p90_ms": 879.3,
+      "p99_ms": 879.3,
+      "avg_ms": 848.4,
+      "min_ms": 823.1,
+      "max_ms": 879.3,
+      "stddev_ms": 24.6
+    },
+    "deny_delimiter": {
+      "scenario": "deny_delimiter",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 841.1,
+      "p90_ms": 1238.8,
+      "p99_ms": 1238.8,
+      "avg_ms": 911.6,
+      "min_ms": 794.3,
+      "max_ms": 1238.8,
+      "stddev_ms": 184.5
+    }
+  },
+  "step_functions_mode": {
+    "allow_read": {
+      "scenario": "allow_read",
+      "iterations": 5,
+      "verdict": "allow",
+      "p50_ms": 1597.0,
+      "p90_ms": 6268.7,
+      "p99_ms": 6268.7,
+      "avg_ms": 2563.0,
+      "min_ms": 1470.4,
+      "max_ms": 6268.7,
+      "stddev_ms": 2080.7
+    },
+    "deny_policy": {
+      "scenario": "deny_policy",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 437.9,
+      "p90_ms": 458.9,
+      "p99_ms": 458.9,
+      "avg_ms": 439.1,
+      "min_ms": 420.1,
+      "max_ms": 458.9,
+      "stddev_ms": 13.9
+    },
+    "deny_injection": {
+      "scenario": "deny_injection",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 658.2,
+      "p90_ms": 681.0,
+      "p99_ms": 681.0,
+      "avg_ms": 655.7,
+      "min_ms": 617.7,
+      "max_ms": 681.0,
+      "stddev_ms": 26.6
+    },
+    "deny_delimiter": {
+      "scenario": "deny_delimiter",
+      "iterations": 5,
+      "verdict": "deny",
+      "p50_ms": 626.5,
+      "p90_ms": 896.3,
+      "p99_ms": 896.3,
+      "avg_ms": 679.5,
+      "min_ms": 619.8,
+      "max_ms": 896.3,
+      "stddev_ms": 121.3
+    }
+  }
+}
