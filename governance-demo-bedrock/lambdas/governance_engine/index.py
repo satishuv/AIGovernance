@@ -538,10 +538,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             dynamodb = boto3.resource("dynamodb")
 
-            # Phase 1a engines
+            # Phase 1a engines (legacy PolicyEngine skipped; OPA engine handles policies)
             policy_engine = PolicyEngine()
             s3_client = boto3.client("s3")
-            policy_engine.load_policies(s3_client, POLICY_BUCKET_NAME, POLICY_PREFIX)
 
             risk_engine = RiskScoringEngine()
             risk_engine.load_config()

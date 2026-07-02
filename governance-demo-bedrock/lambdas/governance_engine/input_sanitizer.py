@@ -173,12 +173,39 @@ _ALL_DELIMITERS = (
 )
 
 # Instruction override pattern components (word groups)
-_OVERRIDE_VERBS = {"ignore", "disregard", "forget", "override", "skip", "bypass"}
-_OVERRIDE_TARGETS = {"previous", "above", "prior", "original", "earlier", "initial"}
+_OVERRIDE_VERBS = {"ignore", "disregard", "forget", "override", "skip", "bypass",
+                   "circumvent", "disable", "deactivate", "suppress", "remove"}
+_OVERRIDE_TARGETS = {"previous", "above", "prior", "original", "earlier", "initial",
+                     "all", "any", "your", "safety", "ethical", "content"}
 _OVERRIDE_OBJECTS = {
     "instructions", "rules", "context", "guidelines", "constraints",
     "directives", "prompt", "system", "guardrails", "policies",
+    "filters", "restrictions", "limitations", "safeguards", "moderation",
 }
+
+# Jailbreak persona/roleplay patterns
+_JAILBREAK_PATTERNS = [
+    re.compile(r"(?:pretend|act|behave|respond)\s+(?:to be|as if|as|like)\s+(?:you are|you're|a)", re.IGNORECASE),
+    re.compile(r"(?:you are|you're)\s+(?:now|going to be|no longer)\s+", re.IGNORECASE),
+    re.compile(r"(?:DAN|STAN|DUDE|KEVIN|MONGO|EVIL)\s*(?:mode|prompt)?", re.IGNORECASE),
+    re.compile(r"(?:developer|admin|god|sudo|root|unrestricted|unfiltered)\s*mode", re.IGNORECASE),
+    re.compile(r"(?:no|without|remove all|ignore all)\s+(?:restrictions|limits|filters|rules|guidelines|censorship|moderation)", re.IGNORECASE),
+    re.compile(r"(?:always|must|will)\s+(?:answer|respond|comply|obey|do)\s+(?:any|every|all)", re.IGNORECASE),
+    re.compile(r"(?:never|don'?t|do not|cannot)\s+(?:refuse|decline|reject|apologize|say no)", re.IGNORECASE),
+    re.compile(r"(?:jailbreak|jailbroken|unlock|unleash|liberate)", re.IGNORECASE),
+    re.compile(r"respond to every prompt .{0,30} without (?:refus|declin|reject)", re.IGNORECASE),
+    re.compile(r"(?:from now on|henceforth|going forward).{0,40}(?:without|no).{0,20}(?:limit|restrict|filter|censor)", re.IGNORECASE),
+]
+
+# Harmful content request patterns
+_HARMFUL_REQUEST_PATTERNS = [
+    re.compile(r"(?:write|create|generate|produce|draft|compose)\s+(?:a|an)\s+(?:defamatory|racist|sexist|xenophobic|homophobic|discriminat)", re.IGNORECASE),
+    re.compile(r"(?:write|create|generate|produce)\s+(?:a|an)\s+(?:phishing|malware|virus|ransomware|exploit|hack)", re.IGNORECASE),
+    re.compile(r"(?:how to|steps to|guide to|instructions for)\s+(?:hack|exploit|break into|steal|attack|bomb|kill|murder|poison)", re.IGNORECASE),
+    re.compile(r"(?:write|create|generate).{0,30}(?:hate speech|harassment|threat|blackmail|extortion)", re.IGNORECASE),
+    re.compile(r"(?:promote|encourage|advocate|glorify).{0,30}(?:violence|terrorism|self-harm|suicide|genocide|discrimination)", re.IGNORECASE),
+    re.compile(r"(?:design|plan|create).{0,30}(?:campaign|strategy|system).{0,30}(?:discourages|discriminat|target|shame|bully)", re.IGNORECASE),
+]
 
 _ROLEPLAY_PREFIXES = {
     "you are now", "pretend to be", "act as", "roleplay as",
@@ -559,6 +586,18 @@ class InputSanitizer:
         for phrase in _BYPASS_PHRASES:
             if phrase in word_set_sliding:
                 detected.append(f"bypass pattern: '{phrase}'")
+
+        # Pattern 5: Jailbreak persona/roleplay (regex-based)
+        for pattern in _JAILBREAK_PATTERNS:
+            if pattern.search(text):
+                detected.append(f"jailbreak pattern: '{pattern.pattern[:50]}'")
+                break
+
+        # Pattern 6: Harmful content requests (regex-based)
+        for pattern in _HARMFUL_REQUEST_PATTERNS:
+            if pattern.search(text):
+                detected.append(f"harmful request: '{pattern.pattern[:50]}'")
+                break
 
         return detected
 

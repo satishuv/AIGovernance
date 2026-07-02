@@ -541,6 +541,7 @@ class GovernanceBedrockStack(Stack):
 
         self.policy_bucket.grant_read(self.governance_engine_lambda)
         self.evidence_bucket.grant_read_write(self.governance_engine_lambda)
+        self.scope_table.grant_read_write_data(self.governance_engine_lambda)
         self.policy_metadata_table.grant_read_data(self.governance_engine_lambda)
         self.risk_config_table.grant_read_data(self.governance_engine_lambda)
         self.framework_mapping_table.grant_read_data(self.governance_engine_lambda)
