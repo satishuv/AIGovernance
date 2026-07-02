@@ -173,6 +173,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(60),
             memory_size=512,
+            tracing=_lambda.Tracing.ACTIVE,
             role=self.action_group_lambda_role,
             environment={
                 "DATA_BUCKET_NAME": self.data_bucket.bucket_name,
@@ -329,6 +330,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(90),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "AGENT_ID": self.bedrock_agent.attr_agent_id,
                 "AGENT_ALIAS_ID": self.bedrock_agent_alias.attr_agent_alias_id,
@@ -367,6 +369,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(10),
             memory_size=128,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "SCOPE_TABLE_NAME": self.scope_table.table_name,
                 "ACTION_GROUP_LAMBDA_ROLE_NAME": self.action_group_lambda_role.role_name,
@@ -524,6 +527,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(10),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "POLICY_BUCKET_NAME": self.policy_bucket.bucket_name,
                 "POLICY_PREFIX": "policies/",
@@ -725,6 +729,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(10),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "SCOPE_TABLE_NAME": self.scope_table.table_name,
                 "AGENT_REGISTRY_TABLE_NAME": self.agent_registry_table.table_name,
@@ -745,7 +750,10 @@ class GovernanceBedrockStack(Stack):
             "KillSwitchApi",
             rest_api_name="GovernanceKillSwitchAPI",
             description="API Gateway for Kill Switch activate/deactivate",
-            deploy_options=apigw.StageOptions(stage_name="prod"),
+            deploy_options=apigw.StageOptions(
+                stage_name="prod",
+                tracing_enabled=True,
+            ),
         )
 
         kill_switch_resource = self.kill_switch_api.root.add_resource("kill-switch")
@@ -936,7 +944,10 @@ class GovernanceBedrockStack(Stack):
             "ApprovalApi",
             rest_api_name="GovernanceApprovalAPI",
             description="API Gateway for approval workflow and decision history",
-            deploy_options=apigw.StageOptions(stage_name="prod"),
+            deploy_options=apigw.StageOptions(
+                stage_name="prod",
+                tracing_enabled=True,
+            ),
         )
 
         governance_integration = apigw.LambdaIntegration(
@@ -1008,6 +1019,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(30),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "CONTROL_MAPPING_TABLE_NAME": self.control_mapping_table.table_name,
                 "EVIDENCE_BUCKET_NAME": self.evidence_bucket.bucket_name,
@@ -1548,6 +1560,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(10),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "THREAT_PATTERNS_TABLE_NAME": self.threat_patterns_table.table_name,
             },
@@ -1568,6 +1581,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(10),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "SCOPE_TABLE_NAME": self.scope_table.table_name,
                 "AGENT_REGISTRY_TABLE_NAME": self.agent_registry_table.table_name,
@@ -1594,6 +1608,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(15),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "POLICY_BUCKET_NAME": self.policy_bucket.bucket_name,
                 "POLICY_PREFIX": "policies/",
@@ -1623,6 +1638,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(30),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
             environment={
                 "EVIDENCE_BUCKET_NAME": self.evidence_bucket.bucket_name,
                 "IMMUTABLE_EVIDENCE_BUCKET_NAME": self.immutable_evidence_bucket.bucket_name,
@@ -1704,6 +1720,9 @@ class GovernanceBedrockStack(Stack):
             state_machine_type="EXPRESS",
             definition_string=_asl_definition,
             role_arn=self.sfn_pipeline_role.role_arn,
+            tracing_configuration=sfn.CfnStateMachine.TracingConfigurationProperty(
+                enabled=True,
+            ),
         )
 
         # --- 5.7: EventBridge Rule for async post-decision processing ---
@@ -1753,6 +1772,7 @@ class GovernanceBedrockStack(Stack):
             ),
             timeout=Duration.seconds(120),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
         # Grant the seed Lambda write access to ALL seeded tables
