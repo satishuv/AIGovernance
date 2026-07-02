@@ -546,6 +546,12 @@ class GovernanceBedrockStack(Stack):
         self.risk_config_table.grant_read_data(self.governance_engine_lambda)
         self.framework_mapping_table.grant_read_data(self.governance_engine_lambda)
         self.operator_alerts_topic.grant_publish(self.governance_engine_lambda)
+        self.governance_engine_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:ApplyGuardrail"],
+                resources=[f"arn:aws:bedrock:{self.region}:{self.account}:guardrail/*"],
+            )
+        )
 
         # --- Task 9.6: Grant Scope Enforcer permission to invoke Governance Engine ---
 
@@ -1518,6 +1524,8 @@ class GovernanceBedrockStack(Stack):
         )
         self.governance_engine_lambda.add_environment("OPA_MODE", "embedded")
         self.governance_engine_lambda.add_environment("OPA_ENDPOINT", "")
+        self.governance_engine_lambda.add_environment("BEDROCK_GUARDRAIL_ID", "v7p76l8t3ix9")
+        self.governance_engine_lambda.add_environment("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
 
         # --- Task 69.4: Phase 3 seeds — consolidated into SeedTablesLambda ---
 

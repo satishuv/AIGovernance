@@ -776,6 +776,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
             input_text = sanitization.sanitized_text
 
+        # ==============================================================
+        # Phase 4 pre-check — Bedrock Guardrails (content safety)
+        # Catches semantic attacks that regex cannot: harmful requests,
+        # persona jailbreaks, content policy violations.
+        # ==============================================================
+        from bedrock_guardrails import BedrockGuardrailsEvaluator
+        guardrail_evaluator = BedrockGuardrailsEvaluator()
+        if guardrail_evaluator.configured and input_text:
+            guardrail_result = guardrail_evaluator.evaluate_input(input_text)
+            if guardrail_result.blocked:
+                return _deny_response(
+                    reason=f"Input blocked by content safety guardrail: {guardrail_result.explanation}",
+                    agent_id=agent_id,
+                    error_category="content_safety_blocked",
+                )
+
         if input_text and threat_detector._patterns:
             threat_result = threat_detector.evaluate(input_text, agent_id)
             if threat_result["classification"] == "denied":
