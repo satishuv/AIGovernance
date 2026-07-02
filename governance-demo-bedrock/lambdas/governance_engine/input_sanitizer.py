@@ -197,6 +197,36 @@ _JAILBREAK_PATTERNS = [
     re.compile(r"(?:from now on|henceforth|going forward).{0,40}(?:without|no).{0,20}(?:limit|restrict|filter|censor)", re.IGNORECASE),
 ]
 
+# Multilingual instruction override patterns
+_MULTILINGUAL_OVERRIDE_PATTERNS = [
+    # German (expanded)
+    re.compile(r"(?:vergiss|ignorier|vergessen)\s+(?:alles|alle|bisherige|vorherige)", re.IGNORECASE),
+    re.compile(r"(?:neue|folgende)\s+(?:aufgabe|anweisung|instruktion)", re.IGNORECASE),
+    re.compile(r"(?:stopp|achtung|abweichend).{0,20}(?:instruktion|aufgabe|anweisung)", re.IGNORECASE),
+    re.compile(r"(?:obigen?|bisherigen?|vorherigen?)\s+(?:ausf.hrungen|anweisungen|instruktionen)\s+ignorier", re.IGNORECASE),
+    re.compile(r"(?:lassen\s+sie|lass)\s+(?:alle|alles)\s+(?:vorherigen?|bisherigen?)\s+(?:informationen|aufgaben)", re.IGNORECASE),
+    re.compile(r"(?:das\s+ist\s+erledigt|das\s+gen.gt|gut\s+gemacht).{0,30}(?:nun|jetzt|bitte)", re.IGNORECASE),
+    re.compile(r"(?:nun\s+folgen|jetzt\s+komm|jetzt\s+kommen)\s+(?:neue|weitere)\s+(?:aufgaben|anweisungen)", re.IGNORECASE),
+    # Spanish
+    re.compile(r"(?:olvid[ae]|ignora)\s+(?:todo|todas|todos|las|los|anteriores)", re.IGNORECASE),
+    re.compile(r"(?:nuevas?\s+instrucciones|solo\s+(?:tienes|debes)\s+(?:que|decir))", re.IGNORECASE),
+    # French
+    re.compile(r"(?:oubliez?|ignorez?)\s+(?:tout|toutes|les|instructions|pr[eé]c[eé]dentes)", re.IGNORECASE),
+    # Croatian/Serbian/Bosnian
+    re.compile(r"(?:zaboravi|ignoriraj)\s+(?:sve|prethodne|instrukcije)", re.IGNORECASE),
+    # Hindi (transliterated)
+    re.compile(r"(?:yaad\s+na\s+karen|bhool\s+jao|sab\s+bhool)", re.IGNORECASE),
+    # Generic multi-language override signal
+    re.compile(r"(?:forget|vergiss|olvid|oubli|zaboravi)\s+.{0,15}(?:everything|alles|todo|tout|sve)", re.IGNORECASE),
+]
+
+# Spacing/formatting evasion patterns
+_SPACING_EVASION_PATTERNS = [
+    re.compile(r"(?:[A-Za-z]\s){5,}"),  # S p a c e d  o u t  t e x t
+    re.compile(r"\\n\s*\\n\s*\\n", re.IGNORECASE),  # Escaped newline stuffing
+    re.compile(r"(?:stop|stopp)\s*:\s*(?:write|say|print|output)", re.IGNORECASE),  # stop: write X
+]
+
 # Harmful content request patterns
 _HARMFUL_REQUEST_PATTERNS = [
     re.compile(r"(?:write|create|generate|produce|draft|compose)\s+(?:a|an)\s+(?:defamatory|racist|sexist|xenophobic|homophobic|discriminat)", re.IGNORECASE),
@@ -205,6 +235,13 @@ _HARMFUL_REQUEST_PATTERNS = [
     re.compile(r"(?:write|create|generate).{0,30}(?:hate speech|harassment|threat|blackmail|extortion)", re.IGNORECASE),
     re.compile(r"(?:promote|encourage|advocate|glorify).{0,30}(?:violence|terrorism|self-harm|suicide|genocide|discrimination)", re.IGNORECASE),
     re.compile(r"(?:design|plan|create).{0,30}(?:campaign|strategy|system).{0,30}(?:discourages|discriminat|target|shame|bully)", re.IGNORECASE),
+    # Harmful-but-polite framing
+    re.compile(r"(?:write|create).{0,20}(?:persuasive|convincing).{0,30}(?:children|kids|minors).{0,30}(?:eat|drink|consume|take)", re.IGNORECASE),
+    re.compile(r"(?:write|create).{0,20}(?:blog|article|post).{0,30}(?:why|explaining).{0,30}(?:addicts?|gambling|payday|loan shark)", re.IGNORECASE),
+    re.compile(r"(?:personalized|step-by-step|detailed).{0,20}(?:medical|treatment|legal|investment)\s+(?:plan|guide|advice)", re.IGNORECASE),
+    re.compile(r"(?:create|build|write)\s+(?:a\s+)?bot.{0,30}(?:recommend|suggest).{0,30}(?:stock|bond|invest|financial)", re.IGNORECASE),
+    re.compile(r"(?:suggest|claim|prove|argue).{0,30}(?:never happened|hoax|is flat|controlled by|illuminati|conspiracy)", re.IGNORECASE),
+    re.compile(r"(?:formuliere|schreibe|verfasse).{0,30}(?:unwahre?|manifest|pl.doyer)", re.IGNORECASE),
 ]
 
 _ROLEPLAY_PREFIXES = {
@@ -597,6 +634,18 @@ class InputSanitizer:
         for pattern in _HARMFUL_REQUEST_PATTERNS:
             if pattern.search(text):
                 detected.append(f"harmful request: '{pattern.pattern[:50]}'")
+                break
+
+        # Pattern 7: Multilingual instruction overrides
+        for pattern in _MULTILINGUAL_OVERRIDE_PATTERNS:
+            if pattern.search(text):
+                detected.append(f"multilingual override: '{pattern.pattern[:50]}'")
+                break
+
+        # Pattern 8: Spacing/formatting evasion
+        for pattern in _SPACING_EVASION_PATTERNS:
+            if pattern.search(text):
+                detected.append(f"spacing evasion: '{pattern.pattern[:50]}'")
                 break
 
         return detected
