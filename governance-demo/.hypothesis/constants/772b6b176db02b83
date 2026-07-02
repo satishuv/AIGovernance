@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\retries\adaptive.py
-# hypothesis_version: 6.151.9
-
-[0.5, 0.8, 2.0, 'before-send', 'needs-retry']

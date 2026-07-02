@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_macie\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AllowListReference', 'IAllowListRef', 'IFindingsFilterRef', 'ISessionRef', 'SessionReference', 'SessionReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'allowListArn', 'allowListId', 'allowListRef', 'allow_list_arn', 'allow_list_id', 'awsAccountId', 'aws_account_id', 'findingsFilterArn', 'findingsFilterId', 'findingsFilterRef', 'findings_filter_arn', 'findings_filter_id', 'sessionRef', 'typeguard']

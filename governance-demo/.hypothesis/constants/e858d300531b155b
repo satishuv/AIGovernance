@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_lookoutequipment\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument bucket', 'argument id', 'argument inspector', 'argument kms_key_id', 'argument model_name', 'argument prefix', 'argument props', 'argument resource', 'argument role_arn', 'argument scope', 'argument tags', 'argument value', 'argument x', 'bucket', 'cfnProperties', 'dataUploadFrequency', 'id', 'inputTimeZoneOffset', 'inspect', 'inspector', 'kmsKeyId', 'kms_key_id', 'modelName', 'model_name', 'prefix', 'props', 'renderProperties', 'resource', 'roleArn', 'role_arn', 's3InputConfiguration', 'scope', 'serverSideKmsKeyId', 'tags', 'tagsRaw', 'timestampFormat', 'timestamp_format', 'typeguard', 'value', 'x']

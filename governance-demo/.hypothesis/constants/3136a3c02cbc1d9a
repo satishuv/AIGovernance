@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_appmesh\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IGatewayRouteRef', 'IMeshRef', 'IRouteRef', 'IVirtualGatewayRef', 'IVirtualNodeRef', 'IVirtualRouterRef', 'IVirtualServiceRef', 'MeshReference', 'MeshReference(%s)', 'RouteReference', 'RouteReference(%s)', 'VirtualNodeReference', '__jsii_proxy_class__', '__jsii_type__', 'argument mesh_arn', 'argument route_arn', 'gatewayRouteArn', 'gatewayRouteRef', 'gateway_route_arn', 'meshArn', 'meshRef', 'mesh_arn', 'routeArn', 'routeRef', 'route_arn', 'typeguard', 'virtualGatewayArn', 'virtualGatewayRef', 'virtualNodeArn', 'virtualNodeRef', 'virtualRouterArn', 'virtualRouterRef', 'virtualServiceArn', 'virtualServiceRef', 'virtual_gateway_arn', 'virtual_node_arn', 'virtual_router_arn', 'virtual_service_arn']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AI Blog Setup\governance-demo\lambdas\agent\index.py
-# hypothesis_version: 6.151.9
-
-[256, '%Y-%m-%dT%H:%M:%SZ', 'AGENT_ID', 'BEDROCK_MODEL_ID', 'Body', 'DATA_BUCKET_NAME', 'action', 'action_type', 'agent_id', 'anthropic_version', 'application/json', 'bedrock-2023-05-31', 'bedrock-runtime', 'bedrock_failure', 'bedrock_response', 'body', 'content', 'data', 'demo-agent', 'error', 'max_tokens', 'messages', 'outcome', 'payload', 'raw', 'reason', 'result', 'role', 's3', 's3:GetObject', 's3:PutObject', 's3_failure', 'scope_level', 'status', 'success', 'target_resource', 'text', 'timestamp', 'unsupported_action', 'user', 'utf-8', 'written_key']

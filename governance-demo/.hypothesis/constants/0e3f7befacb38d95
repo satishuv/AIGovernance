@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_certificatemanager\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AccountReference', 'AccountReference(%s)', 'CertificateReference', 'IAccountRef', 'ICertificateRef', '__jsii_proxy_class__', '__jsii_type__', 'accountId', 'accountRef', 'account_id', 'argument account_id', 'certificateId', 'certificateRef', 'certificate_id', 'typeguard']

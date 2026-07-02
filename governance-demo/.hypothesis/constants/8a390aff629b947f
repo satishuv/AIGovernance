@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_iotfleethub\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnApplication', 'CfnApplicationProps', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'applicationName', 'applicationRef', 'application_name', 'argument id', 'argument inspector', 'argument props', 'argument resource', 'argument role_arn', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForApplication', 'attrApplicationArn', 'attrApplicationId', 'attrApplicationState', 'attrApplicationUrl', 'attrErrorMessage', 'attrSsoClientId', 'cfnProperties', 'id', 'inspect', 'inspector', 'isCfnApplication', 'props', 'renderProperties', 'resource', 'roleArn', 'role_arn', 'scope', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_aps\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IAnomalyDetectorRef', 'IResourcePolicyRef', 'IScraperRef', 'IWorkspaceRef', 'ScraperReference', 'ScraperReference(%s)', 'WorkspaceReference', '__jsii_proxy_class__', '__jsii_type__', 'anomalyDetectorArn', 'anomalyDetectorRef', 'anomaly_detector_arn', 'argument scraper_arn', 'resourcePolicyRef', 'scraperArn', 'scraperRef', 'scraper_arn', 'typeguard', 'workspaceArn', 'workspaceRef', 'workspace_arn']

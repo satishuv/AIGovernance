@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_servicecatalog\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IPortfolioRef', 'IPortfolioShareRef', 'IServiceActionRef', 'ITagOptionRef', 'PortfolioReference', 'TagOptionReference', '__jsii_proxy_class__', '__jsii_type__', 'accountId', 'account_id', 'argument account_id', 'argument product_id', 'argument resource_id', 'portfolioId', 'portfolioRef', 'portfolioShareRef', 'portfolio_id', 'principalArn', 'principal_arn', 'productId', 'product_id', 'provisionedProductId', 'resourceId', 'resource_id', 'serviceActionId', 'serviceActionRef', 'service_action_id', 'stackSetConstraintId', 'tagOptionId', 'tagOptionRef', 'tag_option_id', 'typeguard']

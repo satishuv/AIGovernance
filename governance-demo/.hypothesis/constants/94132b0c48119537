@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\httpsession.py
-# hypothesis_version: 6.151.9
-
-[b'chunked', '*', '/', '//', '?', 'CERT_NONE', 'CERT_REQUIRED', 'Certificate path: %s', 'Proxy-Authorization', 'SSLKEYLOGFILE', 'Transfer-Encoding', 'ascii', 'cacert.pem', 'cert_file', 'check_hostname', 'host', 'http', 'http:', 'http://', 'https', 'https:', 'ignore', 'key_file', 'keylog_filename', 'maxsize', 'post_handshake_auth', 'proxy_ca_bundle', 'proxy_client_cert', 'socket_options', 'ssl_context', 'timeout', 'true']

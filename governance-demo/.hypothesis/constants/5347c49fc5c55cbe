@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\endpoint.py
-# hypothesis_version: 6.151.9
-
-[300, '%Y%m%dT%H%M%SZ', 'Code', 'Date', 'Error', 'HTTP_REQUEST', 'HTTP_RESPONSE', 'PARSED_RESPONSE', 'REQUESTS_CA_BUNDLE', 'ResponseMetadata', 'RetryAttempts', 'attempt', 'body', 'client_config', 'content-length', 'context', 'exception', 'has_streaming_input', 'headers', 'invocation-id', 'method', 'operation_name', 'parsed_response', 'response_dict', 'retries', 'status_code', 'streaming', 'ttl', 'url', 'utf-8']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_lakeformation\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IDataCellsFilterRef', 'IDataLakeSettingsRef', 'IPermissionsRef', 'IResourceRef', 'ITagAssociationRef', 'ITagRef', 'PermissionsReference', 'ResourceReference', 'TagReference', 'TagReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument resource_id', 'argument table_name', 'argument tag_key', 'dataCellsFilterName', 'dataCellsFilterRef', 'dataLakeSettingsId', 'dataLakeSettingsRef', 'databaseName', 'database_name', 'permissionsId', 'permissionsRef', 'permissions_id', 'principalIdentifier', 'principal_identifier', 'resourceId', 'resourceIdentifier', 'resourceRef', 'resource_id', 'resource_identifier', 'tableCatalogId', 'tableName', 'table_catalog_id', 'table_name', 'tagAssociationRef', 'tagKey', 'tagRef', 'tag_key', 'tagsIdentifier', 'tags_identifier', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_rekognition\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CollectionReference', 'ICollectionRef', 'IProjectRef', 'IStreamProcessorRef', 'ProjectReference', 'ProjectReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument project_arn', 'collectionArn', 'collectionId', 'collectionRef', 'collection_arn', 'collection_id', 'projectArn', 'projectName', 'projectRef', 'project_arn', 'project_name', 'streamProcessorArn', 'streamProcessorName', 'streamProcessorRef', 'stream_processor_arn', 'typeguard']

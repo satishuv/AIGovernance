@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\method.py
-# hypothesis_version: 6.151.9
-
-['(', '()', ')', '**kwargs', ':returns: ', ':returns: None', ':rtype: dict', 'Request Syntax', 'Response Structure', 'Response Syntax', 'See also: ', '_', 'description', 'event-stream', 'method-intro', 'request-example', 'request-params', 'response-example', 'return', 'special_shape_types', 'uid']

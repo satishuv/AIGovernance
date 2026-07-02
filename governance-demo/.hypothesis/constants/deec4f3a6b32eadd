@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\discovery.py
-# hypothesis_version: 6.151.9
-
-[421, 'Address', 'CachePeriodInMinutes', 'Code', 'Endpoints', 'Error', 'Expiration', 'HTTPStatusCode', 'Identifiers', 'Operation', 'ResponseMetadata', 'context', 'discovery', 'endpointdiscoveryid', 'http', 'https://', 'identifiers', 'required', 'structure']

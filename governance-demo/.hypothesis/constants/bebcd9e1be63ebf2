@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_managedblockchain\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AccessorReference', 'IAccessorRef', 'IMemberRef', 'INodeRef', 'MemberReference', 'MemberReference(%s)', 'NodeReference', 'NodeReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'accessorArn', 'accessorId', 'accessorRef', 'accessor_arn', 'accessor_id', 'argument accessor_id', 'argument member_id', 'argument node_arn', 'argument node_id', 'memberId', 'memberRef', 'member_id', 'nodeArn', 'nodeId', 'nodeRef', 'node_arn', 'node_id', 'typeguard']

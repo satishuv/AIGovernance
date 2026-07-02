@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_customerprofiles\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DomainReference', 'DomainReference(%s)', 'EventStreamReference', 'IDomainRef', 'IEventStreamRef', 'IEventTriggerRef', 'IIntegrationRef', 'IObjectTypeRef', 'IntegrationReference', 'ObjectTypeReference', '__jsii_proxy_class__', '__jsii_type__', 'argument domain_name', 'argument uri', 'domainName', 'domainRef', 'domain_name', 'eventStreamArn', 'eventStreamName', 'eventStreamRef', 'eventTriggerName', 'eventTriggerRef', 'event_stream_arn', 'event_stream_name', 'event_trigger_name', 'integrationRef', 'objectTypeName', 'objectTypeRef', 'object_type_name', 'segmentDefinitionArn', 'segmentDefinitionRef', 'typeguard', 'uri']

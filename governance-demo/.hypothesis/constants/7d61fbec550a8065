@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_greengrass\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'GroupReference', 'GroupReference(%s)', 'ICoreDefinitionRef', 'IDeviceDefinitionRef', 'IGroupRef', 'IGroupVersionRef', 'ILoggerDefinitionRef', '__jsii_proxy_class__', '__jsii_type__', 'argument group_arn', 'argument group_id', 'coreDefinitionArn', 'coreDefinitionId', 'coreDefinitionRef', 'core_definition_arn', 'core_definition_id', 'deviceDefinitionArn', 'deviceDefinitionId', 'deviceDefinitionRef', 'device_definition_id', 'functionDefinitionId', 'groupArn', 'groupId', 'groupRef', 'groupVersionId', 'groupVersionRef', 'group_arn', 'group_id', 'group_version_id', 'loggerDefinitionArn', 'loggerDefinitionId', 'loggerDefinitionRef', 'logger_definition_id', 'resourceDefinitionId', 'typeguard']

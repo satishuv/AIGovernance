@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_pcs\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ClusterReference', 'ClusterReference(%s)', 'IClusterRef', 'IComputeNodeGroupRef', 'IQueueRef', 'QueueReference', 'QueueReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument cluster_arn', 'argument queue_arn', 'clusterArn', 'clusterRef', 'cluster_arn', 'computeNodeGroupArn', 'computeNodeGroupRef', 'queueArn', 'queueRef', 'queue_arn', 'typeguard']

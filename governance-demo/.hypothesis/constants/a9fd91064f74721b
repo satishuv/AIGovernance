@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_ssmcontacts\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ContactReference', 'ContactReference(%s)', 'IContactChannelRef', 'IContactRef', 'IPlanRef', 'IRotationRef', 'PlanReference', 'PlanReference(%s)', 'RotationReference', '__jsii_proxy_class__', '__jsii_type__', 'argument contact_arn', 'argument plan_arn', 'contactArn', 'contactChannelArn', 'contactChannelRef', 'contactRef', 'contact_arn', 'contact_channel_arn', 'planArn', 'planRef', 'plan_arn', 'rotationArn', 'rotationRef', 'rotation_arn', 'typeguard']

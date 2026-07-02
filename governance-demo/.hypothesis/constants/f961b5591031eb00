@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_backup\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'BackupPlanReference', 'BackupVaultReference', 'FrameworkReference', 'IBackupPlanRef', 'IBackupSelectionRef', 'IBackupVaultRef', 'IFrameworkRef', 'IReportPlanRef', 'ReportPlanReference', '__jsii_proxy_class__', '__jsii_type__', 'backupPlanArn', 'backupPlanId', 'backupPlanRef', 'backupSelectionId', 'backupSelectionRef', 'backupVaultArn', 'backupVaultName', 'backupVaultRef', 'backup_plan_arn', 'backup_plan_id', 'backup_selection_id', 'backup_vault_arn', 'backup_vault_name', 'frameworkArn', 'frameworkRef', 'framework_arn', 'reportPlanArn', 'reportPlanRef', 'report_plan_arn', 'typeguard']

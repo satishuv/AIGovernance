@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_docdb\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DBClusterReference', 'DBInstanceReference', 'IDBClusterRef', 'IDBInstanceRef', 'IDBSubnetGroupRef', 'IGlobalClusterRef', '__jsii_proxy_class__', '__jsii_type__', 'dbClusterId', 'dbClusterRef', 'dbInstanceId', 'dbInstanceRef', 'dbSubnetGroupId', 'dbSubnetGroupRef', 'db_cluster_id', 'db_instance_id', 'db_subnet_group_id', 'eventSubscriptionId', 'eventSubscriptionRef', 'globalClusterArn', 'globalClusterRef', 'global_cluster_arn', 'typeguard']

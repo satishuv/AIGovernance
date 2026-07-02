@@ -1,1 +1,0 @@
-{"status": "denied", "error": "governance_denied", "message": "Action 'ProductionDeployment' denied by policy 'default-deny'. Policy outcome is 'deny'; risk score (95.0) is not considered when policy explicitly denies.", "decision_id": "120f9f9e-eb9a-44c3-b228-706d7fd563bc"}

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_cloud9\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IEnvironmentEC2Ref', '__jsii_proxy_class__', '__jsii_type__', 'environmentEc2Arn', 'environmentEc2Id', 'environmentEc2Ref', 'environment_ec2_arn', 'environment_ec2_id', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_eventschemas\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DiscovererReference', 'IDiscovererRef', 'IRegistryPolicyRef', 'IRegistryRef', 'ISchemaRef', 'RegistryReference', 'SchemaReference', 'SchemaReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument schema_arn', 'discovererArn', 'discovererRef', 'discoverer_arn', 'registryArn', 'registryName', 'registryPolicyRef', 'registryRef', 'registry_arn', 'registry_name', 'schemaArn', 'schemaRef', 'schema_arn', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_kinesis\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IResourcePolicyRef', 'IStreamConsumerRef', 'IStreamRef', 'StreamReference', 'StreamReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument stream_arn', 'argument stream_name', 'consumerArn', 'consumer_arn', 'resourceArn', 'resourcePolicyRef', 'resource_arn', 'streamArn', 'streamConsumerRef', 'streamName', 'streamRef', 'stream_arn', 'stream_name', 'typeguard']

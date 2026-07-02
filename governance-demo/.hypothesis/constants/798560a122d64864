@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_ecr\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IPublicRepositoryRef', 'IRegistryPolicyRef', 'IRepositoryRef', 'RepositoryReference', '__jsii_proxy_class__', '__jsii_type__', 'argument prefix', 'argument registry_id', 'ecrRepositoryPrefix', 'prefix', 'principalArn', 'principal_arn', 'publicRepositoryArn', 'publicRepositoryRef', 'registryId', 'registryPolicyRef', 'registry_id', 'repositoryArn', 'repositoryName', 'repositoryRef', 'repository_arn', 'repository_name', 'typeguard']

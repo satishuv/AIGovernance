@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\bcdoc\style.py
-# hypothesis_version: 6.151.9
-
-['\n.. toctree::\n', '  :hidden:\n\n', '  :maxdepth: 1\n', '  :titlesonly:\n\n', '!', '*', '* ', '**', ',', '-', '.', '.. contents:: ', '.. danger::', '.. note::', '.. warning::', ':', '::', ';', '=', '?', '\\:', '`', '` ', '`__', '``', 'bcdocs', 'href', 'html', 'man']

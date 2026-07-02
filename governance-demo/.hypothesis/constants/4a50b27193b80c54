@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\eventstream.py
-# hypothesis_version: 6.151.9
-
-[128, 200, 400, 1024, 4294967295, '!B', '!H', '!I', '!III', '!b', '!h', '!i', '!q', ':event-type', ':message-type', 'body', 'error', 'exception', 'headers', 'initial-response', 'status_code', 'utf-8']

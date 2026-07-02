@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_aiops\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument id', 'argument inspector', 'argument kms_key_id', 'argument name', 'argument props', 'argument resource', 'argument role_arn', 'argument scope', 'argument tags', 'argument value', 'argument x', 'attrArn', 'attrCreatedAt', 'attrCreatedBy', 'attrLastModifiedAt', 'attrLastModifiedBy', 'cdkTagManager', 'cfnProperties', 'encryptionConfig', 'encryption_config', 'id', 'inspect', 'inspector', 'kmsKeyId', 'kms_key_id', 'name', 'props', 'renderProperties', 'resource', 'retentionInDays', 'retention_in_days', 'roleArn', 'role_arn', 'scope', 'snsTopicArn', 'sns_topic_arn', 'sourceRoleArn', 'source_role_arn', 'tagKeyBoundaries', 'tag_key_boundaries', 'tags', 'typeguard', 'value', 'x']

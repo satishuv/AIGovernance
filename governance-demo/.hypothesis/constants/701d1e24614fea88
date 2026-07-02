@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_proton\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnServiceTemplate', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument description', 'argument id', 'argument inspector', 'argument name', 'argument props', 'argument resource', 'argument role_arn', 'argument scope', 'argument tags', 'argument value', 'argument x', 'attrArn', 'attrId', 'attrStatus', 'cfnProperties', 'codebuildRoleArn', 'codebuild_role_arn', 'componentRoleArn', 'component_role_arn', 'description', 'displayName', 'display_name', 'encryptionKey', 'encryption_key', 'environmentAccountId', 'environmentName', 'environment_name', 'id', 'inspect', 'inspector', 'isCfnServiceTemplate', 'managementAccountId', 'name', 'pipelineProvisioning', 'props', 'provisioning', 'renderProperties', 'resource', 'roleArn', 'role_arn', 'scope', 'serviceTemplateRef', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

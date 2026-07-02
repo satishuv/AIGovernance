@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_stepfunctions\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ActivityReference', 'IActivityRef', 'IStateMachineRef', '__jsii_proxy_class__', '__jsii_type__', 'activityArn', 'activityRef', 'activity_arn', 'stateMachineAliasArn', 'stateMachineAliasRef', 'stateMachineArn', 'stateMachineRef', 'state_machine_arn', 'typeguard']

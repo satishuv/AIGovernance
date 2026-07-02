@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_iotevents\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AlarmModelReference', 'IAlarmModelRef', 'IDetectorModelRef', 'IInputRef', 'InputReference', 'InputReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'alarmModelName', 'alarmModelRef', 'alarm_model_name', 'argument input_name', 'detectorModelName', 'detectorModelRef', 'detector_model_name', 'inputName', 'inputRef', 'input_name', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_cognito\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IIdentityPoolRef', 'ITermsRef', 'IUserPoolClientRef', 'IUserPoolDomainRef', 'IUserPoolGroupRef', 'IUserPoolRef', 'IUserPoolUserRef', 'TermsReference', 'TermsReference(%s)', 'UserPoolReference', '__jsii_proxy_class__', '__jsii_type__', 'argument client_id', 'argument domain', 'argument group_name', 'argument identifier', 'argument terms_id', 'argument username', 'clientId', 'client_id', 'domain', 'groupName', 'group_name', 'identifier', 'identityPoolId', 'identityPoolRef', 'identityProviderName', 'identity_pool_id', 'providerName', 'provider_name', 'termsId', 'termsRef', 'terms_id', 'typeguard', 'userPoolArn', 'userPoolClientRef', 'userPoolDomainRef', 'userPoolGroupRef', 'userPoolId', 'userPoolRef', 'userPoolUserRef', 'user_pool_arn', 'user_pool_id', 'username']

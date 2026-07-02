@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\cattrs\__init__.py
-# hypothesis_version: 6.151.9
-
-['BaseConverter', 'BaseValidationError', 'ClassValidationError', 'Converter', 'GenConverter', 'SimpleStructureHook', 'UnstructureStrategy', 'get_structure_hook', 'get_unstructure_hook', 'global_converter', 'override', 'structure', 'transform_error', 'unstructure']

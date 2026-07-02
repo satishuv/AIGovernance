@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_cloudwatch\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AlarmReference', 'AlarmReference(%s)', 'DashboardReference', 'IAlarmMuteRuleRef', 'IAlarmRef', 'IAnomalyDetectorRef', 'ICompositeAlarmRef', 'IDashboardRef', 'IInsightRuleRef', 'IMetricStreamRef', 'InsightRuleReference', '__jsii_proxy_class__', '__jsii_type__', 'alarmArn', 'alarmMuteRuleArn', 'alarmMuteRuleRef', 'alarmName', 'alarmRef', 'alarm_arn', 'alarm_mute_rule_arn', 'alarm_name', 'anomalyDetectorId', 'anomalyDetectorRef', 'anomaly_detector_id', 'argument alarm_arn', 'argument alarm_name', 'compositeAlarmArn', 'compositeAlarmRef', 'composite_alarm_arn', 'dashboardName', 'dashboardRef', 'dashboard_name', 'insightRuleArn', 'insightRuleRef', 'insight_rule_arn', 'metricStreamArn', 'metricStreamName', 'metricStreamRef', 'metric_stream_arn', 'metric_stream_name', 'typeguard']

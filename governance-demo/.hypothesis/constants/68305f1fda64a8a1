@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\boto3\resources\model.py
-# hypothesis_version: 6.151.9
-
-['WaitUntil', '_', 'action', 'actions', 'attribute', 'batchActions', 'batch_action', 'collection', 'data', 'has', 'hasMany', 'identifier', 'identifiers', 'input', 'load', 'memberName', 'meta', 'name', 'operation', 'params', 'path', 'reference', 'request', 'resource', 'shape', 'source', 'subresource', 'target', 'type', 'waiter', 'waiterName', 'waiters']

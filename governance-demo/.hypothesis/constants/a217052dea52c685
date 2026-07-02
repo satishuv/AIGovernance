@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_observabilityadmin\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ITelemetryRuleRef', '__jsii_proxy_class__', '__jsii_type__', 'argument rule_arn', 'pipelineIdentifier', 'pipeline_identifier', 'ruleArn', 'rule_arn', 'telemetryRuleRef', 'typeguard']

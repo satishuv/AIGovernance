@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\boto3\resources\collection.py
-# hypothesis_version: 6.151.9
-
-['Manager', 'MaxItems', 'PageSize', '_collection_cls', 'all', 'filter', 'limit', 'page_size', '{}({}, {})']

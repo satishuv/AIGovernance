@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_verifiedpermissions\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IIdentitySourceRef', 'IPolicyRef', 'IPolicyStoreRef', 'IPolicyTemplateRef', 'PolicyReference', 'PolicyReference(%s)', 'PolicyStoreReference', '__jsii_proxy_class__', '__jsii_type__', 'argument policy_id', 'identitySourceId', 'identitySourceRef', 'identity_source_id', 'policyId', 'policyRef', 'policyStoreArn', 'policyStoreId', 'policyStoreRef', 'policyTemplateId', 'policyTemplateRef', 'policy_id', 'policy_store_arn', 'policy_store_id', 'policy_template_id', 'typeguard']

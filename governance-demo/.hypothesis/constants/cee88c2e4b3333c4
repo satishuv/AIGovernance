@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\cattrs\_compat.py
-# hypothesis_version: 6.151.9
-
-['ANIES', 'ExceptionGroup', 'ExtensionsTypedDict', 'TypeAlias', '__args__', '__attrs_attrs__', '__class__', '__dataclass_fields__', '__orig_bases__', '__origin__', '__qualname__', '__supertype__', '_is_protocol', 'adapted_fields', 'fields_dict', 'has', 'is_typeddict', 'kw_only', 'typing', 'typing_extensions']

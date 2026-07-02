@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_supportapp\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnAccountAlias', 'CfnAccountAliasProps', '_IRoleRef_8400221f', 'accountAlias', 'accountAliasRef', 'account_alias', 'argument channel_id', 'argument id', 'argument inspector', 'argument props', 'argument scope', 'argument team_id', 'argument value', 'argument version_id', 'argument x', 'cfnProperties', 'channelId', 'channelName', 'channelRoleArn', 'channel_id', 'channel_name', 'channel_role_arn', 'id', 'inspect', 'inspector', 'isCfnAccountAlias', 'notifyOnCaseSeverity', 'notifyOnResolveCase', 'props', 'renderProperties', 'scope', 'teamId', 'team_id', 'typeguard', 'value', 'versionId', 'version_id', 'x']

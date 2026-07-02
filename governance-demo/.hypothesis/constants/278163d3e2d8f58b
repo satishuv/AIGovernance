@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_directconnect\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ConnectionReference', 'IConnectionRef', 'ILagRef', 'LagReference', 'LagReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument lag_arn', 'associationId', 'association_id', 'connectionArn', 'connectionRef', 'connection_arn', 'lagArn', 'lagRef', 'lag_arn', 'typeguard', 'virtualInterfaceArn']

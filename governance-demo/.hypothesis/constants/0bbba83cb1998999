@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_globalaccelerator\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AcceleratorReference', 'IAcceleratorRef', 'IEndpointGroupRef', 'IListenerRef', 'ListenerReference', '__jsii_proxy_class__', '__jsii_type__', 'acceleratorArn', 'acceleratorRef', 'accelerator_arn', 'attachmentArn', 'attachment_arn', 'endpointGroupArn', 'endpointGroupRef', 'endpoint_group_arn', 'listenerArn', 'listenerRef', 'listener_arn', 'typeguard']

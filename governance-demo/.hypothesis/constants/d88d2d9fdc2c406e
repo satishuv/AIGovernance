@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_workspacesweb\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IBrowserSettingsRef', 'IIdentityProviderRef', 'IIpAccessSettingsRef', 'INetworkSettingsRef', 'IPortalRef', 'ISessionLoggerRef', 'ITrustStoreRef', 'IUserSettingsRef', 'PortalReference', 'PortalReference(%s)', 'TrustStoreReference', '__jsii_proxy_class__', '__jsii_type__', 'argument portal_arn', 'browserSettingsArn', 'browserSettingsRef', 'browser_settings_arn', 'identityProviderArn', 'identityProviderRef', 'ipAccessSettingsArn', 'ipAccessSettingsRef', 'networkSettingsArn', 'networkSettingsRef', 'network_settings_arn', 'portalArn', 'portalRef', 'portal_arn', 'sessionLoggerArn', 'sessionLoggerRef', 'session_logger_arn', 'trustStoreArn', 'trustStoreRef', 'trust_store_arn', 'typeguard', 'userSettingsArn', 'userSettingsRef', 'user_settings_arn']

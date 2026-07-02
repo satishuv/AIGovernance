@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_dms\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CertificateReference', 'EndpointReference', 'ICertificateRef', 'IDataMigrationRef', 'IDataProviderRef', 'IEndpointRef', 'IInstanceProfileRef', 'IMigrationProjectRef', 'IReplicationTaskRef', '__jsii_proxy_class__', '__jsii_type__', 'argument endpoint_id', 'certificateId', 'certificateRef', 'certificate_id', 'dataMigrationArn', 'dataMigrationRef', 'dataProviderArn', 'dataProviderRef', 'data_migration_arn', 'data_provider_arn', 'endpointId', 'endpointRef', 'endpoint_id', 'eventSubscriptionRef', 'instanceProfileArn', 'instanceProfileRef', 'instance_profile_arn', 'migrationProjectArn', 'migrationProjectRef', 'replicationConfigArn', 'replicationConfigRef', 'replicationTaskId', 'replicationTaskRef', 'replication_task_id', 'subscriptionName', 'subscription_name', 'typeguard']

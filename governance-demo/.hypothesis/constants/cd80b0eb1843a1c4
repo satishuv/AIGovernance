@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\validate.py
-# hypothesis_version: 6.151.9
-
-[', ', '-inf', '.', 'empty input', 'file-like object', 'hostLabel', 'input', 'invalid length', 'invalid range', 'invalid type', 'members', 'min', 'min_allowed', 'more than one input', 'param', 'read', 'required', 'serialization', 'structure', 'timestamp-string', 'type_error', 'unknown field', 'unknown_param', 'valid_names', 'valid_types']

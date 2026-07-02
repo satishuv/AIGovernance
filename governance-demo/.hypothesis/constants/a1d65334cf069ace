@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\retries\special.py
-# hypothesis_version: 6.151.9
-
-[4294967295, 'dynamodb', 'sts', 'x-amz-crc32']

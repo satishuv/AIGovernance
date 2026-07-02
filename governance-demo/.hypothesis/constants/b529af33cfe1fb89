@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_oam\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ILinkRef', 'ISinkRef', 'LinkReference', 'LinkReference(%s)', 'SinkReference', 'SinkReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument link_arn', 'argument sink_arn', 'linkArn', 'linkRef', 'link_arn', 'sinkArn', 'sinkRef', 'sink_arn', 'typeguard']

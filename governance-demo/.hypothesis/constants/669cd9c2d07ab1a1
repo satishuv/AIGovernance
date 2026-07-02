@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_mediatailor\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ChannelReference', 'ChannelReference(%s)', 'IChannelPolicyRef', 'IChannelRef', 'ILiveSourceRef', 'ISourceLocationRef', 'IVodSourceRef', 'LiveSourceReference', 'VodSourceReference', '__jsii_proxy_class__', '__jsii_type__', 'argument channel_arn', 'channelArn', 'channelName', 'channelPolicyRef', 'channelRef', 'channel_arn', 'channel_name', 'liveSourceArn', 'liveSourceName', 'liveSourceRef', 'live_source_arn', 'live_source_name', 'sourceLocationArn', 'sourceLocationName', 'sourceLocationRef', 'source_location_arn', 'source_location_name', 'typeguard', 'vodSourceArn', 'vodSourceName', 'vodSourceRef', 'vod_source_arn', 'vod_source_name']

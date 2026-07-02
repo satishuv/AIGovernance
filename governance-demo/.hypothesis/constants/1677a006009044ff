@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_ecs\mixins\__init__.py
-# hypothesis_version: 6.151.9
-
-['.', 'ClusterSettings', 'applyTo', 'argument cluster', 'argument construct', 'argument settings', 'cluster', 'construct', 'settings', 'supports', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_athena\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DataCatalogReference', 'IDataCatalogRef', 'INamedQueryRef', 'IWorkGroupRef', 'NamedQueryReference', 'WorkGroupReference', '__jsii_proxy_class__', '__jsii_type__', 'argument work_group', 'dataCatalogName', 'dataCatalogRef', 'data_catalog_name', 'namedQueryId', 'namedQueryRef', 'named_query_id', 'preparedStatementRef', 'statementName', 'statement_name', 'typeguard', 'workGroup', 'workGroupName', 'workGroupRef', 'work_group', 'work_group_name']

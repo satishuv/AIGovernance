@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_networkfirewall\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'FirewallReference', 'IFirewallPolicyRef', 'IFirewallRef', 'IRuleGroupRef', 'RuleGroupReference', '__jsii_proxy_class__', '__jsii_type__', 'firewallArn', 'firewallPolicyArn', 'firewallPolicyRef', 'firewallRef', 'firewall_arn', 'firewall_policy_arn', 'ruleGroupArn', 'ruleGroupRef', 'rule_group_arn', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\cattrs\gen\typeddicts.py
-# hypothesis_version: 6.151.9
-
-['  errors = []', '  if unknown_fields:', '  res = o.copy()', '  return res', ', ', 'T', '[\\[\\.\\] ,<>]', '\\|', '_', '__annotations__', '__c_a', '__c_avn', '__c_cve', '__c_feke', '__c_mapping', '__cl', '__name__', '__orig_bases__', '__parameters__', '__required_keys__', 'exec', 'forbid_extra_keys', 'from_converter', 'structure', 'structure_', 'typing.Generic', 'u', 'unstructure']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_voiceid\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnDomain', 'CfnDomainProps', 'CfnDomainProps(%s)', '_CfnTag_f6864754', '_IDomainRef_b435dbf5', '_TagManager_0a598cb3', 'argument description', 'argument domain_id', 'argument id', 'argument inspector', 'argument kms_key_id', 'argument name', 'argument props', 'argument resource', 'argument scope', 'argument tags', 'argument value', 'argument x', 'arnForDomain', 'attrDomainId', 'cfnProperties', 'description', 'domainRef', 'domain_id', 'fromDomainId', 'id', 'inspect', 'inspector', 'isCfnDomain', 'kmsKeyId', 'kms_key_id', 'name', 'props', 'renderProperties', 'resource', 'scope', 'tags', 'tagsRaw', 'typeguard', 'value', 'x']

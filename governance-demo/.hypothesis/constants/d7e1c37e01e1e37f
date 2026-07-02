@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_sso\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ApplicationReference', 'AssignmentReference', 'IApplicationRef', 'IAssignmentRef', 'IInstanceRef', 'IPermissionSetRef', 'InstanceReference', '__jsii_proxy_class__', '__jsii_type__', 'applicationArn', 'applicationRef', 'application_arn', 'argument target_id', 'argument target_type', 'assignmentRef', 'instanceArn', 'instanceRef', 'instance_arn', 'permissionSetArn', 'permissionSetRef', 'permission_set_arn', 'principalId', 'principalType', 'principal_id', 'principal_type', 'targetId', 'targetType', 'target_id', 'target_type', 'typeguard']

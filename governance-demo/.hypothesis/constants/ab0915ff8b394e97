@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\compat.py
-# hypothesis_version: 6.151.9
-
-['"', '$', '(?:', '(?:%25|%)(?:[', ')', ')?\\]', '.', 'BOTO_DISABLE_CRT', '[0-9A-Fa-f]{1,4}', '\\', '\\[', ']|%[a-fA-F0-9]{2})+', '^', 'false', 'hex', 'ignore', 'ls32', 'strict', 'true', 'utf-8', 'win32', '|']

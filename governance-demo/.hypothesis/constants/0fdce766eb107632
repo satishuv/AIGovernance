@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_neptune\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DBClusterReference', 'DBInstanceReference', 'IDBClusterRef', 'IDBInstanceRef', 'IDBParameterGroupRef', 'IDBSubnetGroupRef', '__jsii_proxy_class__', '__jsii_type__', 'dbClusterIdentifier', 'dbClusterRef', 'dbInstanceIdentifier', 'dbInstanceRef', 'dbParameterGroupName', 'dbParameterGroupRef', 'dbSubnetGroupName', 'dbSubnetGroupRef', 'db_subnet_group_name', 'eventSubscriptionRef', 'subscriptionName', 'subscription_name', 'typeguard']

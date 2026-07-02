@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\params.py
-# hypothesis_version: 6.151.9
-
-['(%s) --', ', ', '- ', '[REQUIRED]', 'end-list', 'end-map', 'end-param', 'end-param-type', 'end-structure', 'idempotencyToken', 'is-required', 'is_tagged_union', 'key', 'param-documentation', 'param-name', 'param-type', 'request-params', 'response-params', 'shape']

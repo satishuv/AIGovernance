@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_cleanrooms\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IAnalysisTemplateRef', 'ICollaborationRef', 'IConfiguredTableRef', 'IIdMappingTableRef', 'IMembershipRef', 'MembershipReference', '__jsii_proxy_class__', '__jsii_type__', 'analysisTemplateArn', 'analysisTemplateRef', 'collaborationArn', 'collaborationRef', 'collaboration_arn', 'configuredTableArn', 'configuredTableRef', 'configured_table_arn', 'idMappingTableArn', 'idMappingTableRef', 'id_mapping_table_arn', 'membershipArn', 'membershipIdentifier', 'membershipRef', 'membership_arn', 'typeguard']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\retries\standard.py
-# hypothesis_version: 6.151.9
-
-[200, 300, 500, 502, 503, 504, 'Code', 'Error', 'RequestLimitExceeded', 'RequestThrottled', 'RequestTimeout', 'ResponseMetadata', 'SlowDown', 'THROTTLING_ERROR', 'TRANSIENT_ERROR', 'ThrottledException', 'Throttling', 'ThrottlingException', 'attempts', 'caught_exception', 'code', 'context', 'error', 'max', 'operation', 'request_dict', 'response', 'retries', 'retry_quota_capacity', 'retryable', 'throttling']

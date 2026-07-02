@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_elasticloadbalancingv2_actions\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', '_Duration_4839e8c3', '_IUserPool_1f1029e2', 'allowHttpsOutbound', 'allow_https_outbound', 'argument listener', 'argument next', 'argument scope', 'argument user_pool', 'bind', 'listener', 'next', 'scope', 'sessionCookieName', 'sessionTimeout', 'session_cookie_name', 'session_timeout', 'typeguard', 'userPool', 'userPoolClient', 'userPoolDomain', 'user_pool', 'user_pool_client', 'user_pool_domain']

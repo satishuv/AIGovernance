@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_rolesanywhere\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CRLReference', 'CRLReference(%s)', 'ICRLRef', 'IProfileRef', 'ITrustAnchorRef', 'ProfileReference', 'ProfileReference(%s)', 'TrustAnchorReference', '__jsii_proxy_class__', '__jsii_type__', 'argument crl_id', 'argument profile_arn', 'argument profile_id', 'crlId', 'crlRef', 'crl_id', 'profileArn', 'profileId', 'profileRef', 'profile_arn', 'profile_id', 'trustAnchorArn', 'trustAnchorId', 'trustAnchorRef', 'trust_anchor_arn', 'trust_anchor_id', 'typeguard']

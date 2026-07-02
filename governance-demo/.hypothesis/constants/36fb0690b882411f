@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\exceptions.py
-# hypothesis_version: 6.151.9
-
-['Code', 'Error', 'MaxAttemptsReached', 'Message', 'ResponseMetadata', 'RetryAttempts', 'Unknown', '{error_msg}', '{msg}']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_ecs\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ClusterReference', 'ClusterReference(%s)', 'ICapacityProviderRef', 'IClusterRef', 'IPrimaryTaskSetRef', 'IServiceRef', 'ITaskDefinitionRef', 'ITaskSetRef', 'ServiceReference', 'ServiceReference(%s)', 'TaskSetReference', 'TaskSetReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument cluster', 'argument cluster_arn', 'argument service', 'argument service_arn', 'argument task_set_id', 'capacityProviderName', 'capacityProviderRef', 'cluster', 'clusterArn', 'clusterName', 'clusterRef', 'cluster_arn', 'cluster_name', 'primaryTaskSetRef', 'service', 'serviceArn', 'serviceRef', 'service_arn', 'taskDefinitionArn', 'taskDefinitionRef', 'taskSetId', 'taskSetRef', 'task_definition_arn', 'task_set_id', 'typeguard']

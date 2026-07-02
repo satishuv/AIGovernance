@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\tokens.py
-# hypothesis_version: 6.151.9
-
-['%Y-%m-%dT%H:%M:%SZ', '.aws', 'accessToken', 'advisory', 'cache', 'clientId', 'clientSecret', 'default', 'env', 'expiresAt', 'expiresIn', 'mandatory', 'profile', 'profiles', 'refreshToken', 'refresh_token', 'region', 'session_name', 'signing_name', 'sso', 'sso-oidc', 'sso_region', 'sso_session', 'sso_sessions', 'sso_start_url', 'startUrl', '~']

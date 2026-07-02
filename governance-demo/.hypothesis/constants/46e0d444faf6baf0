@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_entityresolution\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IIdNamespaceRef', 'IMatchingWorkflowRef', 'IPolicyStatementRef', 'ISchemaMappingRef', 'IdNamespaceReference', '__jsii_proxy_class__', '__jsii_type__', 'argument schema_name', 'idMappingWorkflowRef', 'idNamespaceArn', 'idNamespaceName', 'idNamespaceRef', 'id_namespace_arn', 'id_namespace_name', 'matchingWorkflowRef', 'policyStatementArn', 'policyStatementRef', 'policy_statement_arn', 'schemaMappingRef', 'schemaName', 'schema_name', 'statementId', 'statement_id', 'typeguard', 'workflowName', 'workflow_name']

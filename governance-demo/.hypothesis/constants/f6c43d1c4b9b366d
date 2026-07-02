@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_acmpca\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CertificateReference', 'ICertificateRef', 'IPermissionRef', 'PermissionReference', '__jsii_proxy_class__', '__jsii_type__', 'argument principal', 'certificateArn', 'certificateRef', 'certificate_arn', 'permissionRef', 'principal', 'typeguard']

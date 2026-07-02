@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_sns\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ISubscriptionRef', 'ITopicPolicyRef', 'ITopicRef', 'TopicPolicyReference', 'TopicReference', 'TopicReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument topic_arn', 'subscriptionArn', 'subscriptionRef', 'subscription_arn', 'topicArn', 'topicInlinePolicyRef', 'topicPolicyId', 'topicPolicyRef', 'topicRef', 'topic_arn', 'topic_policy_id', 'typeguard']

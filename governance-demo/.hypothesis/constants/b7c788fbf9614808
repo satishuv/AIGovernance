@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_simspaceweaver\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnSimulation', 'CfnSimulationProps', 'argument bucket_name', 'argument id', 'argument inspector', 'argument name', 'argument object_key', 'argument props', 'argument resource', 'argument role_arn', 'argument scope', 'argument value', 'argument x', 'arnForSimulation', 'attrDescribePayload', 'bucketName', 'bucket_name', 'cfnProperties', 'fromSimulationName', 'id', 'inspect', 'inspector', 'isCfnSimulation', 'maximumDuration', 'maximum_duration', 'name', 'objectKey', 'object_key', 'props', 'renderProperties', 'resource', 'roleArn', 'role_arn', 'schemaS3Location', 'schema_s3_location', 'scope', 'simulationRef', 'simulation_name', 'snapshotS3Location', 'snapshot_s3_location', 'typeguard', 'value', 'x']

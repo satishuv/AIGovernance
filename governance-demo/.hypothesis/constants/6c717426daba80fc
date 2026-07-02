@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\jsii\_kernel\providers\process.py
-# hypothesis_version: 6.151.9
-
-[b'%b\n', b'{"exit":0}\n', '$jsii.byref', '$jsii.date', '$jsii.enum', '$jsii.interfaces', '$jsii.map', '/', '@', 'JSII_AGENT', 'JSII_NODE', 'JSII_RUNTIME', '__jsii_ref__', 'api', 'begin', 'callbacks', 'complete', 'create', 'del', 'end', 'get', 'getBinScriptCommand', 'invoke', 'invokeBinScript', 'load', 'node', 'process.stderr_sink', 'set', 'sget', 'sinvoke', 'sset', 'stats', 'stderr', 'stdout', 'utf8', 'wb']

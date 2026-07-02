@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\cattrs\converters.py
-# hypothesis_version: 6.151.9
-
-['BaseConverter', 'Converter', 'CounterT', 'GenConverter', 'Not enough', 'StructureHookFactory', 'StructureHookT', 'T', 'Too many', 'UnstructureHookT', 'UnstructureStrategy', 'V', '__notes__', '_dict_factory', '_struct_copy_skip', '_structure_attrs', '_structure_func', '_unstruct_copy_skip', '_unstructure_attrs', '_unstructure_func', 'alias', 'asdict', 'astuple', 'converter', 'detailed_validation', 'extended', 'forbid_extra_keys', 'from_converter', 'omit_if_default', 'type_overrides', 'use_alias']

@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_ssmguiconnect\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnPreferences', 'CfnPreferencesProps', 'S3BucketProperty(%s)', 'argument bucket_name', 'argument id', 'argument inspector', 'argument kms_key_arn', 'argument props', 'argument s3_buckets', 'argument scope', 'argument value', 'argument x', 'attrAccountId', 'bucketName', 'bucketOwner', 'bucket_name', 'bucket_owner', 'cfnProperties', 'id', 'inspect', 'inspector', 'isCfnPreferences', 'kmsKeyArn', 'kms_key_arn', 'preferencesRef', 'props', 'renderProperties', 's3Buckets', 's3_buckets', 'scope', 'typeguard', 'value', 'x']

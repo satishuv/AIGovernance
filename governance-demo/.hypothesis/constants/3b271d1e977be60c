@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_internetmonitor\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IMonitorRef', 'MonitorReference', 'MonitorReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument monitor_arn', 'monitorArn', 'monitorName', 'monitorRef', 'monitor_arn', 'monitor_name', 'typeguard']

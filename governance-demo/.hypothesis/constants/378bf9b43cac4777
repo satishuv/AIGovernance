@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_b2bi\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CapabilityReference', 'ICapabilityRef', 'IPartnershipRef', 'IProfileRef', 'ITransformerRef', 'PartnershipReference', 'ProfileReference', 'ProfileReference(%s)', 'TransformerReference', '__jsii_proxy_class__', '__jsii_type__', 'argument profile_arn', 'argument profile_id', 'capabilityArn', 'capabilityId', 'capabilityRef', 'capability_arn', 'capability_id', 'partnershipArn', 'partnershipId', 'partnershipRef', 'partnership_arn', 'partnership_id', 'profileArn', 'profileId', 'profileRef', 'profile_arn', 'profile_id', 'transformerArn', 'transformerId', 'transformerRef', 'transformer_arn', 'transformer_id', 'typeguard']

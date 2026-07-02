@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_lambda_destinations\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'LambdaDestination', 'S3Destination', 'SnsDestination', 'SqsDestination', '_IBucket_42e086fd', '_IEventBus_88d13111', '_IFunction_6adb0ab8', '_IQueue_7ed6f679', '_ITopic_9eca4852', '_scope', 'argument _scope', 'argument bucket', 'argument event_bus', 'argument fn', 'argument queue', 'argument scope', 'argument topic', 'bind', 'bucket', 'event_bus', 'fn', 'queue', 'responseOnly', 'response_only', 'scope', 'topic', 'typeguard']

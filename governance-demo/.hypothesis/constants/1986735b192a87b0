@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\alexa_ask\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnSkill', 'CfnSkillProps', 'CfnSkillProps(%s)', 'argument client_id', 'argument id', 'argument inspector', 'argument manifest', 'argument overrides', 'argument props', 'argument s3_bucket', 'argument s3_key', 'argument scope', 'argument value', 'argument vendor_id', 'argument x', 'attrId', 'cfnProperties', 'clientId', 'clientSecret', 'client_id', 'client_secret', 'id', 'inspect', 'inspector', 'isCfnSkill', 'manifest', 'overrides', 'props', 'refreshToken', 'refresh_token', 'renderProperties', 's3Bucket', 's3BucketRole', 's3Key', 's3ObjectVersion', 's3_bucket', 's3_bucket_role', 's3_key', 's3_object_version', 'scope', 'skillPackage', 'skillRef', 'skill_package', 'typeguard', 'value', 'vendorId', 'vendor_id', 'x']

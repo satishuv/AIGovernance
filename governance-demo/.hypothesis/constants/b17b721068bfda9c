@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_synthetics\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CanaryReference', 'CanaryReference(%s)', 'GroupReference', 'GroupReference(%s)', 'ICanaryRef', 'IGroupRef', '__jsii_proxy_class__', '__jsii_type__', 'argument canary_name', 'argument group_name', 'canaryName', 'canaryRef', 'canary_name', 'groupName', 'groupRef', 'group_name', 'typeguard']

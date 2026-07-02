@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_logs_destinations\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'FirehoseDestination', 'KinesisDestination', 'LambdaDestination', '_IFunction_6adb0ab8', '_IRole_235f5d8e', '_IStream_4e2457d2', '_source_log_group', 'addPermissions', 'add_permissions', 'argument fn', 'argument log_group', 'argument role', 'argument scope', 'argument stream', 'bind', 'fn', 'log_group', 'role', 'scope', 'stream', 'typeguard']

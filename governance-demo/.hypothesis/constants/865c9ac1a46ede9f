@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_m2\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ApplicationReference', 'DeploymentReference', 'EnvironmentReference', 'IApplicationRef', 'IDeploymentRef', 'IEnvironmentRef', '__jsii_proxy_class__', '__jsii_type__', 'applicationArn', 'applicationId', 'applicationRef', 'application_arn', 'application_id', 'deploymentRef', 'environmentArn', 'environmentRef', 'environment_arn', 'typeguard']

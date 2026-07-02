@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_databrew\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'DatasetReference', 'DatasetReference(%s)', 'IDatasetRef', 'IJobRef', 'IProjectRef', 'IRecipeRef', 'IRulesetRef', 'IScheduleRef', 'JobReference', 'JobReference(%s)', 'ProjectReference', 'ProjectReference(%s)', 'RecipeReference', 'RecipeReference(%s)', 'RulesetReference', 'RulesetReference(%s)', 'ScheduleReference', '__jsii_proxy_class__', '__jsii_type__', 'argument job_name', 'argument recipe_name', 'datasetName', 'datasetRef', 'dataset_name', 'jobName', 'jobRef', 'job_name', 'projectName', 'projectRef', 'project_name', 'recipeName', 'recipeRef', 'recipe_name', 'rulesetName', 'rulesetRef', 'ruleset_name', 'scheduleName', 'scheduleRef', 'schedule_name', 'typeguard']

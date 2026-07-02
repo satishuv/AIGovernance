@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_s3_notifications\__init__.py
-# hypothesis_version: 6.151.9
-
-['.', 'LambdaDestination', 'SnsDestination', 'SqsDestination', '_IBucketRef_3debe44e', '_IFunction_6adb0ab8', '_IQueue_7ed6f679', '_ITopic_9eca4852', '_scope', 'argument _scope', 'argument bucket', 'argument fn', 'argument queue', 'argument scope', 'argument topic', 'bind', 'bucket', 'fn', 'queue', 'scope', 'topic', 'typeguard']

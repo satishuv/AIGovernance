@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_codecommit\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IRepositoryRef', 'RepositoryReference', '__jsii_proxy_class__', '__jsii_type__', 'repositoryArn', 'repositoryId', 'repositoryRef', 'repository_arn', 'repository_id', 'typeguard']

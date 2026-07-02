@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_globalaccelerator_endpoints\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnEipEndpoint', 'CfnEipEndpointProps', 'InstanceEndpoint', '_CfnEIP_f7fb6536', '_IInstance_ab239e7c', 'argument eip', 'argument instance', 'argument weight', 'eip', 'instance', 'load_balancer', 'preserveClientIp', 'preserve_client_ip', 'region', 'typeguard', 'weight']

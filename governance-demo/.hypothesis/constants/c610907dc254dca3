@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_route53profiles\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IProfileRef', 'ProfileReference', 'ProfileReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument profile_arn', 'argument profile_id', 'argument resource_id', 'profileArn', 'profileAssociationId', 'profileId', 'profileRef', 'profile_arn', 'profile_id', 'resourceId', 'resource_id', 'typeguard']

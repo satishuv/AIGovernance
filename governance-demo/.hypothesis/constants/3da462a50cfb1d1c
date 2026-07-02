@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_dlm\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ILifecyclePolicyRef', '__jsii_proxy_class__', '__jsii_type__', 'lifecyclePolicyArn', 'lifecyclePolicyId', 'lifecyclePolicyRef', 'lifecycle_policy_arn', 'lifecycle_policy_id', 'typeguard']

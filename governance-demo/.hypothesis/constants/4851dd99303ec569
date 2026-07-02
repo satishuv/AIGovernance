@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_amazonmq\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'BrokerReference', 'BrokerReference(%s)', 'IBrokerRef', 'IConfigurationRef', '__jsii_proxy_class__', '__jsii_type__', 'argument broker_arn', 'argument broker_id', 'brokerArn', 'brokerId', 'brokerRef', 'broker_arn', 'broker_id', 'configurationArn', 'configurationId', 'configurationRef', 'configuration_arn', 'configuration_id', 'typeguard']

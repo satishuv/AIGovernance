@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_iotcoredeviceadvisor\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'CfnSuiteDefinition', '_CfnTag_f6864754', '_TagManager_0a598cb3', 'argument arn', 'argument devices', 'argument id', 'argument inspector', 'argument props', 'argument resource', 'argument root_group', 'argument scope', 'argument tags', 'argument thing_arn', 'argument value', 'argument x', 'arn', 'certificateArn', 'certificate_arn', 'cfnProperties', 'devices', 'id', 'inspect', 'inspector', 'isCfnSuiteDefinition', 'props', 'renderProperties', 'resource', 'rootGroup', 'root_group', 'scope', 'suiteDefinitionName', 'suiteDefinitionRef', 'suite_definition_id', 'tags', 'tagsRaw', 'thingArn', 'thing_arn', 'typeguard', 'value', 'x']

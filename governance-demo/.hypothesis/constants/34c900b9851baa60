@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_arcregionswitch\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IPlanRef', 'PlanReference', 'PlanReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument plan_arn', 'planArn', 'planRef', 'plan_arn', 'typeguard']

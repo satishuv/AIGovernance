@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_opsworks\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'AppReference', 'AppReference(%s)', 'IAppRef', 'IInstanceRef', 'ILayerRef', 'IStackRef', 'IUserProfileRef', 'IVolumeRef', 'InstanceReference', 'LayerReference', 'LayerReference(%s)', 'StackReference', 'StackReference(%s)', 'UserProfileReference', 'VolumeReference', 'VolumeReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'appId', 'appRef', 'app_id', 'argument app_id', 'argument instance_id', 'argument layer_id', 'argument stack_id', 'argument volume_id', 'instanceId', 'instanceRef', 'instance_id', 'layerId', 'layerRef', 'layer_id', 'stackId', 'stackRef', 'stack_id', 'typeguard', 'userProfileId', 'userProfileRef', 'user_profile_id', 'volumeId', 'volumeRef', 'volume_id']

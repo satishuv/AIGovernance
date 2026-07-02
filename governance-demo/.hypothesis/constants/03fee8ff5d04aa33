@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\retryhandler.py
-# hypothesis_version: 6.151.9
-
-[4294967295, 'Code', 'Error', 'MaxAttemptsReached', 'No retry needed.', 'ResponseMetadata', 'Unknown retry policy', '__default__', 'applies_when', 'attempt_number', 'base', 'caught_exception', 'context', 'crc32', 'crc32body', 'delay', 'exponential', 'growth_factor', 'http_status_code', 'max', 'max_attempts', 'policies', 'rand', 'request_dict', 'response', 'retries', 'retries_context', 'service_error_code', 'socket_errors', 'type']

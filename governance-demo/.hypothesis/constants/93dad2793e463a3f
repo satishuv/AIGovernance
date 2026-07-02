@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\aws_s3\mixins\__init__.py
-# hypothesis_version: 6.151.9
-
-['.', 'BucketVersioning', 'applyTo', 'argument construct', 'argument enabled', 'argument policy', 'argument statements', 'construct', 'enabled', 'policy', 'public_access_config', 'statements', 'supports', 'typeguard']

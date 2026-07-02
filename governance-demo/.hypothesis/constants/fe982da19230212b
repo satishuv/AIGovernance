@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_healthlake\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IFHIRDatastoreRef', '__jsii_proxy_class__', '__jsii_type__', 'datastoreArn', 'datastoreId', 'datastore_arn', 'datastore_id', 'fhirDatastoreRef', 'typeguard']

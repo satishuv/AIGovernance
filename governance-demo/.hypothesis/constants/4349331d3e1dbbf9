@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_qldb\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'ILedgerRef', 'IStreamRef', 'LedgerReference', 'LedgerReference(%s)', 'StreamReference', 'StreamReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument ledger_id', 'argument ledger_name', 'argument stream_arn', 'argument stream_id', 'ledgerId', 'ledgerName', 'ledgerRef', 'ledger_id', 'ledger_name', 'streamArn', 'streamId', 'streamRef', 'stream_arn', 'stream_id', 'typeguard']

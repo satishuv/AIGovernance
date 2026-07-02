@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\docs\shape.py
-# hypothesis_version: 6.151.9
-
-['EventStream()', 'JSON serializable', 'StreamingBody()', "b'bytes'|file", 'document', 'document_type', 'event_stream', 'eventstream', 'is_document_type', 'jsonvalue_header', 'serialization', 'special_shape_types']

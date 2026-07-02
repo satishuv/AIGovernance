@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_invoicing\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IInvoiceUnitRef', 'InvoiceUnitReference', '__jsii_proxy_class__', '__jsii_type__', 'invoiceUnitArn', 'invoiceUnitRef', 'invoice_unit_arn', 'typeguard']

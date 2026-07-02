@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_route53resolver\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IOutpostResolverRef', 'IResolverConfigRef', 'IResolverEndpointRef', 'IResolverRuleRef', '__jsii_proxy_class__', '__jsii_type__', 'argument resource_id', 'firewallDomainListId', 'firewallRuleGroupArn', 'firewallRuleGroupId', 'firewallRuleGroupRef', 'outpostResolverArn', 'outpostResolverId', 'outpostResolverRef', 'outpost_resolver_arn', 'outpost_resolver_id', 'resolverConfigRef', 'resolverEndpointArn', 'resolverEndpointId', 'resolverEndpointRef', 'resolverRuleArn', 'resolverRuleId', 'resolverRuleRef', 'resolver_endpoint_id', 'resolver_rule_arn', 'resolver_rule_id', 'resourceId', 'resource_id', 'typeguard']

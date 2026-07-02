@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\aws_cdk\interfaces\aws_pipes\__init__.py
-# hypothesis_version: 6.151.9
-
-[', ', '.', '=', 'IPipeRef', 'PipeReference', 'PipeReference(%s)', '__jsii_proxy_class__', '__jsii_type__', 'argument pipe_arn', 'argument pipe_name', 'pipeArn', 'pipeName', 'pipeRef', 'pipe_arn', 'pipe_name', 'typeguard']

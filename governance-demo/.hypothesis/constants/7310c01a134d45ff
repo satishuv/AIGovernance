@@ -1,4 +1,0 @@
-# file: C:\Users\satishuv\AppData\Roaming\Python\Python312\site-packages\botocore\httpchecksum.py
-# hypothesis_version: 6.151.9
-
-[b'%s\r\n%s\r\n', b'0\r\n%s:%s\r\n\r\n', 1024, 4294967295, 18446744073709551615, ',aws-chunked', '-', 'CRC32', 'CRC64', 'CRC64NVME', 'Content-Encoding', 'Content-Length', 'Transfer-Encoding', 'X-Amz-Trailer', 'algorithm', 'ascii', 'aws-chunked', 'big', 'body', 'checksum', 'chunked', 'client_config', 'conditional-md5', 'content-length', 'context', 'crc32', 'crc32c', 'crc64nvme', 'header', 'headers', 'https', 'in', 'is_presign_request', 'name', 'request_algorithm', 'responseAlgorithms', 'response_algorithm', 'response_algorithms', 's3', 'sha1', 'sha256', 'trailer', 'url', 'value', 'when_supported', 'x-amz-checksum']
