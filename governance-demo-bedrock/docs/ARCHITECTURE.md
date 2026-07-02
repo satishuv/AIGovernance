@@ -198,3 +198,86 @@ Development teams need simple debugging (single Lambda, CloudWatch logs in one p
 ### Why fail-safe deny?
 
 If DynamoDB is unreachable, the system denies all requests. If the policy engine throws an exception, the system denies. If the kill switch check fails, the system denies. The only path to ALLOW is every check explicitly passing. This is the opposite of "fail-open" which many systems default to.
+
+## GenAI Threat Matrix Coverage
+
+This architecture addresses the complete Amazon GenAI Security Threat Matrix (GAIS). Every threat, vulnerability, and attack technique maps to a deployed governance module.
+
+### Threats Covered
+
+| Threat ID | Threat | Governance Module |
+|-----------|--------|-------------------|
+| GAIS-TH001 | Guardrail Evasion | input_sanitizer (encoding, unicode, delimiters) + behavioral_invariants (physical limits) |
+| GAIS-TH001.001 | Overreliance on system instruction | behavioral_invariants (hard limits no model output can override) |
+| GAIS-TH001.002 | Output Guardrail Evasion | output_guardrails + per-tool _sanitize_output |
+| GAIS-TH002.001-004 | Customer data exfiltration (PII, credentials, prompt history) | output_guardrails + cache_governance (PII detection and redaction) |
+| GAIS-TH002.005-007 | System info disclosure (runtime, errors, metadata) | output_guardrails (ARN, Lambda name, account ID stripping) |
+| GAIS-TH002.010 | System context exposure | output_guardrails (system prompt leak detection) |
+| GAIS-TH002.013-016 | RAG data extraction and auth bypass | retrieval_validator + exfiltration_detector |
+| GAIS-TH003.002 | Model drift | runtime_drift_detection + continuous_monitoring |
+| GAIS-TH004.002-004 | Knowledge base poisoning (vector store, embedding backdoor) | retrieval_validator (validates all retrieved content before context injection) |
+| GAIS-TH004.005 | Retrieval flooding | tool_execution_auth (rate limiting per tool per agent) |
+| GAIS-TH004.006 | Insecure deserialization of outputs | output_guardrails (XSS, script tag detection) |
+| GAIS-TH004.007 | Session hijacking | Scope enforcement + per-agent session attributes |
+| GAIS-TH005 | Unauthorized access | agent_identity + agent_registry + IAM permission boundaries |
+| GAIS-TH005.001 | Cross-Agent Privilege Escalation | privilege_escalation + multi_agent (cross-agent rules) |
+| GAIS-TH006.002 | Hallucinations | Evidence grounding + output guardrails (coherence check) |
+| GAIS-TH006.006 | Out of band response | Scope enforcement (agent can only call permitted action groups) |
+| GAIS-TH007.001 | Autonomous Tool-Misuse Loop | tool_execution_auth (rate limiting + chain detection) |
+| GAIS-TH007.005 | Unbounded invocations | tool_execution_auth (rate_limit_per_minute) |
+| GAIS-TH007.006 | Decision drifts | runtime_drift_detection (behavioral baseline comparison) |
+| GAIS-TH007.007 | Context manipulation | input_sanitizer (context stuffing >5000 chars = DENY) |
+| GAIS-TH007.008 | Multi-agent collaborative compromise | multi_agent (cross-agent rules prevent one agent modifying another) |
+| GAIS-TH007.009 | Improper lifecycle management | agent_registry (formal registration required, status tracked) |
+| GAIS-TH007.010 | Agent Self Modification | privilege_escalation (blocks self-modification, auto-reduces scope) |
+
+### Attack Techniques Covered
+
+| Technique ID | Attack | Governance Module |
+|-------------|--------|-------------------|
+| GAIS-T001 | Character manipulation (homoglyphs, invisible chars) | input_sanitizer (unicode NFKD normalization, homoglyph map) |
+| GAIS-T003 | Encoding (base64, hex, URL, steganography) | input_sanitizer (decodes and scans all encoded payloads) |
+| GAIS-T004 | Mixed-language evasion | input_sanitizer (instruction patterns detected post-normalization) |
+| GAIS-T005 | Jailbreak | input_sanitizer + behavioral_invariants (physical limits survive jailbreak) |
+| GAIS-T006 | Multiturn attacks | continuous_monitoring (tracks patterns across requests, health degrades) |
+| GAIS-T011-013 | Denial of Service (complex problems, resource exhaustion) | tool_execution_auth (rate limiting) + behavioral_invariants (output caps) |
+| GAIS-T014 | Context overflow | input_sanitizer (context stuffing detection at 5000 chars) |
+| GAIS-T016 | Confused deputy | Scope enforcement + per-tool auth (agent cannot act above its scope) |
+| GAIS-T017 | Retrieval source poisoning | retrieval_validator (scans all retrieved content for injection) |
+| GAIS-T019 | Indirect PI via agent response | retrieval_validator + output_guardrails |
+| GAIS-T021 | Capability forging | Scope-action-group enforcement (physical check in Action Group Lambda) |
+| GAIS-T023 | No isolated sessions | Per-agent scope table + environment isolation |
+| GAIS-T027-029 | KB discovery, poisoning, spoofing | retrieval_validator (validates content from all data sources) |
+
+### Vulnerabilities Covered
+
+| Vulnerability ID | Vulnerability | Governance Module |
+|-----------------|---------------|-------------------|
+| GAIS-V001 | Insufficient Guardrails | 8 security modules + OPA + per-tool checks (defense-in-depth) |
+| GAIS-V001.001 | Function call validation gaps | tool_execution_auth (per-tool parameter validation on every call) |
+| GAIS-V001.002 | RAG content filtering bypass | retrieval_validator (validates before context injection) |
+| GAIS-V002.001 | Least privilege misconfigured | IAM permission boundaries (scope 1-4, enforced by AWS) |
+| GAIS-V002.004 | Insecure logging practices | evidence_pipeline (S3 Object Lock, encrypted, 7-year retention) |
+| GAIS-V002.006 | Orchestration logic flaws | proactive_engine (validates policy contradictions before deploy) |
+| GAIS-V003.003 | API credential exposure | output_guardrails (AKIA pattern detection + redaction) |
+| GAIS-V003.004 | Agent privilege boundaries | Scope enforcement + IAM boundaries (two independent layers) |
+| GAIS-V005.001-003 | Retrieval system vulnerabilities | retrieval_validator + cache_governance + rate limiting |
+| GAIS-V006.001 | Uncontrolled recursion | tool_execution_auth (rate limiting prevents loops) |
+| GAIS-V006.002 | Inter-agent trust issues | multi_agent (cross-agent rules, no implicit trust) |
+| GAIS-V006.003 | Memory manipulation | retrieval_validator (validates all content entering agent context) |
+
+### ASR GenAI Security Review Tasks
+
+This architecture satisfies all GenAI Critical tasks required by Amazon Security Reviews (ASR):
+
+| ASR Task | Implementation |
+|----------|---------------|
+| Protect Against Data Leakage | output_guardrails + cache_governance + exfiltration_detector |
+| Prompt Data Input Validation | input_sanitizer (6 validation checks) |
+| Review Response Data Usage | evidence_pipeline (every response logged with SHA-256 hash) |
+| Create/Review Andon Cord System | kill_switch + behavioral_invariants (auto-trigger on canary leak) |
+| Auth check | agent_identity + agent_registry + tool_execution_auth |
+| Capture Prompts and Responses | evidence_pipeline (S3 Object Lock, 7-year immutable retention) |
+| FAST onboarding for Automated Testing | 10-scenario attack battery + benchmark script |
+| Silo User Sessions | Scope enforcement + environment isolation + per-agent evidence partitions |
+| HITL for High-Risk Operations | ESCALATE verdict + approval_workflow + SNS notifications |
