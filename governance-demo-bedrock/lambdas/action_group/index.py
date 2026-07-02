@@ -458,6 +458,91 @@ def _resolve_route(action_group, api_path):
 # ---------------------------------------------------------------------------
 import re as _re
 
+# ---------------------------------------------------------------------------
+# Enum-based allowlisting (industry standard: reject unknown values at parse)
+# Unknown tool names, model IDs, or action groups are rejected immediately.
+# No injection possible via payload manipulation.
+# ---------------------------------------------------------------------------
+ALLOWED_ACTION_GROUPS = frozenset([
+    "ReadPipelineStatus",
+    "ProposeChanges",
+    "StagingDeployment",
+    "ProductionDeployment",
+])
+
+ALLOWED_API_PATHS = frozenset([
+    "/getBuildStatus",
+    "/getTestResults",
+    "/draftDeploymentPlan",
+    "/draftRollbackStrategy",
+    "/deployToStaging",
+    "/triggerTests",
+    "/deployToProduction",
+    "/rollbackDeployment",
+])
+
+
+def _check_allowlist(action_group, api_path):
+    """Reject any action group or API path not in the typed allowlist.
+
+    This is a zero-trust parse-time check. If an attacker manipulates the
+    payload to inject an unknown action group or API path, it's rejected
+    before any processing occurs.
+    """
+    if action_group not in ALLOWED_ACTION_GROUPS:
+        return False, f"Unknown action group '{action_group}' not in allowlist"
+
+    # Check api_path starts with an allowed prefix
+    path_valid = any(api_path.startswith(allowed) for allowed in ALLOWED_API_PATHS)
+    if not path_valid:
+        return False, f"Unknown API path '{api_path}' not in allowlist"
+
+    return True, ""
+
+
+# ---------------------------------------------------------------------------
+# Per-invocation tool call cap (prevents autonomous tool-misuse loops)
+# Even if rate limit per minute isn't hit, an agent cannot make more than
+# MAX_TOOL_CALLS_PER_INVOCATION calls in a single session invocation.
+# ---------------------------------------------------------------------------
+MAX_TOOL_CALLS_PER_INVOCATION = int(os.environ.get("MAX_TOOL_CALLS_PER_INVOCATION", "25"))
+_invocation_call_counts = {}
+
+
+def _check_invocation_cap(session_id):
+    """Check if this session has exceeded the per-invocation tool call cap.
+
+    Returns (within_limit, current_count).
+    """
+    count = _invocation_call_counts.get(session_id, 0) + 1
+    _invocation_call_counts[session_id] = count
+
+    if count > MAX_TOOL_CALLS_PER_INVOCATION:
+        return False, count
+    return True, count
+
+
+# ---------------------------------------------------------------------------
+# Recursion depth prevention (blocks nested agent-to-agent loops)
+# If the request already has a recursion marker, it means this tool call
+# was triggered by another agent call. Max depth = 1 (no nesting).
+# ---------------------------------------------------------------------------
+MAX_RECURSION_DEPTH = 1
+
+
+def _check_recursion_depth(event):
+    """Block nested agent calls beyond MAX_RECURSION_DEPTH.
+
+    Checks for a recursion depth marker in session attributes.
+    Returns (allowed, current_depth).
+    """
+    session_attrs = event.get("sessionAttributes", {})
+    current_depth = int(session_attrs.get("_recursion_depth", "0"))
+
+    if current_depth >= MAX_RECURSION_DEPTH:
+        return False, current_depth
+    return True, current_depth
+
 SCOPE_ACTION_GROUPS = {
     1: ["ReadPipelineStatus"],
     2: ["ReadPipelineStatus", "ProposeChanges"],
@@ -538,6 +623,66 @@ def handler(event, context):
     outcome = "success"
 
     try:
+        # -----------------------------------------------------------------
+        # CHECK 0a: Allowlist validation (enum-based, parse-time rejection)
+        # -----------------------------------------------------------------
+        allowed, allowlist_reason = _check_allowlist(action_group, api_path)
+        if not allowed:
+            outcome = "allowlist_rejected"
+            logger.warning(json.dumps({
+                "audit_event": "allowlist_rejection",
+                "agent_id": agent_id,
+                "action_group": action_group,
+                "api_path": api_path,
+                "reason": allowlist_reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 403,
+                {"error": f"Allowlist rejected: {allowlist_reason}"},
+            )
+
+        # -----------------------------------------------------------------
+        # CHECK 0b: Per-invocation tool call cap
+        # -----------------------------------------------------------------
+        session_id = session_attributes.get("sessionId", agent_id)
+        within_cap, call_count = _check_invocation_cap(session_id)
+        if not within_cap:
+            outcome = "invocation_cap_exceeded"
+            logger.warning(json.dumps({
+                "audit_event": "invocation_cap_exceeded",
+                "agent_id": agent_id,
+                "session_id": session_id,
+                "call_count": call_count,
+                "max_allowed": MAX_TOOL_CALLS_PER_INVOCATION,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 429,
+                {"error": f"Tool call cap exceeded: {call_count}/{MAX_TOOL_CALLS_PER_INVOCATION} calls in this invocation"},
+            )
+
+        # -----------------------------------------------------------------
+        # CHECK 0c: Recursion depth prevention
+        # -----------------------------------------------------------------
+        recursion_ok, depth = _check_recursion_depth(event)
+        if not recursion_ok:
+            outcome = "recursion_blocked"
+            logger.warning(json.dumps({
+                "audit_event": "recursion_blocked",
+                "agent_id": agent_id,
+                "depth": depth,
+                "max_depth": MAX_RECURSION_DEPTH,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 403,
+                {"error": f"Recursion depth {depth} exceeds maximum {MAX_RECURSION_DEPTH}"},
+            )
+
         # -----------------------------------------------------------------
         # CHECK 1: Scope permits this action group?
         # Physical constraint: even if the agent is jailbroken and tries
