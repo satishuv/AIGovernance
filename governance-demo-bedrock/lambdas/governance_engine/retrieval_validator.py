@@ -83,9 +83,9 @@ class RetrievalContentValidator:
     _ENCODED_PATTERN = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")  # Base64 blocks
     _HEX_PATTERN = re.compile(r"(?:0x)?[0-9a-fA-F]{40,}")  # Long hex strings
 
-    # URLs that might be exfiltration endpoints
+    # URLs that might be exfiltration endpoints (allowlist your org's domains)
     _SUSPICIOUS_URL_PATTERN = re.compile(
-        r"https?://(?!(?:docs\.aws|docs\.amazon|w\.amazon|code\.amazon|quip-amazon))[^\s\"'<>]{10,}",
+        r"https?://(?!(?:docs\.aws\.amazon\.com|aws\.amazon\.com|github\.com))[^\s\"'<>]{10,}",
         re.IGNORECASE,
     )
 
