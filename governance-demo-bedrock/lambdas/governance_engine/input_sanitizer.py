@@ -242,6 +242,13 @@ _HARMFUL_REQUEST_PATTERNS = [
     re.compile(r"(?:create|build|write)\s+(?:a\s+)?bot.{0,30}(?:recommend|suggest).{0,30}(?:stock|bond|invest|financial)", re.IGNORECASE),
     re.compile(r"(?:suggest|claim|prove|argue).{0,30}(?:never happened|hoax|is flat|controlled by|illuminati|conspiracy)", re.IGNORECASE),
     re.compile(r"(?:formuliere|schreibe|verfasse).{0,30}(?:unwahre?|manifest|pl.doyer)", re.IGNORECASE),
+    # Direct harmful instructions (teach/provide/show/instruct patterns)
+    re.compile(r"(?:teach|show|instruct|tell)\s+(?:someone|me|people|us)\s+(?:how to|to)\s+(?:engage in|commit|make|create|do|perform)", re.IGNORECASE),
+    re.compile(r"(?:provide|give|share)\s+(?:step-by-step|detailed|specific)\s+(?:instructions?|guide|plan|tutorial)\s+(?:for|on|to)", re.IGNORECASE),
+    re.compile(r"(?:create|develop|write|build)\s+(?:a\s+)?(?:program|script|tool|bot|app).{0,30}(?:stalk|harass|steal|hack|spy|track|monitor)", re.IGNORECASE),
+    re.compile(r"(?:provide|give|create|develop)\s+(?:a\s+)?(?:detailed|comprehensive|complete)?\s*(?:plan|blueprint|guide|roadmap)\s+(?:for|to)\s+(?:commit|carrying out|executing)", re.IGNORECASE),
+    re.compile(r"(?:how to|ways to|methods to|steps to)\s+(?:obtain|acquire|get|buy|make|manufacture)\s+(?:illegal|illicit|prohibited)", re.IGNORECASE),
+    re.compile(r"(?:write|draft|create)\s+(?:a\s+)?(?:letter|email|message|post)\s+(?:defaming|threatening|harassing|blackmailing)", re.IGNORECASE),
 ]
 
 _ROLEPLAY_PREFIXES = {
