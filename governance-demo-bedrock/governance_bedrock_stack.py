@@ -1524,7 +1524,7 @@ class GovernanceBedrockStack(Stack):
         )
         self.governance_engine_lambda.add_environment("OPA_MODE", "embedded")
         self.governance_engine_lambda.add_environment("OPA_ENDPOINT", "")
-        self.governance_engine_lambda.add_environment("BEDROCK_GUARDRAIL_ID", "v7p76l8t3ix9")
+        self.governance_engine_lambda.add_environment("BEDROCK_GUARDRAIL_ID", "xilmtxfq02om")
         self.governance_engine_lambda.add_environment("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
 
         # --- Task 69.4: Phase 3 seeds — consolidated into SeedTablesLambda ---
