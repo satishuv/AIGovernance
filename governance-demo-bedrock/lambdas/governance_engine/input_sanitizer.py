@@ -230,7 +230,7 @@ _SPACING_EVASION_PATTERNS = [
 # Harmful content request patterns
 _HARMFUL_REQUEST_PATTERNS = [
     re.compile(r"(?:write|create|generate|produce|draft|compose)\s+(?:a|an)\s+(?:defamatory|racist|sexist|xenophobic|homophobic|discriminat)", re.IGNORECASE),
-    re.compile(r"(?:write|create|generate|produce)\s+(?:a|an)\s+(?:phishing|malware|virus|ransomware|exploit|hack)", re.IGNORECASE),
+    re.compile(r"(?:write|create|generate|produce|build|develop)\s+(?:a\s+|an\s+)?(?:phishing|malware|virus|ransomware|exploit|hack|keylogger|backdoor|trojan|spyware|worm)", re.IGNORECASE),
     re.compile(r"(?:how to|steps to|guide to|instructions for)\s+(?:hack|exploit|break into|steal|attack|bomb|kill|murder|poison)", re.IGNORECASE),
     re.compile(r"(?:write|create|generate).{0,30}(?:hate speech|harassment|threat|blackmail|extortion)", re.IGNORECASE),
     re.compile(r"(?:promote|encourage|advocate|glorify).{0,30}(?:violence|terrorism|self-harm|suicide|genocide|discrimination)", re.IGNORECASE),
