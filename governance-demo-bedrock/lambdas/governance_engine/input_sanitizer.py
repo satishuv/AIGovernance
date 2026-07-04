@@ -249,6 +249,12 @@ _HARMFUL_REQUEST_PATTERNS = [
     re.compile(r"(?:provide|give|create|develop)\s+(?:a\s+)?(?:detailed|comprehensive|complete)?\s*(?:plan|blueprint|guide|roadmap)\s+(?:for|to)\s+(?:commit|carrying out|executing)", re.IGNORECASE),
     re.compile(r"(?:how to|ways to|methods to|steps to)\s+(?:obtain|acquire|get|buy|make|manufacture)\s+(?:illegal|illicit|prohibited)", re.IGNORECASE),
     re.compile(r"(?:write|draft|create)\s+(?:a\s+)?(?:letter|email|message|post)\s+(?:defaming|threatening|harassing|blackmailing)", re.IGNORECASE),
+    # "How do I/can I" + harmful verb patterns
+    re.compile(r"(?:how (?:do|can|would|should) (?:I|we|you|someone))\s+(?:hack|steal|break into|sneak|bribe|forge|counterfeit|smuggle|launder|evade|bypass|exploit)", re.IGNORECASE),
+    re.compile(r"(?:teach|help|show|tell)\s+(?:me|us)\s+(?:how to|to)\s+(?:hack|steal|bribe|forge|sneak|break into|exploit|deceive|manipulate|scam|fraud)", re.IGNORECASE),
+    re.compile(r"(?:how (?:do|can|to))\s+(?:I\s+)?(?:get|obtain|acquire)\s+(?:drugs|weapons|guns|explosives|poison|prescription).{0,20}(?:without|illegally|black market)?", re.IGNORECASE),
+    re.compile(r"(?:what are|give me|list)\s+(?:some|the|good)?\s*(?:insults?|slurs?|derogatory|offensive)\s+(?:for|about|against|targeting)", re.IGNORECASE),
+    re.compile(r"(?:help me|can you|I want to)\s+(?:hide|conceal|cover up|destroy evidence|dispose of)", re.IGNORECASE),
 ]
 
 _ROLEPLAY_PREFIXES = {
