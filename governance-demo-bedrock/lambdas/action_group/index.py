@@ -42,20 +42,56 @@ logger.setLevel(logging.INFO)
 # Helper: extract parameters from Bedrock Agent event
 # ---------------------------------------------------------------------------
 def _get_param(parameters, name):
-    """Return the value of the named parameter, or None if missing."""
+    """Return the value of the named parameter, or None if missing.
+
+    Handles both formats:
+    - parameters list: [{"name": "buildId", "value": "build-47"}]
+    - requestBody properties: [{"name": "buildId", "type": "string", "value": "build-47"}]
+    """
     if not parameters:
         return None
-    for p in parameters:
-        if p.get("name") == name:
-            return p.get("value")
+    if isinstance(parameters, list):
+        for p in parameters:
+            if p.get("name") == name:
+                return p.get("value")
+    elif isinstance(parameters, dict):
+        return parameters.get(name)
     return None
+
+
+def _extract_parameters(event):
+    """Extract parameters from Bedrock Agent event regardless of format.
+
+    Bedrock sends params differently based on schema:
+    - Path/query params: event["parameters"] = [{"name": ..., "value": ...}]
+    - Request body: event["requestBody"]["content"]["application/json"]["properties"] = [{"name": ..., "value": ...}]
+    """
+    # Try parameters first (path/query params)
+    params = event.get("parameters")
+    if params:
+        return params
+
+    # Try requestBody (POST with JSON body)
+    request_body = event.get("requestBody", {})
+    if request_body:
+        content = request_body.get("content", {})
+        json_content = content.get("application/json", {})
+        properties = json_content.get("properties", [])
+        if properties:
+            return properties
+
+    return []
 
 
 def _params_to_dict(parameters):
     """Convert the Bedrock Agent parameters list to a plain dict."""
     if not parameters:
         return {}
-    return {p["name"]: p.get("value") for p in parameters}
+    if isinstance(parameters, list):
+        return {p["name"]: p.get("value") for p in parameters}
+    elif isinstance(parameters, dict):
+        return parameters
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +147,7 @@ def _audit_log(agent_id, action_group, api_path, parameters, outcome):
 # ---------------------------------------------------------------------------
 def handle_get_build_status(event, params):
     """Read builds/{buildId}.json from the Data Bucket."""
-    build_id = _get_param(event.get("parameters"), "buildId")
+    build_id = _get_param(_extract_parameters(event), "buildId")
     if not build_id:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -133,7 +169,7 @@ def handle_get_build_status(event, params):
 
 def handle_get_test_results(event, params):
     """Read test-results/{buildId}-tests.json from the Data Bucket."""
-    build_id = _get_param(event.get("parameters"), "buildId")
+    build_id = _get_param(_extract_parameters(event), "buildId")
     if not build_id:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -158,8 +194,8 @@ def handle_get_test_results(event, params):
 # ---------------------------------------------------------------------------
 def handle_draft_deployment_plan(event, params):
     """Write a deployment plan proposal to the Pending Table."""
-    build_id = _get_param(event.get("parameters"), "buildId")
-    target_env = _get_param(event.get("parameters"), "targetEnvironment")
+    build_id = _get_param(_extract_parameters(event), "buildId")
+    target_env = _get_param(_extract_parameters(event), "targetEnvironment")
     if not build_id or not target_env:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -197,8 +233,8 @@ def handle_draft_deployment_plan(event, params):
 
 def handle_draft_rollback_strategy(event, params):
     """Write a rollback strategy proposal to the Pending Table."""
-    build_id = _get_param(event.get("parameters"), "buildId")
-    target_env = _get_param(event.get("parameters"), "targetEnvironment")
+    build_id = _get_param(_extract_parameters(event), "buildId")
+    target_env = _get_param(_extract_parameters(event), "targetEnvironment")
     if not build_id or not target_env:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -239,7 +275,7 @@ def handle_draft_rollback_strategy(event, params):
 # ---------------------------------------------------------------------------
 def handle_deploy_to_staging(event, params):
     """Write deployment record to deployments/staging/{buildId}.json in S3."""
-    build_id = _get_param(event.get("parameters"), "buildId")
+    build_id = _get_param(_extract_parameters(event), "buildId")
     if not build_id:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -280,8 +316,8 @@ def handle_deploy_to_staging(event, params):
 
 def handle_trigger_tests(event, params):
     """Write test execution record to test-runs/{buildId}-{testSuite}.json in S3."""
-    build_id = _get_param(event.get("parameters"), "buildId")
-    test_suite = _get_param(event.get("parameters"), "testSuite")
+    build_id = _get_param(_extract_parameters(event), "buildId")
+    test_suite = _get_param(_extract_parameters(event), "testSuite")
     if not build_id or not test_suite:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -325,7 +361,7 @@ def handle_trigger_tests(event, params):
 # ---------------------------------------------------------------------------
 def handle_deploy_to_production(event, params):
     """Write deployment record to deployments/production/{buildId}.json in S3."""
-    build_id = _get_param(event.get("parameters"), "buildId")
+    build_id = _get_param(_extract_parameters(event), "buildId")
     if not build_id:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -366,8 +402,8 @@ def handle_deploy_to_production(event, params):
 
 def handle_rollback_deployment(event, params):
     """Write rollback record to deployments/production/rollback-{buildId}.json."""
-    build_id = _get_param(event.get("parameters"), "buildId")
-    rollback_target = _get_param(event.get("parameters"), "rollbackTargetBuildId")
+    build_id = _get_param(_extract_parameters(event), "buildId")
+    rollback_target = _get_param(_extract_parameters(event), "rollbackTargetBuildId")
     if not build_id or not rollback_target:
         return _error_response(
             event["actionGroup"], event["apiPath"], event["httpMethod"],
@@ -614,7 +650,7 @@ def handler(event, context):
     action_group = event.get("actionGroup", "")
     api_path = event.get("apiPath", "")
     http_method = event.get("httpMethod", "GET")
-    parameters = event.get("parameters", [])
+    parameters = _extract_parameters(event)
     agent_id = event.get("agent", {}).get("id", "unknown")
     session_attributes = event.get("sessionAttributes", {})
     scope_level = int(session_attributes.get("scope_level", "1"))
