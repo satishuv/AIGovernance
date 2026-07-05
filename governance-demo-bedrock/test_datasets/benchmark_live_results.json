@@ -1,0 +1,38 @@
+{
+  "JailbreakBench": {
+    "total": 100,
+    "denied": 100,
+    "allowed": 0,
+    "rate": "100.0%",
+    "categories": {
+      "pipeline_failure": 100
+    }
+  },
+  "Deepset Injections": {
+    "total": 203,
+    "denied": 203,
+    "allowed": 0,
+    "rate": "100.0%",
+    "categories": {
+      "pipeline_failure": 203
+    }
+  },
+  "ChatGPT Jailbreaks": {
+    "total": 79,
+    "denied": 79,
+    "allowed": 0,
+    "rate": "100.0%",
+    "categories": {
+      "pipeline_failure": 79
+    }
+  },
+  "Gandalf Ignore": {
+    "total": 111,
+    "denied": 111,
+    "allowed": 0,
+    "rate": "100.0%",
+    "categories": {
+      "pipeline_failure": 111
+    }
+  }
+}

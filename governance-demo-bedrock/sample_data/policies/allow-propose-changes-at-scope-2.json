@@ -1,0 +1,11 @@
+{
+  "rule_name": "allow_propose_changes",
+  "description": "Allow ProposeChanges actions at scope level 2 or higher. Agents can draft deployment plans and rollback strategies.",
+  "outcome": "allow",
+  "priority": 80,
+  "category": "preventive",
+  "conditions": [
+    {"field": "input.action_group", "op": "==", "value": "ProposeChanges"},
+    {"field": "input.scope_level", "op": ">=", "value": 2}
+  ]
+}

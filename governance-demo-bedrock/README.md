@@ -119,7 +119,7 @@ governance-demo-bedrock/
 # Clone and enter the project
 cd governance-demo-bedrock
 
-# Create virtual environment and install dependencies
+# Create virtual environment and install ies
 python -m venv .venv
 source .venv/Scripts/activate   # Windows (Git Bash)
 # source .venv/bin/activate     # macOS / Linux

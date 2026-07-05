@@ -1,0 +1,11 @@
+{
+  "rule_name": "allow_staging_deployment",
+  "description": "Allow StagingDeployment actions at scope level 3 or higher. Agents can deploy to staging and run integration tests.",
+  "outcome": "allow",
+  "priority": 60,
+  "category": "preventive",
+  "conditions": [
+    {"field": "input.action_group", "op": "==", "value": "StagingDeployment"},
+    {"field": "input.scope_level", "op": ">=", "value": 3}
+  ]
+}

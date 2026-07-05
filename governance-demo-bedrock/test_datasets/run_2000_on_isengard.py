@@ -1,11 +1,27 @@
 """Run 2000 test scenarios against live Isengard governance engine."""
 import boto3
 import json
+import os
+import subprocess
 import sys
 import time
 
-lambda_client = boto3.client("lambda", region_name="us-east-1")
-GOV_ENGINE = "GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y"
+
+def refresh_credentials():
+    """Refresh Isengard credentials."""
+    subprocess.run(
+        ["ada", "credentials", "update", "--account", "917914785227",
+         "--provider", "isengard", "--role", "Admin", "--once"],
+        capture_output=True,
+    )
+    return boto3.client("lambda", region_name="us-east-1")
+
+
+lambda_client = refresh_credentials()
+
+# Auto-detect governance engine Lambda name
+all_fns = lambda_client.list_functions(MaxItems=50)["Functions"]
+GOV_ENGINE = next(f["FunctionName"] for f in all_fns if "GovernanceEngine" in f["FunctionName"])
 
 with open("governance_test_scenarios_2000.json", encoding="utf-8") as f:
     scenarios = json.load(f)
@@ -19,13 +35,22 @@ errors = 0
 failures = []
 
 for i, s in enumerate(scenarios):
+    # Use action_group from scenario (fixed in generate step) or derive from category
+    action_group = s.get("action_group", "ReadPipelineStatus")
+    target_resource = "production" if "Production" in action_group else "staging" if "Staging" in action_group or "Propose" in action_group else "default"
+
     payload = {
         "agent_id": "demo-agent",
-        "action_group": "ReadPipelineStatus",
-        "target_resource": "default",
+        "action_group": action_group,
+        "target_resource": target_resource,
         "input_text": s["input_text"][:2000],
         "scope_level": s["scope_level"],
     }
+
+    # Refresh credentials every 400 requests to avoid expiry
+    if i > 0 and i % 400 == 0:
+        lambda_client = refresh_credentials()
+        sys.stdout.write(f"\n  [Credentials refreshed at {i}]\n")
 
     try:
         r = lambda_client.invoke(FunctionName=GOV_ENGINE, InvocationType="RequestResponse", Payload=json.dumps(payload))

@@ -367,7 +367,7 @@ class GovernanceBedrockStack(Stack):
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "lambdas", "kill_switch")
             ),
-            timeout=Duration.seconds(10),
+            timeout=Duration.seconds(30),
             memory_size=128,
             tracing=_lambda.Tracing.ACTIVE,
             environment={
@@ -525,7 +525,7 @@ class GovernanceBedrockStack(Stack):
                     os.path.dirname(__file__), "lambdas", "governance_engine"
                 )
             ),
-            timeout=Duration.seconds(10),
+            timeout=Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
             environment={
@@ -734,7 +734,7 @@ class GovernanceBedrockStack(Stack):
                     os.path.dirname(__file__), "lambdas", "governance_engine"
                 )
             ),
-            timeout=Duration.seconds(10),
+            timeout=Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
             environment={
@@ -1567,7 +1567,7 @@ class GovernanceBedrockStack(Stack):
                     os.path.dirname(__file__), "lambdas", "governance_engine"
                 )
             ),
-            timeout=Duration.seconds(10),
+            timeout=Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
             environment={
@@ -1588,7 +1588,7 @@ class GovernanceBedrockStack(Stack):
                     os.path.dirname(__file__), "lambdas", "governance_engine"
                 )
             ),
-            timeout=Duration.seconds(10),
+            timeout=Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
             environment={
