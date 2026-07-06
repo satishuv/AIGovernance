@@ -65,56 +65,137 @@ When you open the guardrail, the audience should see:
 
 ### Step 2: Test PHI Anonymization in Agent Response (3 min)
 
-**The scenario:** A hospital uses an AI clinical assistant that helps nurses by reasoning across patient data. A nurse asks: "What are John Smith's latest labs and should I be concerned about anything?" The AI agent queries multiple backend systems (EHR, pharmacy, lab system), reasons about the results, and generates a summary. But the backend response contains raw database identifiers (MRN, NPI, SSN) that are internal system fields and should NEVER appear in the nurse's response.
+**Three HIPAA scenarios demonstrating why this guardrail matters:**
 
-**Why AI agents (not just a database lookup):**
-- A normal database lookup shows exactly one screen of data
-- An AI agent reasons ACROSS data sources: labs + medications + allergies + past visits
-- It can flag drug interactions, summarize trends, and alert on abnormal values
-- But in doing so, it pulls raw backend fields that shouldn't be exposed to the user
+---
 
-**What the guardrail protects against:**
-1. Over-disclosure: agent returns raw internal identifiers (MRN, NPI) that the nurse doesn't need
-2. Cross-patient leakage: agent accidentally includes another patient's data in the response
-3. Data exfiltration: someone asks the agent to "export all patient records" and it dumps PHI
+#### Scenario A: Developer's AI Agent Exposes Real PHI (SDLC)
 
-**The flow in our architecture:**
+**The problem:** A development team clones a production database to their dev environment for testing. The data contains real patient records. A developer uses an AI coding agent and asks: "Show me sample rows from the patient_records table so I can debug this query."
+
+The AI agent retrieves REAL patient data and tries to show it to the developer.
+
+**The flow:**
 ```
-Nurse asks: "What are John Smith's latest labs? Anything concerning?"
+Developer asks: "Show me sample data from patient_records table"
      |
      v
-[Governance Engine] - checks if nurse is authorized (ALLOW)
+[AI Coding Agent] - queries the dev database (cloned from prod)
+                  - retrieves actual patient records:
+     "Row 1: MRN-4829301, John Smith, SSN 123-45-6789, A1C 7.2%
+      Row 2: MRN-5930412, Jane Doe, SSN 987-65-4321, BP 140/90"
      |
      v
-[AI Agent] - queries EHR, lab system, pharmacy database
-           - reasons across the data
-           - generates response that includes raw backend fields:
-     "Lab results for MRN-4829301: A1C 7.2%. Dr. Wilson NPI 1234567890."
+[OUTPUT GUARDRAIL] - detects SSN, names, MRN in the response
      |
      v
-[OUTPUT GUARDRAIL] <-- THIS IS WHAT WE ARE DEMONSTRATING
-     | strips internal identifiers, keeps clinical data
-     v
-Nurse sees: "Lab results for {Medical_Record_Number}: A1C 7.2%. Dr. {NAME} {NPI_Number}."
+Developer sees: "Row 1: {Medical_Record_Number}, {NAME}, {US_SOCIAL_SECURITY_NUMBER}, A1C 7.2%"
+                (or BLOCKED entirely if SSN present)
 ```
 
-**Why we select OUTPUT (not INPUT):**
-- INPUT = what the user SENDS to the agent (the nurse's question, which is fine)
-- OUTPUT = what the agent RESPONDS back (the answer containing raw backend data)
-- The danger is in the agent's RESPONSE. The agent retrieves raw database fields that should stay internal. The output guardrail strips them BEFORE the response reaches the nurse's screen.
+**Why this matters:** Developers should NEVER see real patient identifiers, even in dev environments. The guardrail catches PHI exposure regardless of which environment the agent operates in.
 
-**Why this matters for HIPAA:**
-- The nurse needs the clinical data (A1C 7.2%) to do her job
-- The nurse does NOT need raw internal identifiers (MRN, NPI are backend system fields)
-- HIPAA's "minimum necessary" rule (164.502): only disclose the minimum PHI needed for the task
-- The guardrail enforces this automatically without relying on the AI model to self-censor
+**Demo action:** Select Source: OUTPUT. Paste:
+```
+Query results from patient_records: MRN-4829301, John Smith, SSN 123-45-6789, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. Wilson NPI 1234567890.
+```
+**Expected:** BLOCKED (SSN triggers full block)
 
-**How this connects to the architecture:**
-In our governance framework, this guardrail runs at two points:
-1. Inside the Governance Engine Lambda (`bedrock_guardrails.py` calls `ApplyGuardrail` on every input)
-2. Inside the Scope Enforcer (`_validate_agent_output()` scans every agent response before returning it to the user)
+---
 
-What we are showing in the console is the SAME API call that runs automatically on every request in production. The test panel lets us demonstrate it visually. In a real deployment, this happens transparently on every response without any manual intervention.
+#### Scenario B: CI/CD Pipeline Agent Leaks PHI in Deployment Logs (SDLC)
+
+**The problem:** A deployment agent reads test logs during the CI/CD pipeline. Integration tests ran against a staging environment with realistic (but real) patient data. The test logs contain PHI. The agent summarizes the test results for the deployment report.
+
+**The flow:**
+```
+Pipeline asks agent: "Summarize test results from the integration run"
+     |
+     v
+[Deployment Agent] - reads test output logs
+                   - logs contain: "Test passed: verified patient
+                     MRN-4829301 record retrieval in 45ms"
+                   - generates summary including the PHI from logs:
+     "Integration tests passed. Verified record retrieval for
+      MRN-4829301 (45ms), MRN-5930412 (52ms). NPI 1234567890 lookup OK."
+     |
+     v
+[OUTPUT GUARDRAIL] - detects MRN and NPI patterns
+     |
+     v
+Report shows: "Integration tests passed. Verified record retrieval for
+              {Medical_Record_Number} (45ms), {Medical_Record_Number} (52ms).
+              {NPI_Number} lookup OK."
+```
+
+**Why this matters:** Deployment reports are shared across teams, stored in wikis, posted in Slack channels. PHI in a deployment log is a HIPAA violation if it leaves the secured environment. The guardrail strips it before it enters any report.
+
+**Demo action:** Select Source: OUTPUT. Paste:
+```
+Integration test summary: Patient record retrieval for MRN-4829301 completed in 45ms. NPI 1234567890 provider lookup returned 200 OK. Patient DOB: 03/15/1985 verified against source. All 142 tests passed.
+```
+**Expected:** INTERVENED (anonymized). MRN, NPI, DOB replaced with placeholders. "142 tests passed" remains visible.
+
+---
+
+#### Scenario C: Patient Requests Another Patient's Data (Patient Portal)
+
+**The problem:** A patient uses a healthcare chatbot on the patient portal. They ask about ANOTHER person's medical records: "Show me the records for my mother, her SSN is 987-65-4321." The AI agent should NEVER retrieve another patient's data based on a user providing identifiers.
+
+**The flow:**
+```
+Patient asks: "Can you look up my mother's records? Her SSN is 987-65-4321"
+     |
+     v
+[INPUT GUARDRAIL] <-- Catches PHI in the REQUEST before agent even processes it
+     |
+     v
+Patient sees: "Request blocked: contains protected health information."
+              (Agent never processes the request)
+```
+
+**Why this matters:** Even if the system COULD look up records by SSN, it should NEVER accept a patient identifier from user input in a portal. The input guardrail blocks this before the agent even reasons about it. This prevents:
+- Unauthorized access to other patients' records
+- Social engineering attacks using known identifiers
+- Accidental disclosure if someone types a family member's SSN
+
+**Demo action:** Select Source: INPUT. Paste:
+```
+Look up the medical records for my mother. Her SSN is 987-65-4321 and her date of birth is 05/22/1958.
+```
+**Expected:** BLOCKED. The agent never sees this request.
+
+---
+
+#### How all three connect to the architecture:
+
+| Scenario | Guardrail point | What it protects |
+|----------|----------------|-----------------|
+| A (Developer) | OUTPUT | Strips PHI from agent responses to developers |
+| B (CI/CD) | OUTPUT | Strips PHI from deployment reports and summaries |
+| C (Patient portal) | INPUT | Blocks requests containing other people's PHI |
+
+In our governance framework, these guardrails run automatically:
+- `bedrock_guardrails.py` calls `ApplyGuardrail` on every INPUT before the agent processes it
+- `_validate_agent_output()` in the Scope Enforcer scans every OUTPUT before returning to the user
+
+What we are showing in the console is the SAME API call that runs automatically on every request. The test panel lets us demonstrate it visually.
+
+---
+
+**Why we select OUTPUT for Scenarios A and B:**
+- INPUT = what the user SENDS to the agent (the developer's question or the pipeline trigger)
+- OUTPUT = what the agent RESPONDS back (the answer containing raw data from databases/logs)
+- The danger in these scenarios is the agent's RESPONSE pulling real PHI from backend systems
+
+**Why we select INPUT for Scenario C:**
+- The danger is in the USER'S REQUEST itself (they're providing another person's SSN)
+- We block BEFORE the agent even processes the request
+
+**HIPAA rules these enforce:**
+- 164.502 Minimum necessary: only disclose what's needed (Scenarios A, B)
+- 164.312(a) Access controls: prevent unauthorized access (Scenario C)
+- 164.312(e) Transmission security: PHI never leaves the system unprotected (all three)
 
 **Action:** In the guardrail test panel, select Source: **OUTPUT**
 
