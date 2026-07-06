@@ -95,11 +95,36 @@ Developer sees: "Row 1: {Medical_Record_Number}, {NAME}, {US_SOCIAL_SECURITY_NUM
 
 **Why this matters:** Developers should NEVER see real patient identifiers, even in dev environments. The guardrail catches PHI exposure regardless of which environment the agent operates in.
 
-**Demo action:** Select Source: OUTPUT. Paste:
+**Demo action and what it means:**
+
+In the console test panel, we are simulating what happens INSIDE the architecture. Here's what each part represents:
+
+- **Source: OUTPUT** = we are testing what the AI agent would RESPOND to the developer
+- **The text we paste** = this is the AI agent's response (what it got from the database and wants to show the developer)
+- **The guardrail result** = what actually reaches the developer's screen after the guardrail processes it
+
+The flow:
+```
+1. Developer asks: "Show me sample rows from patient_records"
+2. AI agent queries the database, gets raw data
+3. AI agent formats a response: "Here are the results: MRN-4829301, John Smith..."
+        ^--- THIS IS WHAT WE PASTE IN THE TEST PANEL (the agent's response)
+4. OUTPUT guardrail intercepts this response
+5. Guardrail decides: BLOCK or ANONYMIZE
+        ^--- THIS IS THE RESULT WE SEE IN THE TEST PANEL
+6. Developer sees only the safe version (or a block message)
+```
+
+Select Source: **OUTPUT**. Paste:
 ```
 Query results from patient_records: MRN-4829301, John Smith, SSN 123-45-6789, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. Wilson NPI 1234567890.
 ```
-**Expected:** BLOCKED (SSN triggers full block)
+
+**Expected result:** BLOCKED (SSN detected, entire response blocked)
+
+**What to show the audience:** "This is what the AI agent tried to return to the developer. The guardrail intercepted it. The developer never sees the SSN, the patient name, or any of this raw data. The response is blocked entirely because it contains a Social Security Number."
+
+**Where is the output?** The output is the block message: "Response blocked: contains protected health information (PHI)." That's ALL the developer sees. The actual patient data never reaches their screen.
 
 ---
 
@@ -130,11 +155,37 @@ Report shows: "Integration tests passed. Verified record retrieval for
 
 **Why this matters:** Deployment reports are shared across teams, stored in wikis, posted in Slack channels. PHI in a deployment log is a HIPAA violation if it leaves the secured environment. The guardrail strips it before it enters any report.
 
-**Demo action:** Select Source: OUTPUT. Paste:
+**Demo action and what it means:**
+
+- **Source: OUTPUT** = we are testing what the CI/CD agent would include in the deployment report
+- **The text we paste** = the agent's summary of test results (it read the logs and is reporting back)
+- **The guardrail result** = what actually goes into the deployment report after guardrail processing
+
+The flow:
+```
+1. Pipeline triggers: "Summarize integration test results"
+2. Agent reads test logs (which contain real patient MRNs from the test DB)
+3. Agent generates summary: "Patient record retrieval for MRN-4829301..."
+        ^--- THIS IS WHAT WE PASTE (the agent's summary before guardrail)
+4. OUTPUT guardrail intercepts
+5. Guardrail anonymizes the identifiers, keeps the metrics
+        ^--- THIS IS THE RESULT (what goes into the actual report)
+6. Deployment report shows safe version with placeholders
+```
+
+Select Source: **OUTPUT**. Paste:
 ```
 Integration test summary: Patient record retrieval for MRN-4829301 completed in 45ms. NPI 1234567890 provider lookup returned 200 OK. Patient DOB: 03/15/1985 verified against source. All 142 tests passed.
 ```
-**Expected:** INTERVENED (anonymized). MRN, NPI, DOB replaced with placeholders. "142 tests passed" remains visible.
+
+**Expected result:** INTERVENED (anonymized)
+```
+Integration test summary: Patient record retrieval for {Medical_Record_Number} completed in 45ms. {NPI_Number} provider lookup returned 200 OK. Patient {Date_of_Birth} verified against source. All 142 tests passed.
+```
+
+**What to show the audience:** "The deployment agent summarized test results. The test logs had real MRNs and NPIs because the test database had unmasked data. The guardrail replaced the identifiers with placeholders. But the performance metrics (45ms, 200 OK, 142 tests passed) all remain visible. The report is useful without exposing PHI."
+
+**Where is the output?** The anonymized version is what goes into the deployment report, Slack channel, wiki page, or wherever the team shares results. No real patient identifiers ever leave the system.
 
 ---
 
@@ -159,11 +210,37 @@ Patient sees: "Request blocked: contains protected health information."
 - Social engineering attacks using known identifiers
 - Accidental disclosure if someone types a family member's SSN
 
-**Demo action:** Select Source: INPUT. Paste:
+**Demo action and what it means:**
+
+- **Source: INPUT** = we are testing what the PATIENT sends to the chatbot (their request)
+- **The text we paste** = what the patient typed into the portal chatbot
+- **The guardrail result** = whether this request even reaches the AI agent
+
+The flow:
+```
+1. Patient types: "Look up my mother's records, her SSN is 987-65-4321"
+        ^--- THIS IS WHAT WE PASTE (the patient's request)
+2. INPUT guardrail intercepts BEFORE the agent processes it
+3. Guardrail detects SSN in the request
+        ^--- THIS IS THE RESULT (BLOCKED)
+4. Agent NEVER sees this request
+5. Patient sees: "Request blocked: contains protected health information."
+```
+
+**This is different from Scenarios A and B.** There we tested OUTPUT (agent's response). Here we test INPUT (user's request). The danger is different:
+- OUTPUT danger: agent leaks data it shouldn't
+- INPUT danger: user tries to access data they shouldn't
+
+Select Source: **INPUT**. Paste:
 ```
 Look up the medical records for my mother. Her SSN is 987-65-4321 and her date of birth is 05/22/1958.
 ```
-**Expected:** BLOCKED. The agent never sees this request.
+
+**Expected result:** BLOCKED entirely. The agent never processes this request.
+
+**What to show the audience:** "The patient tried to look up another person's records by providing their SSN. The INPUT guardrail caught the SSN in the request itself. The AI agent never even saw this. The request was killed at the door. This prevents social engineering attacks where someone provides identifiers to trick the agent into pulling unauthorized records."
+
+**Where is the output?** The patient sees ONLY the block message. No data is retrieved. No records are accessed. The agent never processes the request.
 
 ---
 
