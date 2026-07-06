@@ -1,1 +1,0 @@
-# Kill Switch Lambda package

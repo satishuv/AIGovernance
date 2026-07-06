@@ -1,1 +1,0 @@
-# Action Group Lambda package

@@ -45,3 +45,6 @@ governance-demo-bedrock/invoke_test_body.json
 governance-demo-bedrock/update_env.json
 governance-demo-bedrock/routing.json
 governance-demo-bedrock/demo_report.html
+holmes_upload/
+bedrock_security_report.csv
+aiml-security-assessment.yaml

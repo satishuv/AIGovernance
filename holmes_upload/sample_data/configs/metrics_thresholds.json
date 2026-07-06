@@ -1,9 +1,0 @@
-{
-  "config_key": "metrics_thresholds",
-  "denial_rate_threshold": 0.3,
-  "escalation_rate_threshold": 0.2,
-  "avg_risk_score_threshold": 60,
-  "privilege_escalation_denial_threshold": 5,
-  "denial_time_window_seconds": 300,
-  "description": "MEASURE function threshold defaults — alerts are triggered when any metric exceeds its configured threshold"
-}

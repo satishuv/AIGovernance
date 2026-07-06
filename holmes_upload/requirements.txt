@@ -1,7 +1,0 @@
-# Core
-aws-cdk-lib>=2.100.0
-constructs>=10.0.0
-boto3>=1.28.0
-
-# Testing
-pytest>=7.0.0

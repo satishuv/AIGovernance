@@ -1,8 +1,0 @@
-{
-  "rule_name": "default_deny",
-  "description": "Catch-all: deny any action not explicitly allowed by a higher-priority rule. Fail-safe default.",
-  "outcome": "deny",
-  "priority": 9999,
-  "category": "preventive",
-  "conditions": []
-}
