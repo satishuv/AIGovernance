@@ -381,7 +381,6 @@ governance-demo-bedrock/
     ├── ARCHITECTURE.md             Detailed architecture + threat coverage
     ├── IMPLEMENTATION_GUIDE.md     Enterprise adoption guide (920 lines)
     ├── HIPAA_DEMO_GUIDE.md         HIPAA PII demo with 3 scenarios
-    └── ieee_paper.tex              IEEE paper (LaTeX)
 ```
 
 ---
@@ -406,7 +405,6 @@ governance-demo-bedrock/
 | [Architecture](governance-demo-bedrock/docs/ARCHITECTURE.md) | SDLC flow, three engines, threat coverage, design decisions |
 | [Implementation Guide](governance-demo-bedrock/docs/IMPLEMENTATION_GUIDE.md) | Enterprise adoption: ADRs, deployment patterns, OWASP mapping, operational runbook |
 | [HIPAA Demo Guide](governance-demo-bedrock/docs/HIPAA_DEMO_GUIDE.md) | 3 realistic HIPAA scenarios with step-by-step demo actions |
-| [IEEE Paper](governance-demo-bedrock/docs/ieee_paper.tex) | Academic paper with empirical validation results |
 
 ---
 
