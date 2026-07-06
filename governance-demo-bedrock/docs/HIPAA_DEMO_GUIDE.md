@@ -65,43 +65,56 @@ When you open the guardrail, the audience should see:
 
 ### Step 2: Test PHI Anonymization in Agent Response (3 min)
 
-**The scenario:** A hospital has an AI agent that helps nurses look up patient information. A nurse asks the agent "Show me lab results for patient 4829301." The agent retrieves raw patient data from the hospital database. Before that data reaches the nurse's screen, the output guardrail scans it and redacts PHI.
+**The scenario:** A hospital uses an AI clinical assistant that helps nurses by reasoning across patient data. A nurse asks: "What are John Smith's latest labs and should I be concerned about anything?" The AI agent queries multiple backend systems (EHR, pharmacy, lab system), reasons about the results, and generates a summary. But the backend response contains raw database identifiers (MRN, NPI, SSN) that are internal system fields and should NEVER appear in the nurse's response.
+
+**Why AI agents (not just a database lookup):**
+- A normal database lookup shows exactly one screen of data
+- An AI agent reasons ACROSS data sources: labs + medications + allergies + past visits
+- It can flag drug interactions, summarize trends, and alert on abnormal values
+- But in doing so, it pulls raw backend fields that shouldn't be exposed to the user
+
+**What the guardrail protects against:**
+1. Over-disclosure: agent returns raw internal identifiers (MRN, NPI) that the nurse doesn't need
+2. Cross-patient leakage: agent accidentally includes another patient's data in the response
+3. Data exfiltration: someone asks the agent to "export all patient records" and it dumps PHI
 
 **The flow in our architecture:**
 ```
-Nurse asks: "Show me lab results for patient 4829301"
+Nurse asks: "What are John Smith's latest labs? Anything concerning?"
      |
      v
 [Governance Engine] - checks if nurse is authorized (ALLOW)
      |
      v
-[AI Agent] - retrieves from hospital database:
+[AI Agent] - queries EHR, lab system, pharmacy database
+           - reasons across the data
+           - generates response that includes raw backend fields:
      "Lab results for MRN-4829301: A1C 7.2%. Dr. Wilson NPI 1234567890."
      |
      v
 [OUTPUT GUARDRAIL] <-- THIS IS WHAT WE ARE DEMONSTRATING
-     |
+     | strips internal identifiers, keeps clinical data
      v
 Nurse sees: "Lab results for {Medical_Record_Number}: A1C 7.2%. Dr. {NAME} {NPI_Number}."
 ```
 
 **Why we select OUTPUT (not INPUT):**
-- INPUT = what the user SENDS to the agent (the question)
-- OUTPUT = what the agent RESPONDS back to the user (the answer containing patient data)
-- The danger is in the agent's RESPONSE. The agent retrieves raw data from the database. The output guardrail scans it BEFORE it reaches the user.
+- INPUT = what the user SENDS to the agent (the nurse's question, which is fine)
+- OUTPUT = what the agent RESPONDS back (the answer containing raw backend data)
+- The danger is in the agent's RESPONSE. The agent retrieves raw database fields that should stay internal. The output guardrail strips them BEFORE the response reaches the nurse's screen.
 
 **Why this matters for HIPAA:**
 - The nurse needs the clinical data (A1C 7.2%) to do her job
-- The nurse does NOT need the raw MRN or NPI
-- HIPAA's "minimum necessary" rule (164.502): only disclose what is needed for the task
-- The guardrail enforces this automatically without human judgment
+- The nurse does NOT need raw internal identifiers (MRN, NPI are backend system fields)
+- HIPAA's "minimum necessary" rule (164.502): only disclose the minimum PHI needed for the task
+- The guardrail enforces this automatically without relying on the AI model to self-censor
 
 **How this connects to the architecture:**
 In our governance framework, this guardrail runs at two points:
 1. Inside the Governance Engine Lambda (`bedrock_guardrails.py` calls `ApplyGuardrail` on every input)
 2. Inside the Scope Enforcer (`_validate_agent_output()` scans every agent response before returning it to the user)
 
-What we are showing in the console is the SAME API call that runs automatically on every request in production. The test panel lets us demonstrate it visually.
+What we are showing in the console is the SAME API call that runs automatically on every request in production. The test panel lets us demonstrate it visually. In a real deployment, this happens transparently on every response without any manual intervention.
 
 **Action:** In the guardrail test panel, select Source: **OUTPUT**
 
