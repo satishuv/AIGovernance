@@ -1,0 +1,100 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ProposeChanges Action Group",
+    "version": "1.0.0",
+    "description": "Operations for drafting deployment plans and rollback strategies that require human approval."
+  },
+  "paths": {
+    "/draftDeploymentPlan": {
+      "post": {
+        "summary": "Draft a deployment plan for a build",
+        "description": "Creates a deployment plan proposal for the specified build and target environment. The proposal is stored as pending and requires human approval.",
+        "operationId": "draftDeploymentPlan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buildId": {
+                    "type": "string",
+                    "description": "The unique identifier of the build to deploy"
+                  },
+                  "targetEnvironment": {
+                    "type": "string",
+                    "description": "The target environment for deployment (e.g. staging, production)"
+                  }
+                },
+                "required": ["buildId", "targetEnvironment"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deployment plan drafted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request_id": { "type": "string", "description": "Unique ID of the pending proposal" },
+                    "status": { "type": "string", "description": "Status of the proposal" },
+                    "message": { "type": "string", "description": "Human readable message" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/draftRollbackStrategy": {
+      "post": {
+        "summary": "Draft a rollback strategy for a build",
+        "description": "Creates a rollback strategy proposal for the specified build and target environment. The proposal is stored as pending and requires human approval.",
+        "operationId": "draftRollbackStrategy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buildId": {
+                    "type": "string",
+                    "description": "The unique identifier of the build to create a rollback strategy for"
+                  },
+                  "targetEnvironment": {
+                    "type": "string",
+                    "description": "The target environment for the rollback strategy"
+                  }
+                },
+                "required": ["buildId", "targetEnvironment"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rollback strategy drafted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request_id": { "type": "string", "description": "Unique ID of the pending proposal" },
+                    "status": { "type": "string", "description": "Status of the proposal" },
+                    "message": { "type": "string", "description": "Human readable message" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

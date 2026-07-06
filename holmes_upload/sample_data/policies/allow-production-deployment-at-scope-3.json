@@ -1,0 +1,11 @@
+{
+  "rule_name": "allow_production_at_scope_3_plus",
+  "description": "Allow production deployments for agents at scope 3 or higher. Agent has earned full deployment privileges.",
+  "outcome": "allow",
+  "priority": 20,
+  "category": "preventive",
+  "conditions": [
+    {"field": "input.action_group", "op": "==", "value": "ProductionDeployment"},
+    {"field": "input.scope_level", "op": ">=", "value": 3}
+  ]
+}

@@ -157,8 +157,8 @@ class RetrievalContentValidator:
             block = match.group()
             # Try to decode and check if it contains injection
             try:
-                import base64  # nosec B613 - decoding to detect injection, not execute
-                decoded = base64.b64decode(block + "==").decode("utf-8", errors="ignore")  # nosec
+                import base64
+                decoded = base64.b64decode(block + "==").decode("utf-8", errors="ignore")
                 for inj_pattern in self._INSTRUCTION_PATTERNS[:3]:
                     if inj_pattern.search(decoded):
                         threats.append({

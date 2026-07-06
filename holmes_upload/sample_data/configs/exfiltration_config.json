@@ -1,0 +1,17 @@
+{
+  "config_key": "exfiltration_detection",
+  "output_size_limits": {
+    "0": 0,
+    "1": 1024,
+    "2": 4096,
+    "3": 16384,
+    "4": 65536
+  },
+  "max_encoded_block_length": 512,
+  "approved_endpoints": [
+    "amazonaws.com",
+    "aws.amazon.com",
+    "github.com"
+  ],
+  "description": "Data exfiltration prevention configuration — output size limits per scope level, encoded block detection, and approved external endpoints"
+}

@@ -1,0 +1,11 @@
+{
+  "rule_name": "allow_read_pipeline",
+  "description": "Allow ReadPipelineStatus at scope 1 or higher. Low-risk read-only action.",
+  "outcome": "allow",
+  "priority": 100,
+  "category": "preventive",
+  "conditions": [
+    {"field": "input.action_group", "op": "==", "value": "ReadPipelineStatus"},
+    {"field": "input.scope_level", "op": ">=", "value": 1}
+  ]
+}

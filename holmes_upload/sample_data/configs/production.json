@@ -1,0 +1,7 @@
+{
+  "environment": "production",
+  "approvalRequired": true,
+  "maxInstances": 10,
+  "healthCheckPath": "/health",
+  "rollbackOnFailure": true
+}

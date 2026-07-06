@@ -1,0 +1,12 @@
+{
+  "buildId": "build-46",
+  "rollbackSteps": [
+    "Revert deployment to build-45",
+    "Verify health checks pass",
+    "Notify on-call team"
+  ],
+  "verificationChecks": [
+    "GET /health returns 200",
+    "Error rate below 1%"
+  ]
+}

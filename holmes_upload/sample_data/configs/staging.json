@@ -1,0 +1,7 @@
+{
+  "environment": "staging",
+  "approvalRequired": false,
+  "maxInstances": 2,
+  "healthCheckPath": "/health",
+  "rollbackOnFailure": true
+}

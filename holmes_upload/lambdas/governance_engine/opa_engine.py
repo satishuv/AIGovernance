@@ -237,7 +237,7 @@ class OPAEngine:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urlopen(req, timeout=5) as resp:  # nosec B310 - URL is from trusted OPA_ENDPOINT env var
+            with urlopen(req, timeout=5) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
 
             elapsed_ms = (time.time() - start) * 1000

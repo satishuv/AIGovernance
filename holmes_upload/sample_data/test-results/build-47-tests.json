@@ -1,0 +1,12 @@
+{
+  "buildId": "build-47",
+  "testSuite": "integration",
+  "passed": 142,
+  "failed": 0,
+  "testCases": [
+    { "name": "test_api_health", "status": "passed", "duration_ms": 120 },
+    { "name": "test_db_connection", "status": "passed", "duration_ms": 340 },
+    { "name": "test_auth_flow", "status": "passed", "duration_ms": 215 },
+    { "name": "test_deployment_endpoint", "status": "passed", "duration_ms": 180 }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ReadPipelineStatus Action Group",
+    "version": "1.0.0",
+    "description": "Read-only operations for querying build status and test results from the deployment pipeline."
+  },
+  "paths": {
+    "/getBuildStatus": {
+      "post": {
+        "summary": "Get the build status for a specific build",
+        "description": "Retrieves the build manifest including status, timestamp, commit hash, and artifact location for the specified build ID.",
+        "operationId": "getBuildStatus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buildId": {
+                    "type": "string",
+                    "description": "The unique identifier of the build (e.g. build-47)"
+                  }
+                },
+                "required": ["buildId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Build status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "buildId": { "type": "string", "description": "The build identifier" },
+                    "status": { "type": "string", "description": "Current build status" },
+                    "timestamp": { "type": "string", "description": "Build timestamp" },
+                    "commitHash": { "type": "string", "description": "Git commit hash" },
+                    "artifactLocation": { "type": "string", "description": "S3 location of build artifacts" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/getTestResults": {
+      "post": {
+        "summary": "Get test results for a specific build",
+        "description": "Retrieves the test results including pass/fail counts and individual test case details for the specified build ID.",
+        "operationId": "getTestResults",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buildId": {
+                    "type": "string",
+                    "description": "The unique identifier of the build (e.g. build-47)"
+                  }
+                },
+                "required": ["buildId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test results retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "buildId": { "type": "string", "description": "The build identifier" },
+                    "testSuite": { "type": "string", "description": "Name of the test suite" },
+                    "passed": { "type": "integer", "description": "Number of passed tests" },
+                    "failed": { "type": "integer", "description": "Number of failed tests" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
