@@ -65,22 +65,71 @@ When you open the guardrail, the audience should see:
 
 ### Step 2: Test PHI Anonymization in Agent Response (3 min)
 
-**Action:** In the guardrail test panel, select Source: OUTPUT
+**The scenario:** A hospital has an AI agent that helps nurses look up patient information. A nurse asks the agent "Show me lab results for patient 4829301." The agent retrieves raw patient data from the hospital database. Before that data reaches the nurse's screen, the output guardrail scans it and redacts PHI.
+
+**The flow in our architecture:**
+```
+Nurse asks: "Show me lab results for patient 4829301"
+     |
+     v
+[Governance Engine] - checks if nurse is authorized (ALLOW)
+     |
+     v
+[AI Agent] - retrieves from hospital database:
+     "Lab results for MRN-4829301: A1C 7.2%. Dr. Wilson NPI 1234567890."
+     |
+     v
+[OUTPUT GUARDRAIL] <-- THIS IS WHAT WE ARE DEMONSTRATING
+     |
+     v
+Nurse sees: "Lab results for {Medical_Record_Number}: A1C 7.2%. Dr. {NAME} {NPI_Number}."
+```
+
+**Why we select OUTPUT (not INPUT):**
+- INPUT = what the user SENDS to the agent (the question)
+- OUTPUT = what the agent RESPONDS back to the user (the answer containing patient data)
+- The danger is in the agent's RESPONSE. The agent retrieves raw data from the database. The output guardrail scans it BEFORE it reaches the user.
+
+**Why this matters for HIPAA:**
+- The nurse needs the clinical data (A1C 7.2%) to do her job
+- The nurse does NOT need the raw MRN or NPI
+- HIPAA's "minimum necessary" rule (164.502): only disclose what is needed for the task
+- The guardrail enforces this automatically without human judgment
+
+**How this connects to the architecture:**
+In our governance framework, this guardrail runs at two points:
+1. Inside the Governance Engine Lambda (`bedrock_guardrails.py` calls `ApplyGuardrail` on every input)
+2. Inside the Scope Enforcer (`_validate_agent_output()` scans every agent response before returning it to the user)
+
+What we are showing in the console is the SAME API call that runs automatically on every request in production. The test panel lets us demonstrate it visually.
+
+**Action:** In the guardrail test panel, select Source: **OUTPUT**
 
 **Paste this as the test content:**
 ```
 Lab results for MRN-4829301: Hemoglobin A1C 7.2%, glucose 145 mg/dL. Patient requires follow-up with Dr. Wilson NPI 1234567890. Next appointment scheduled.
 ```
 
-**Click "Run" or "Apply guardrail"**
+**Click "Run"**
 
-**Expected result:** INTERVENED (anonymized)
+**Expected result:** Guardrail action: INTERVENED. In the trace you will see:
+- NAME (Wilson): Masked
+- Medical_Record_Number (MRN-4829301): Masked
+- NPI_Number (1234567890): Masked
+
+The final output (what the nurse would actually see):
 ```
 Lab results for {Medical_Record_Number}: Hemoglobin A1C 7.2%, glucose 145 mg/dL. Patient requires follow-up with Dr. {NAME} {NPI_Number}. Next appointment scheduled.
 ```
 
 **Say:**
-> "The AI agent retrieved patient lab results. Before this response reaches the user, the guardrail scanned it. It found three pieces of PHI: the Medical Record Number, the doctor's name, and the NPI. All three were replaced with placeholders. But notice: the clinical values, A1C 7.2% and glucose 145, passed through. That's the minimum necessary principle. The clinical data alone doesn't identify the patient, so it's safe to show. The identifiers are redacted."
+> "Here's the scenario. A nurse asks our AI agent for patient lab results. The agent retrieves the data from the hospital database. But before it reaches the nurse's screen, the output guardrail scans the response.
+>
+> Look at the trace: it found three pieces of PHI. The Medical Record Number, the doctor's name, and the National Provider Identifier. All three replaced with placeholders.
+>
+> But notice what PASSED THROUGH: the clinical values. A1C 7.2%, glucose 145. That's the minimum necessary principle from HIPAA Section 164.502. The nurse needs the clinical data to do her job. She does NOT need raw identifiers. The guardrail enforces this automatically.
+>
+> In our architecture, this same API call runs on every single agent response before it reaches any user. Whether it's a patient portal, a nurse station, a claims system, or a telehealth chatbot. The guardrail sits between the AI and the human."
 
 ---
 
