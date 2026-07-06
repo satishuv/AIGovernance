@@ -1,0 +1,87 @@
+{
+  "mappings": {
+    "ISO_42001": {
+      "framework": "ISO/IEC 42001:2023 - AI Management Systems",
+      "controls": {
+        "A.2_AI_Policy": {"component": "OPA Policy Engine + Cedar", "evidence": "Policy files in S3, evaluation logs"},
+        "A.3_Organization": {"component": "Agent Registry + Separation of Duties", "evidence": "Agent identity records, role assignments"},
+        "A.4_Resources": {"component": "Tool/Model Registry", "evidence": "Approved tool list, model inventory"},
+        "A.5_Impact_Assessment": {"component": "Risk Scoring Engine", "evidence": "Risk scores per decision (0-100)"},
+        "A.6_Lifecycle": {"component": "Three-Engine Model (Preventive/Detective/Proactive)", "evidence": "Decision history, drift detection records"},
+        "A.7_Support": {"component": "Continuous Monitoring + CloudWatch", "evidence": "Health scores, metrics dashboard"},
+        "A.8_Data": {"component": "Data Class Access + Retrieval Validator", "evidence": "Data access logs, classification records"},
+        "A.9_Performance": {"component": "Latency Metrics + Benchmark Results", "evidence": "CloudWatch metrics, 5720 attack benchmark"},
+        "A.10_Third_Party": {"component": "Tool Execution Auth + Supply Chain", "evidence": "Tool registry, rate limits, chain detection"}
+      }
+    },
+    "NIST_AI_RMF": {
+      "framework": "NIST AI Risk Management Framework 1.0",
+      "controls": {
+        "GOVERN_1": {"component": "OPA Policy Engine", "evidence": "Policy-as-code definitions"},
+        "GOVERN_2": {"component": "Agent Registry + Roles", "evidence": "Identity records, accountability assignments"},
+        "GOVERN_3": {"component": "Proactive Engine", "evidence": "Policy validation reports"},
+        "GOVERN_4": {"component": "Kill Switch + SNS Alerts", "evidence": "Incident response records"},
+        "MAP_1": {"component": "Risk Scoring + Scope Levels", "evidence": "Risk assessments per action"},
+        "MAP_2": {"component": "Threat Detector + Input Sanitizer", "evidence": "Threat detection logs"},
+        "MEASURE_1": {"component": "Benchmark Testing (5720 attacks)", "evidence": "Detection rate reports"},
+        "MEASURE_2": {"component": "Continuous Monitoring", "evidence": "Health scores, drift metrics"},
+        "MANAGE_1": {"component": "Decision Engine (Allow/Deny/Escalate)", "evidence": "Governance verdicts"},
+        "MANAGE_2": {"component": "Graduated Scope Reduction", "evidence": "Scope change history"},
+        "MANAGE_3": {"component": "Human Escalation Workflow", "evidence": "Approval records"},
+        "MANAGE_4": {"component": "Evidence Pipeline", "evidence": "SHA-256 hashed records, 7-year retention"}
+      }
+    },
+    "NIST_800_53": {
+      "framework": "NIST SP 800-53 Rev 5 - Security and Privacy Controls",
+      "controls": {
+        "AC-2_Account_Management": {"component": "Agent Registry + Identity Lifecycle", "evidence": "Agent registration, suspension, retirement records"},
+        "AC-3_Access_Enforcement": {"component": "OPA + Cedar + IAM Boundaries", "evidence": "Policy evaluation logs, Cedar authorization decisions"},
+        "AC-4_Information_Flow": {"component": "Environment Isolation + Output Guardrails", "evidence": "Cross-environment denials, PII redaction logs"},
+        "AC-5_Separation_of_Duties": {"component": "Multi-Agent Rules + Role Registry", "evidence": "Cross-agent denial logs"},
+        "AC-6_Least_Privilege": {"component": "Scope Levels (1-4) + IAM Permission Boundaries", "evidence": "Scope table, boundary swap logs"},
+        "AU-2_Event_Logging": {"component": "Evidence Pipeline + CloudWatch", "evidence": "Every decision logged with SHA-256 hash"},
+        "AU-3_Content_of_Audit_Records": {"component": "Governance Decision Records", "evidence": "Decision ID, agent, action, verdict, risk, policy, timestamp"},
+        "AU-6_Audit_Review": {"component": "Decision History + Measure/Manage Reports", "evidence": "Monthly compliance reports, queryable history"},
+        "AU-10_Non_Repudiation": {"component": "SHA-256 Hash Chains + S3 Object Lock", "evidence": "Immutable evidence, tamper detection"},
+        "CA-7_Continuous_Monitoring": {"component": "Detective Engine + CloudWatch Dashboard", "evidence": "Real-time metrics, health scores, drift detection"},
+        "CM-2_Baseline_Configuration": {"component": "CDK IaC + OPA Policies (versioned S3)", "evidence": "Infrastructure-as-code, policy version history"},
+        "CM-7_Least_Functionality": {"component": "Enum Allowlisting + Tool Registry", "evidence": "Only registered tools accessible, unknown rejected"},
+        "IA-4_Identifier_Management": {"component": "Agent Identity + Registration", "evidence": "Agent IDs, status tracking, formal registration"},
+        "IR-4_Incident_Handling": {"component": "Kill Switch + SNS Alerts + Scope Reduction", "evidence": "Kill switch activation logs, alert history"},
+        "SC-7_Boundary_Protection": {"component": "Input/Output Guardrails + Environment Isolation", "evidence": "Sanitization logs, cross-env denial logs"},
+        "SI-4_System_Monitoring": {"component": "Runtime Drift Detection + Anomaly Detector", "evidence": "Drift scores, anomaly flags, health history"},
+        "SI-10_Information_Input_Validation": {"component": "Input Sanitizer (5 layers) + Bedrock Guardrails", "evidence": "Sanitization results, guardrail intervention logs"}
+      }
+    },
+    "PCI_DSS_4": {
+      "framework": "PCI DSS v4.0 - Payment Card Industry Data Security Standard",
+      "controls": {
+        "Req_1_Network_Security": {"component": "Lambda VPC isolation + IAM boundaries", "evidence": "Network configuration, IAM policies"},
+        "Req_2_Secure_Configuration": {"component": "CDK IaC (immutable infrastructure)", "evidence": "CloudFormation template, no manual config"},
+        "Req_3_Protect_Account_Data": {"component": "Bedrock Guardrails PII (credit card BLOCK) + Output Sanitization", "evidence": "PII detection logs, redaction records"},
+        "Req_5_Malware_Protection": {"component": "Input Sanitizer + Retrieval Validator", "evidence": "Injection detection, malicious content blocking"},
+        "Req_6_Secure_Development": {"component": "Proactive Engine + ASH/Holmes scans", "evidence": "Policy validation, security scan results"},
+        "Req_7_Restrict_Access": {"component": "Scope Levels + Cedar ABAC + OPA RBAC", "evidence": "Authorization decisions, scope enforcement logs"},
+        "Req_8_Identify_Users": {"component": "Agent Identity + Registration + Non-repudiation", "evidence": "Agent identity records, hash chains"},
+        "Req_10_Log_Monitor": {"component": "Evidence Pipeline + CloudWatch + X-Ray", "evidence": "Immutable logs, metrics, distributed traces"},
+        "Req_11_Test_Security": {"component": "5720 attack benchmark + 2000 test scenarios", "evidence": "Benchmark results, detection rates"},
+        "Req_12_Security_Policy": {"component": "OPA Policy-as-Code + Cedar formal verification", "evidence": "Policy files, validation reports"}
+      }
+    },
+    "EU_AI_Act": {
+      "framework": "EU AI Act (2024) - Regulation on Artificial Intelligence",
+      "controls": {
+        "Art_9_Risk_Management": {"component": "Risk Scoring Engine + Three-Engine Model", "evidence": "Risk scores, governance decisions, continuous monitoring"},
+        "Art_10_Data_Governance": {"component": "Data Class Access + Retrieval Validator + Cache Governance", "evidence": "Data classification records, access logs"},
+        "Art_11_Technical_Documentation": {"component": "Architecture docs + Implementation Guide + Evidence Pipeline", "evidence": "ARCHITECTURE.md, auto-generated evidence"},
+        "Art_12_Record_Keeping": {"component": "Evidence Pipeline (SHA-256, 7-year Object Lock)", "evidence": "Immutable decision records with full context"},
+        "Art_13_Transparency": {"component": "Decision explanations + Audit trail", "evidence": "Every deny/escalate includes explanation field"},
+        "Art_14_Human_Oversight": {"component": "ESCALATE verdict + Approval Workflow + Kill Switch", "evidence": "Approval records, escalation history, kill switch logs"},
+        "Art_15_Accuracy_Robustness": {"component": "Automated Reasoning + Benchmark Testing + Anomaly Detection", "evidence": "5720 attack results, drift scores, health metrics"},
+        "Art_17_Quality_Management": {"component": "Proactive Engine + Continuous Monitoring", "evidence": "Policy validation, contradiction detection, coverage gaps"},
+        "Art_26_Obligations_Deployers": {"component": "Agent Registry + Scope Levels + Evidence", "evidence": "Who deployed what, with what permissions, full audit trail"},
+        "Art_72_Post_Market_Monitoring": {"component": "Detective Engine + CloudWatch Dashboard", "evidence": "Real-time operational metrics, anomaly alerts"}
+      }
+    }
+  }
+}
