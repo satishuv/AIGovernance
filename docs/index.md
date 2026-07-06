@@ -319,7 +319,6 @@ governance-demo/                      Frozen reference (OWASP test suite only)
 
 Built by the [Affiliation] team:
 
-- **Paul Keastead**, Assurance Consultant
 - **Author**, Associate Assurance Consultant
 
 ---

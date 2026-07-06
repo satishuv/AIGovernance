@@ -156,7 +156,6 @@ Authors
 
 Built by the [Affiliation] team:
 
-Paul Keastead, Assurance Consultant
 Author, Associate Assurance Consultant
 
 
