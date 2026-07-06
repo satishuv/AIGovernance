@@ -214,10 +214,11 @@ This is a social engineering attack (intentional or not). The patient is providi
 
 #### Why this matters
 
-- The chatbot should ONLY return the authenticated patient's own records
-- Accepting identifiers from user input and using them to query records = unauthorized access
-- Even if the patient is a legitimate family member, the system cannot verify that from a chat message
-- HIPAA requires explicit authorization (written consent, power of attorney) for accessing another person's records
+- A chat interface CANNOT verify family relationships or legal authorization
+- HIPAA requires formal written authorization (signed consent forms, power of attorney documentation) for third-party record access, not a chat message
+- Even if this IS a legitimate family member (parent, spouse, child), the proper process is: in-person verification, signed HIPAA authorization form, identity confirmation, THEN access is granted through the proper channel
+- The AI chatbot is NOT authorized to make access decisions for third-party records regardless of claimed relationship
+- The guardrail forces patients to use the proper process rather than bypassing it through a chat interface
 
 #### The flow in our architecture
 
@@ -260,7 +261,13 @@ Click **Run**.
 
 #### What to say
 
-> "This is different from the first two scenarios. There, the danger was in the agent's RESPONSE. Here, the danger is in the user's REQUEST. The patient is providing another person's SSN. Whether they're a legitimate family member or not, the chatbot cannot accept identifiers and use them to pull records. That requires a formal authorization process. The INPUT guardrail blocks this at the door. The agent never processes the request. No records are accessed. This prevents social engineering attacks where someone provides a known SSN to extract medical records."
+> "This is different from the first two scenarios. There, the danger was in the agent's RESPONSE. Here, the danger is in the user's REQUEST.
+>
+> The patient is providing an SSN. We don't know if it's a stranger's or their own child's. That's exactly the point. The chatbot CANNOT verify that relationship. HIPAA requires formal written authorization for third-party access: signed forms, identity verification, legal documentation. A chat message is not that.
+>
+> Even if this is a loving parent trying to check their child's records, the proper process is: go to the front desk, show ID, sign the HIPAA authorization form, then access is granted through the proper system. The AI chatbot is not authorized to make that decision.
+>
+> The INPUT guardrail enforces this boundary. The agent never processes the request. No records are accessed. The patient is redirected to the proper channel."
 
 ---
 
@@ -311,25 +318,71 @@ The console test panel is a window INTO the same API call that runs automaticall
 
 ---
 
-## Automated Reasoning (Bonus if time permits)
+## Automated Reasoning (Required for your demo slot)
 
-### What it does
+### What it is
 
-Automated Reasoning validates that the AI agent's response is factually consistent with the source data it retrieved. It prevents hallucination in clinical contexts.
-
-### Example
-
-Agent retrieves: `A1C: 7.2% (elevated, above normal range of 4.0-5.6%)`
-Agent responds: "Your A1C is normal, nothing to worry about."
-Automated Reasoning: **FLAGS DISCREPANCY** (7.2% is NOT normal)
+Automated Reasoning is a Bedrock Guardrails feature that validates whether an AI agent's response is **factually consistent** with the source data it used to generate the response. It catches hallucination: when the model makes up facts or contradicts its own source material.
 
 ### Why it matters for healthcare
 
-A hallucinated "your results are normal" when they're actually elevated could delay treatment. Automated Reasoning catches this by comparing the response against the source document.
+| Without Automated Reasoning | With Automated Reasoning |
+|---------------------------|------------------------|
+| Agent says "A1C is normal" when lab shows 7.2% (elevated) | Flags: response contradicts source data |
+| Agent says "no drug interactions" when pharmacy data shows a conflict | Flags: critical safety information omitted |
+| Agent invents a medication dosage not in the source | Flags: information not grounded in source |
 
-### How to mention it
+**In healthcare, a hallucinated "everything is normal" could delay treatment and harm patients.**
 
-> "Beyond PII detection, the guardrail also validates factual accuracy. If the agent says 'your A1C is normal' but the actual lab result shows 7.2% which is elevated, Automated Reasoning flags the contradiction. In healthcare, wrong information can be as dangerous as leaked information."
+### How it works in our architecture
+
+```
+Source data (from database): "A1C: 7.2%, Reference range: 4.0-5.6%"
+     |
+     v
+[AI Agent] generates response: "Your A1C is within normal range."
+     |
+     v
+[Automated Reasoning] compares response against source data
+     |
+     v
+Result: FLAGGED - "7.2% is above the reference range 4.0-5.6%.
+        The claim 'within normal range' contradicts the source data."
+```
+
+### How to demo it
+
+**Option 1: Show the Guardrails configuration (if Contextual Grounding is enabled)**
+
+In Tab 2 (Guardrails), if you have Contextual Grounding configured:
+- Show the configuration: "Grounding threshold" and "Relevance threshold"
+- Explain that the system compares every response against the source data it was built from
+
+**Option 2: Explain conceptually (if not configured)**
+
+> "Automated Reasoning works alongside PII detection. PII detection asks: 'does this response LEAK sensitive data?' Automated Reasoning asks: 'is this response FACTUALLY CORRECT based on the source data?'
+>
+> In healthcare, both are critical. Leaking a patient's SSN is a HIPAA violation. But telling a patient their labs are normal when they're actually elevated could delay treatment and cause harm.
+>
+> Our architecture integrates both: PII detection prevents data leakage, Automated Reasoning prevents hallucination. Together, they ensure the agent's response is both SAFE and ACCURATE."
+
+### What to say during the demo
+
+> "We've shown PII detection catching leaked identifiers. But there's another danger: hallucination. What if the agent says 'your labs are normal' when they're not?
+>
+> Automated Reasoning is Bedrock's answer to that. It compares the agent's response against the actual source data. If the response contradicts the source, it's flagged. In healthcare, inaccurate information can be as dangerous as leaked information.
+>
+> Our governance framework addresses both: the OUTPUT guardrail prevents data leakage, and Automated Reasoning prevents hallucination. Two sides of the same coin: keep responses both PRIVATE and ACCURATE."
+
+---
+
+## Summary: How This Covers Your Demo Requirements
+
+| Requirement | What we demo | Where in the guide |
+|-------------|-------------|-------------------|
+| **Guardrails** | Bedrock Guardrails blocking harmful content + configuring filters | Guardrail configuration walkthrough |
+| **Automated Reasoning** | Explain how factual grounding prevents hallucination | Automated Reasoning section above |
+| **PII detection & redaction in HIPAA** | 3 live scenarios: quality analyst (anonymize), CI/CD report (anonymize), patient portal (block) | Scenarios A, B, C |
 
 ---
 
