@@ -48,3 +48,4 @@ governance-demo-bedrock/demo_report.html
 holmes_upload/
 bedrock_security_report.csv
 aiml-security-assessment.yaml
+.ash/
