@@ -96,26 +96,45 @@ Developer actually sees:
 
 **In Tab 2 (Guardrail test panel):**
 
+**First, explain the INPUT (what the developer asked):**
+> "The developer asked: 'The /api/patient-summary endpoint is returning a 500 error. Can you look at the logs and tell me what's going wrong?'
+>
+> That's a completely normal debugging question. Nothing wrong with it. No PHI. No red flags."
+
+**Then show what the agent tried to RESPOND:**
+
 Select Source: **OUTPUT**
 
-Why OUTPUT? Because we are testing what the AI agent would RESPOND. The developer's question was fine. The danger is in the agent's ANSWER which contains PHI from the logs.
+Why OUTPUT? Because the developer's question was fine. The danger is in the agent's ANSWER. The agent read logs that contained PHI and included it in its debugging explanation.
 
 Paste:
 ```
-I found the error. The failing API response payload was: MRN-4829301, John Smith, SSN 123-45-6789, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. Wilson NPI 1234567890. The null pointer occurs because the insurance_id field is empty for this patient.
+I found the error. The failing API response payload was: MRN-4829301, John Smith, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. Wilson NPI 1234567890. The null pointer occurs because the insurance_id field is empty for this patient.
 ```
 
 Click **Run**.
 
-**Expected result:** BLOCKED (SSN detected, entire response blocked)
+**Expected result:** INTERVENED (anonymized). The developer sees:
+```
+I found the error. The failing API response payload was: {Medical_Record_Number}, {NAME}, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. {NAME} {NPI_Number}. The null pointer occurs because the insurance_id field is empty for this patient.
+```
 
-**What the developer would see instead:** "Response blocked: contains protected health information (PHI)."
+**Why this is the right behavior:** The developer STILL gets the debugging answer. They can see:
+- Where the error is (null pointer)
+- What the root cause is (insurance_id field is empty)
+- The data types involved (diagnosis, medication)
 
-The agent can still help debug. It just can't show the actual patient data. The developer knows there's a null field issue without ever seeing John Smith's SSN.
+They just can't see the ACTUAL patient's name, MRN, or doctor's NPI. They don't need those to fix the bug. The guardrail keeps the debugging useful while stripping the identifiers.
+
+**Important:** If the response contains an SSN, it gets BLOCKED entirely (not anonymized). SSN is too sensitive for partial redaction. To demonstrate this difference, you can add "SSN 123-45-6789" to the text and show that the entire response gets blocked instead of anonymized.
 
 #### What to say
 
-> "The developer asked a normal debugging question. The AI agent read application logs and found the bug. But the logs contained real patient data. Without the guardrail, the developer sees a patient's SSN, name, and diagnosis on their screen. With the guardrail, the response is blocked. The developer still gets the debugging help, they just never see the PHI. The agent can describe the PROBLEM without exposing the DATA."
+> "The developer asked 'why is this endpoint failing?' Perfectly legitimate question. The AI agent read the logs, found the bug. But the logs had real patient data.
+>
+> Look at the result. The guardrail didn't block the response. It ANONYMIZED it. The developer can still see the error: null pointer, insurance_id field empty. They can fix the bug. But John Smith's name and MRN are replaced with placeholders. The developer never needed those to solve the problem.
+>
+> The debugging is preserved. The PHI is stripped. That's the minimum necessary principle in action."
 
 ---
 
