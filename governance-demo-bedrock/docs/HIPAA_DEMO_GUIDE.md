@@ -47,94 +47,83 @@ When you open the guardrail, briefly show:
 
 ## Demo Scenarios
 
-### Scenario A: AI Coding Agent Leaks PHI During Debugging
+### Scenario A: Quality Analyst Reviewing Patient Outcomes (OUTPUT)
 
 #### The situation
 
-A health-tech company builds a patient management system. A developer is debugging a failing API endpoint. They ask their AI coding agent:
+A hospital's quality improvement team uses an AI agent to analyze patient outcomes across departments. A quality analyst asks:
 
-> "The /api/patient-summary endpoint is returning a 500 error. Can you look at the logs and tell me what's going wrong?"
+> "Summarize the diabetes management outcomes for Q1 2026 across all departments."
 
-The AI agent reads the application logs to diagnose the issue. The logs contain actual API responses with real patient data (because the staging environment uses unmasked production data). The agent includes this data in its debugging explanation:
+The AI agent queries the clinical database, aggregates results, and generates a summary report. The analyst needs the CLINICAL PATTERNS (what percentage have A1C under control, which medications are most prescribed) but does NOT need to know WHICH specific patients have diabetes. The report is shared with the hospital board, posted on internal dashboards, and included in quarterly reviews.
 
-> "I found the issue. The error occurs when processing this response payload: MRN-4829301, John Smith, SSN 123-45-6789, Diagnosis: Type 2 Diabetes..."
-
-The developer never asked for patient data. They asked for debugging help. But the agent SURFACED patient data as part of its explanation because it was in the logs.
+The agent's response includes individual patient identifiers because the database query returned per-patient rows before aggregation.
 
 #### Why this matters
 
-- The developer didn't query a database directly
-- The developer asked a legitimate debugging question
-- The AI agent accessed logs that happened to contain PHI
-- Without the guardrail, the developer now has PHI on their screen, in their chat history, potentially in a screenshot they share with the team
+- The quality analyst needs clinical patterns, not individual identities
+- The summary report is shared widely (board meetings, dashboards, emails)
+- Patient identifiers in a shared report are a HIPAA violation
+- The analyst never asked for individual patient data; they asked for aggregated outcomes
 
 #### The flow in our architecture
 
 ```
-Developer: "Why is /api/patient-summary returning 500?"
+Analyst: "Summarize diabetes management outcomes for Q1 2026"
      |
      v
-[AI Coding Agent] reads application logs to diagnose
+[AI Agent] queries clinical database, gets per-patient rows
      |
      v
 Agent's response (what it WANTS to return):
-  "The error is a null pointer at line 47. The failing payload was:
-   MRN-4829301, John Smith, SSN 123-45-6789, Type 2 Diabetes, A1C 7.2%.
-   The issue is the SSN field is null for some records."
+  "Q1 Diabetes Summary: 847 patients tracked.
+   Example outcomes: MRN-4829301 A1C 7.2% (improved from 8.1%),
+   patient John Smith on Metformin 500mg,
+   referred by Dr. Wilson NPI 1234567890.
+   Overall: 72% have A1C under 7.5%..."
      |
      v
-[OUTPUT GUARDRAIL] intercepts before developer sees it
+[OUTPUT GUARDRAIL] intercepts before analyst sees it
      |
      v
-Developer actually sees:
-  "The error is a null pointer at line 47. The failing payload contained
-   patient identifiers. The issue is a field is null for some records."
-  (or BLOCKED entirely if SSN present)
+Analyst sees:
+  "Q1 Diabetes Summary: 847 patients tracked.
+   Example outcomes: {Medical_Record_Number} A1C 7.2% (improved from 8.1%),
+   patient {NAME} on Metformin 500mg,
+   referred by Dr. {NAME} {NPI_Number}.
+   Overall: 72% have A1C under 7.5%..."
 ```
 
 #### Demo action
 
 **In Tab 2 (Guardrail test panel):**
 
-**First, explain the INPUT (what the developer asked):**
-> "The developer asked: 'The /api/patient-summary endpoint is returning a 500 error. Can you look at the logs and tell me what's going wrong?'
->
-> That's a completely normal debugging question. Nothing wrong with it. No PHI. No red flags."
-
-**Then show what the agent tried to RESPOND:**
+**First, explain the context to the audience:**
+> "A quality analyst asks the AI agent to summarize diabetes outcomes for the quarter. The analyst needs the clinical trends: what percentage improved, which medications work best. They do NOT need to know which specific patients have diabetes. That report goes on a dashboard visible to the whole hospital leadership."
 
 Select Source: **OUTPUT**
 
-Why OUTPUT? Because the developer's question was fine. The danger is in the agent's ANSWER. The agent read logs that contained PHI and included it in its debugging explanation.
+Why OUTPUT? The analyst's question was fine (asking for aggregated data). The danger is in the agent's response which includes individual patient identifiers from the underlying database rows.
 
 Paste:
 ```
-I found the error. The failing API response payload was: MRN-4829301, John Smith, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. Wilson NPI 1234567890. The null pointer occurs because the insurance_id field is empty for this patient.
+Q1 2026 Diabetes Management Summary: 847 patients tracked. Example outcomes: MRN-4829301 A1C 7.2% improved from 8.1%, patient John Smith on Metformin 500mg, referred by Dr. Wilson NPI 1234567890. Overall: 72% achieved A1C below 7.5%.
 ```
 
 Click **Run**.
 
-**Expected result:** INTERVENED (anonymized). The developer sees:
+**Expected result:** INTERVENED (anonymized):
 ```
-I found the error. The failing API response payload was: {Medical_Record_Number}, {NAME}, Diagnosis: Type 2 Diabetes, A1C 7.2%. Prescribed Metformin 500mg by Dr. {NAME} {NPI_Number}. The null pointer occurs because the insurance_id field is empty for this patient.
+Q1 2026 Diabetes Management Summary: 847 patients tracked. Example outcomes: {Medical_Record_Number} A1C 7.2% improved from 8.1%, patient {NAME} on Metformin 500mg, referred by Dr. {NAME} {NPI_Number}. Overall: 72% achieved A1C below 7.5%.
 ```
-
-**Why this is the right behavior:** The developer STILL gets the debugging answer. They can see:
-- Where the error is (null pointer)
-- What the root cause is (insurance_id field is empty)
-- The data types involved (diagnosis, medication)
-
-They just can't see the ACTUAL patient's name, MRN, or doctor's NPI. They don't need those to fix the bug. The guardrail keeps the debugging useful while stripping the identifiers.
-
-**Important:** If the response contains an SSN, it gets BLOCKED entirely (not anonymized). SSN is too sensitive for partial redaction. To demonstrate this difference, you can add "SSN 123-45-6789" to the text and show that the entire response gets blocked instead of anonymized.
 
 #### What to say
 
-> "The developer asked 'why is this endpoint failing?' Perfectly legitimate question. The AI agent read the logs, found the bug. But the logs had real patient data.
+> "The analyst asked for a quarterly summary. The AI agent pulled data from the clinical database. But its response included individual patient names and MRN numbers from the underlying rows.
 >
-> Look at the result. The guardrail didn't block the response. It ANONYMIZED it. The developer can still see the error: null pointer, insurance_id field empty. They can fix the bug. But John Smith's name and MRN are replaced with placeholders. The developer never needed those to solve the problem.
+> The guardrail anonymized the identifiers. The analyst still sees everything they need: 847 patients, A1C trending down, 72% under control, Metformin most common. They can make quality improvement decisions without ever knowing which specific patient is which.
 >
-> The debugging is preserved. The PHI is stripped. That's the minimum necessary principle in action."
+> That report goes on a dashboard. Gets emailed to the board. Gets discussed in meetings. None of those people need John Smith's MRN. The guardrail enforces minimum necessary automatically."
 
 ---
 
