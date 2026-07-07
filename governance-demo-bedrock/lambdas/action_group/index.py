@@ -21,12 +21,16 @@ from datetime import datetime, timezone
 
 import boto3
 
+from tool_response_validator import ToolResponseValidator
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 DATA_BUCKET_NAME = os.environ.get("DATA_BUCKET_NAME", "")
 PENDING_TABLE_NAME = os.environ.get("PENDING_TABLE_NAME", "")
 LOG_GROUP_NAME = os.environ.get("LOG_GROUP_NAME", "")
+
+_response_validator = ToolResponseValidator()
 
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
@@ -98,7 +102,32 @@ def _params_to_dict(parameters):
 # Response builders (Task 5.1 -- Requirement 7.7, 7.8)
 # ---------------------------------------------------------------------------
 def _build_response(action_group, api_path, http_method, status_code, body):
-    """Build the standard Bedrock Agent action group response."""
+    """Build the standard Bedrock Agent action group response.
+
+    Runs tool response validation on all successful responses to detect
+    indirect prompt injection in data returned from S3/DynamoDB/APIs.
+    """
+    body_str = json.dumps(body) if not isinstance(body, str) else body
+
+    if status_code == 200:
+        validation = _response_validator.validate(action_group, body_str)
+        if validation.blocked:
+            logger.warning(json.dumps({
+                "audit_event": "tool_response_blocked",
+                "action_group": action_group,
+                "api_path": api_path,
+                "reason": validation.block_reason,
+                "injections": validation.injections_found,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            body_str = json.dumps({
+                "error": "Response blocked by security validation",
+                "reason": "Data integrity check failed",
+            })
+            status_code = 403
+        elif validation.injection_detected:
+            body_str = validation.sanitized_response
+
     return {
         "messageVersion": "1.0",
         "response": {
@@ -108,7 +137,7 @@ def _build_response(action_group, api_path, http_method, status_code, body):
             "httpStatusCode": status_code,
             "responseBody": {
                 "application/json": {
-                    "body": json.dumps(body) if not isinstance(body, str) else body,
+                    "body": body_str,
                 }
             },
         },
