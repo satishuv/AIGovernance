@@ -9,7 +9,6 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any, Dict
 
 import boto3
@@ -18,7 +17,6 @@ from agent_identity import AgentIdentityManager
 from agent_registry import AgentRegistry
 from approval_workflow import ApprovalWorkflow
 from behavioral_invariants import BehavioralInvariantsEnforcer
-from change_logger import ChangeLogger
 from cloudwatch_metrics import CloudWatchMetricsPublisher
 from continuous_monitoring import ContinuousMonitoringManager
 from control_trace import ControlTraceManager
@@ -32,7 +30,7 @@ from graduated_scope_reduction import GraduatedScopeReduction
 from input_sanitizer import InputSanitizer
 from kill_switch import KillSwitchManager
 from latency import LatencyTracker
-from models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
+from models import GovernanceDecision, PolicyEvaluationResult
 from multi_agent import MultiAgentManager
 from opa_engine import OPAEngine
 from policy_engine import PolicyEngine
@@ -172,7 +170,6 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             control_trace_table = dynamodb.Table(CONTROL_TRACE_TABLE_NAME) if CONTROL_TRACE_TABLE_NAME else None
 
             approval_workflow = ApprovalWorkflow(dynamodb.Table(PENDING_APPROVAL_TABLE_NAME)) if PENDING_APPROVAL_TABLE_NAME else None
-            change_logger = ChangeLogger(dynamodb.Table(CHANGE_LOG_TABLE_NAME)) if CHANGE_LOG_TABLE_NAME else None
             decision_history = DecisionHistory(dynamodb.Table(DECISION_HISTORY_TABLE_NAME)) if DECISION_HISTORY_TABLE_NAME else None
 
             privilege_escalation_detector = PrivilegeEscalationDetector()

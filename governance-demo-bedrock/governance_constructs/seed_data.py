@@ -5,7 +5,6 @@ from aws_cdk import (
     Duration,
     aws_iam as iam,
     aws_lambda as _lambda,
-    aws_dynamodb as dynamodb,
     custom_resources as cr,
 )
 from constructs import Construct
