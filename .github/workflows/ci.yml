@@ -24,6 +24,17 @@ jobs:
       - name: Lint core modules
         run: ruff check governance_constructs/ governance_bedrock_stack.py lambdas/governance_engine/index.py lambdas/governance_engine/api_router.py lambdas/governance_engine/pipeline_orchestrator.py
 
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Type check core modules
+        run: mypy governance_constructs/ governance_bedrock_stack.py --ignore-missing-imports --no-strict-optional
+
   test:
     runs-on: ubuntu-latest
     steps:
