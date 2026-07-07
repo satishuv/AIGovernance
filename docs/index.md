@@ -150,12 +150,17 @@ The governance architecture draws from established AI safety frameworks and indu
 
 | Source | Contribution |
 |--------|-------------|
+| **AWS Bedrock Guardrails** | Content filtering, denied topics, PII detection, contextual grounding |
+| **AWS AI Service Cards** | Responsible AI transparency documentation and intended use boundaries |
+| **AWS Responsible AI Policy** | Fairness, explainability, privacy, robustness, governance principles |
 | **NVIDIA NeMo Guardrails** | Programmable rails pattern: input/output/dialog rails with configurable actions |
-| **AWS Bedrock Guardrails** | Content filtering layers, denied topics, word filters as pre/post processing |
 | **Microsoft Azure AI Content Safety** | Multi-category threat scoring, severity-based routing |
 | **OWASP LLM Top 10 (2025)** | Attack taxonomy: prompt injection, insecure output handling, supply chain risks |
+| **OWASP Top 10 for Agentic Applications (2025)** | Agent-specific risks: excessive agency, tool poisoning, memory attacks |
 | **NIST AI RMF (AI 100-1)** | Risk management lifecycle: GOVERN, MAP, MEASURE, MANAGE functions |
 | **ISO/IEC 42001** | AI management system controls (Annex A.2 through A.10) |
+| **MITRE ATLAS** | Adversarial threat landscape: technique IDs for ML/AI-specific attacks |
+| **CrowdStrike 2026 Global Threat Report** | Real-world AI threat intel: 89% increase in AI-enabled attacks |
 
 ---
 
