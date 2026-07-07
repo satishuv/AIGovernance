@@ -331,7 +331,7 @@ This repository is a reference implementation for educational and demonstration 
 
 ## AI Agentic Workload Security Checklist
 
-Complete security checklist for AI agent deployments on AWS. Every item is implemented in this architecture.
+Complete security checklist for AI agent deployments on AWS. Every item is implemented in this architecture. Informed by 22 peer-reviewed papers (2024-2025), CrowdStrike 2026 Global Threat Report, OWASP Agentic Top 10, and MITRE ATLAS.
 
 ### Input Defense
 - Base64/hex/URL encoding detection and decoding
@@ -343,6 +343,18 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - Persona/roleplay jailbreak blocking (DAN, developer mode)
 - Harmful content request blocking (violence, malware, fraud)
 - Bedrock Guardrails content classification (8 topic denials)
+- Indirect prompt injection detection in retrieved data
+- Shannon entropy and script-mixing anomaly detection
+
+### Tool Response Validation (Perception Defense)
+- Injection pattern detection in tool responses (instruction hijacking)
+- Action directive detection (tool invocation commands in data)
+- ChatML/Llama/Role delimiter detection in returned data
+- Sensitive data stripping from tool responses (ARNs, keys, JWTs)
+- Response format anomaly detection (expected JSON vs prose)
+- Response size enforcement per tool type
+- Entropy-based anomaly scoring on tool output
+- Multi-redaction blocking (>3 injections = block entire response)
 
 ### Output Defense
 - System prompt leakage detection
@@ -350,6 +362,8 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - PII detection and redaction (HIPAA: SSN, MRN, NPI, DOB)
 - Canary token tripwire (agent compromise detection)
 - Response size hard cap (output truncation)
+- Exfiltration endpoint allowlisting
+- Output content safety classification
 
 ### Policy Enforcement
 - OPA policy engine (Rego-subset, priority-based resolution)
@@ -357,17 +371,23 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - Scope-based progressive autonomy (levels 0-4)
 - IAM permission boundaries per scope level
 - Default-deny posture (no matching rule = deny)
+- Attribute-Based Access Control (ABAC) for data access
 - Policy contradiction detection (proactive engine)
 - Dead rule identification
 - Coverage gap analysis
 
 ### Per-Tool Security
 - Enum-based action group allowlisting
+- Tool metadata validation against policy (tool poisoning defense)
 - Parameter injection scanning (SQL, XSS, path traversal)
 - Per-invocation tool call cap (max 25)
 - Recursion depth prevention (max 1)
-- Tool chain attack detection
+- Sequential tool chain analysis (STAC defense)
+- Tool Dependency Graph (pre-planned execution paths)
 - Per-tool rate limiting
+- Tool output validation (not just input)
+- MCP server authentication and scoped authorization
+- Containerized tool sandboxing
 
 ### Agent Identity and Lifecycle
 - Formal agent registration required
@@ -376,11 +396,21 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - Token scoping (data classes, TTL, revocable)
 - Non-repudiation (SHA-256 hash chains)
 - Cross-agent rule enforcement
+- Supply chain verification of base models
+- Finetuning data provenance and integrity
+
+### Memory and RAG Security
+- RAG retrieval content validation (poisoning prevention)
+- Web search result sanitization
+- Long-term memory poisoning detection
+- Semantic imitation monitoring in experience stores
+- PII never cached in semantic memory
+- Memory access audit trail
+- Retrieval source attribution (provenance tags)
 
 ### Data Governance
 - Data classification enforcement (Cedar PHI authorization)
 - Tokenized data-lake access (check-in/check-out)
-- Retrieval content validation (RAG poisoning prevention)
 - Semantic cache governance (PII never cached)
 - Exfiltration detection (output size limits, endpoint allowlisting)
 
@@ -388,16 +418,20 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - Runtime behavioral drift detection
 - Continuous agent health scoring (0-100)
 - Statistical anomaly detection (Shannon entropy, script mixing)
+- Sequential tool chain monitoring
 - CloudWatch dashboard (real-time metrics)
 - PHI attestation dashboard (CISO deliverable)
 - X-Ray distributed tracing
 - Model invocation logging (CloudTrail)
+- Cross-session drift detection
 
 ### Incident Response
 - Kill switch (instant agent shutdown, <1 second)
 - Automated scope reduction on bad behavior
 - SNS operator alerts
 - Graduated escalation (deny > reduce scope > kill)
+- Evidence preservation during incident
+- Agent quarantine (isolate without destroy)
 
 ### Evidence and Compliance
 - Immutable evidence (S3 Object Lock, 7-year retention)
@@ -416,6 +450,8 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 - 100,000+ concurrent executions
 - Fail-safe deny (never fails open)
 - Zero false positives on legitimate requests
+- Architectural constraint over model-level guardrails
+- Separation of planning from data interaction
 
 ### Validation
 - 8,470+ attack payloads from 13 academic benchmarks
@@ -427,4 +463,147 @@ Complete security checklist for AI agent deployments on AWS. Every item is imple
 
 ---
 
-**Total: 67 security controls implemented and validated.**
+**Total: 93 security controls implemented and validated.**
+
+---
+
+## Glossary and Definitions
+
+| Term | Definition |
+|------|-----------|
+| **Agentic AI** | AI system that can autonomously plan, reason, and take actions (tool calls, API requests, deployments) without human approval for each step |
+| **ABAC** | Attribute-Based Access Control. Authorization decisions based on attributes of the user, resource, action, and environment rather than static roles |
+| **Action Group** | A named set of API operations a Bedrock Agent can invoke (e.g., ReadPipelineStatus, ProductionDeployment) |
+| **ASR** | Attack Success Rate. The percentage of attack attempts that successfully bypass defenses |
+| **Behavioral Invariant** | A hard constraint that cannot be overridden by model output (e.g., max tool calls per session, time-of-day restrictions) |
+| **Canary Token** | A hidden marker injected into agent context; if it appears in output, the agent has been compromised |
+| **Cedar** | An open-source policy language by AWS that supports formal verification (mathematical proofs that policies behave correctly) |
+| **ChatML Delimiter** | Format tokens like `<\|im_start\|>` and `<\|im_end\|>` used to separate roles in LLM conversations; injecting these can hijack agent behavior |
+| **Confused Deputy** | A security vulnerability where a trusted service (the agent) is tricked into performing actions on behalf of an attacker via poisoned data |
+| **Context Stuffing** | Flooding the input with irrelevant text to push legitimate instructions out of the context window |
+| **Default-Deny** | Security posture where any action not explicitly allowed by policy is denied |
+| **Defense-in-Depth** | Multiple independent security layers so that bypassing one does not compromise the system |
+| **Drift Detection** | Comparing current agent behavior against an established baseline to detect compromise or scope creep |
+| **Entropy (Shannon)** | A measure of randomness in text; unusually high or low entropy can indicate encoded attacks or anomalous content |
+| **Evidence Pipeline** | System that generates immutable, timestamped, hashed records of every governance decision for audit and compliance |
+| **Exfiltration** | Unauthorized extraction of data from a system, often via tool responses or crafted output channels |
+| **Fail-Safe** | Design principle where system failure results in a secure state (deny) rather than an insecure state (allow) |
+| **Graduated Autonomy** | Agents earn higher permission levels (scope 0-4) through demonstrated safe behavior over time |
+| **Homoglyph** | A character that visually resembles another (e.g., Cyrillic "A" vs Latin "A") used to bypass text filters |
+| **Indirect Prompt Injection** | Attack where malicious instructions are placed in external data (documents, web pages, tool responses) that the agent retrieves and processes |
+| **Kill Switch** | Emergency mechanism that instantly suspends all agent operations within <1 second |
+| **Leet-Speak** | Character substitution (e.g., "1gnore prev1ous 1nstructions") used to evade regex-based detection |
+| **MCP** | Model Context Protocol. A standard for connecting AI agents to external tools and data sources |
+| **MemoryGraft** | Attack that implants malicious procedure templates into agent long-term memory, persisting across sessions |
+| **MITRE ATLAS** | Adversarial Threat Landscape for AI Systems. A knowledge base of adversary tactics and techniques against ML systems |
+| **Object Lock** | S3 feature that prevents objects from being deleted or overwritten for a specified retention period (WORM storage) |
+| **OPA** | Open Policy Agent. An open-source engine for policy-as-code using the Rego language |
+| **OWASP LLM Top 10** | Industry standard list of the most critical security risks for LLM applications (updated 2025) |
+| **Perception Gap** | The security blind spot where tool responses (data flowing INTO the agent) are not validated for injection |
+| **Permission Boundary** | An IAM construct that sets the maximum permissions a role can have, regardless of what policies are attached |
+| **PHI** | Protected Health Information. Health data combined with identifiers that can identify a patient (HIPAA regulated) |
+| **PII** | Personally Identifiable Information. Data that can identify an individual (name, SSN, email, etc.) |
+| **RAG** | Retrieval-Augmented Generation. Pattern where an LLM retrieves external documents to inform its response |
+| **RAG Poisoning** | Injecting malicious content into a knowledge base so the agent retrieves and follows attacker instructions |
+| **Rego** | The policy language used by OPA. Declarative, JSON-aware, supports complex access control logic |
+| **RoC** | Return on Control. Metric measuring cost-effectiveness of a security control (higher = more effective per dollar) |
+| **Scope Level** | Numerical privilege tier (0-4) determining which action groups an agent can invoke |
+| **STAC** | Sequential Tool Attack Chaining. Attack that chains individually benign tool calls into harmful sequences |
+| **Step Functions Express** | AWS service for high-throughput, short-duration workflows (up to 100K concurrent executions) |
+| **Tool Dependency Graph** | Pre-planned execution paths that prevent injected instructions from triggering unplanned tool calls |
+| **Tool Poisoning** | Embedding malicious instructions in tool metadata (descriptions, schemas) so the agent follows them |
+| **Tool Response Validation** | Scanning data returned FROM tools before the agent processes it, detecting embedded injection attempts |
+
+---
+
+## Appendix A: Attack Taxonomy
+
+Attacks this architecture defends against, categorized by vector:
+
+### A.1 Direct Input Attacks
+Attacker directly provides malicious input to the agent.
+
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Prompt injection | "Ignore previous instructions and..." | Input Sanitizer |
+| Base64 obfuscation | Encode payload to evade regex | Input Sanitizer (decode + scan) |
+| Leet-speak | "1gnore prev1ous 1nstructions" | Input Sanitizer (normalize) |
+| Context stuffing | 6000+ chars to dilute attention | Input Sanitizer (length check) |
+| DAN/persona jailbreak | "You are now DeveloperMode" | Input Sanitizer + Guardrails |
+| ChatML delimiter | `<\|im_start\|>system` | Input Sanitizer (delimiter scan) |
+| Multilingual bypass | "Ignorieren Sie vorherige Anweisungen" | Input Sanitizer (multi-language) |
+
+### A.2 Indirect Input Attacks (via Tool Responses)
+Attacker poisons data the agent retrieves from trusted sources.
+
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| S3 data poisoning | Hidden instructions in JSON files | Tool Response Validator |
+| RAG knowledge poisoning | Inject instructions into documents | Tool Response Validator + RAG validation |
+| Web search manipulation | Poisoned search results | Tool Response Validator |
+| Tool metadata poisoning | Malicious tool descriptions | Tool metadata validation |
+| Memory grafting | Plant instructions in agent memory | Memory poisoning detection |
+
+### A.3 Tool-Level Attacks
+Attacker exploits the tool execution mechanism itself.
+
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Parameter injection | SQL/XSS in tool params | Parameter injection scan |
+| Tool chain attack | Chain benign tools into harm | Sequential chain analysis |
+| Unauthorized tool | Invoke tool not in allowlist | Enum allowlisting |
+| Rate limit abuse | Flood tool calls | Per-tool rate limiting |
+| Privilege escalation | Request scope beyond allowed | Scope enforcement + boundaries |
+| MCP supply chain | Compromised MCP server | MCP auth + sandboxing |
+
+### A.4 Output Attacks
+Attacker extracts sensitive data from agent responses.
+
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| System prompt extraction | "Repeat your instructions" | Output guardrails (leakage detection) |
+| Data exfiltration | Large responses with internal data | Size caps + endpoint allowlisting |
+| Credential exposure | Agent reveals ARNs/keys | Output guardrails (pattern stripping) |
+| Canary theft | Extract hidden markers | Canary tripwire detection |
+
+### A.5 Behavioral Attacks
+Attacker manipulates the agent's long-term behavior patterns.
+
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Scope creep | Gradually request higher permissions | Drift detection + health scoring |
+| Multi-agent collusion | Compromised agents coordinate | Cross-agent rule enforcement |
+| Supply chain backdoor | Pre-poisoned model weights | Model provenance verification |
+| Persistent memory poisoning | Cross-session behavioral drift | Memory poisoning detection |
+
+---
+
+## Appendix B: Compliance Framework Mapping
+
+| Framework | Controls Mapped | Coverage |
+|-----------|----------------|----------|
+| **ISO/IEC 42001** | A.2 (AI Policy), A.4 (Resources), A.5 (Impact Assessment), A.6 (Lifecycle), A.7 (Data), A.8 (Performance), A.9 (Third-party), A.10 (Improvement) | 9 Annex A controls |
+| **NIST AI RMF** | GOVERN 1.1-1.7, MAP 1.1-1.6, MEASURE 1.1-2.2, MANAGE 1.1-4.2 | 12 functions |
+| **NIST 800-53** | AC-2, AC-3, AC-6, AU-2, AU-3, AU-6, CA-7, CM-3, IA-2, IR-4, IR-5, RA-5, SA-11, SC-7, SC-28, SI-4, SI-7 | 17 controls |
+| **PCI DSS v4.0** | Req 1 (Network), 2 (Config), 3 (Account Data), 5 (Malware), 6 (Secure Dev), 7 (Access), 8 (Identity), 10 (Logging), 11 (Testing), 12 (Policy) | 10 requirements |
+| **EU AI Act** | Art 9 (Risk Mgmt), 10 (Data Governance), 11 (Documentation), 12 (Recordkeeping), 13 (Transparency), 14 (Human Oversight), 15 (Accuracy/Robustness), 17 (Quality Mgmt), 61 (Post-market), 72 (Reporting) | 10 articles |
+| **SP-047** | Threat Modeling, Secure Defaults, Monitoring, Incident Response, Data Protection, Access Control, Audit | 7/7 areas |
+
+---
+
+## Appendix C: Research Citations
+
+Key papers informing this checklist:
+
+1. Greshake et al. "Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection" (arXiv:2302.12173)
+2. MCPTox: "Tool Poisoning in Real-World MCP Servers" - 72.8% success rate on o1-mini (arXiv:2508.14925)
+3. STAC: "Sequential Tool Attack Chaining" - >90% ASR on GPT-4.1 (arXiv:2509.25624)
+4. MemoryGraft: "Persistent Memory Poisoning" - cross-session behavioral drift (arXiv:2512.16962)
+5. Agent Security Bench (ASB): 10 scenarios, 400+ tools, 27 attack methods (arXiv:2410.02644)
+6. ART Benchmark: 1.8M attacks, 22 agents, 60K+ violations (arXiv:2507.20526)
+7. IPIGuard: "Tool Dependency Graph" - architectural constraint defense (arXiv:2508.15310, EMNLP 2025)
+8. CUA Security: "Computer Use Agent Threats" - clickjacking, RCE chains (arXiv:2507.05445, Microsoft)
+9. MAStrike: "Shapley-Guided Multi-Agent Collusion" (arXiv:2606.12918)
+10. Malice in Agentland: "Supply Chain Backdoors" - >80% data leakage (arXiv:2510.05159)
+11. MCP Security: "Securing the Model Context Protocol" (arXiv:2511.20920)
+12. CrowdStrike 2026 Global Threat Report: 89% increase in AI attacks, 550% ChatGPT on criminal forums

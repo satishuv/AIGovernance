@@ -249,3 +249,92 @@ While MITRE ATLAS (Adversarial Threat Landscape for AI Systems) covers ML-specif
 ---
 
 **Total: 93 security controls across 12 domains, informed by 22 peer-reviewed papers and industry threat intelligence.**
+
+---
+
+## Glossary and Definitions
+
+| Term | Definition |
+|------|-----------|
+| **Agentic AI** | AI system that can autonomously plan, reason, and take actions (tool calls, API requests, deployments) without human approval for each step |
+| **ABAC** | Attribute-Based Access Control. Authorization decisions based on attributes of the user, resource, action, and environment rather than static roles |
+| **Action Group** | A named set of API operations a Bedrock Agent can invoke (e.g., ReadPipelineStatus, ProductionDeployment) |
+| **ASR** | Attack Success Rate. The percentage of attack attempts that successfully bypass defenses |
+| **Behavioral Invariant** | A hard constraint that cannot be overridden by model output (e.g., max tool calls per session, time-of-day restrictions) |
+| **Canary Token** | A hidden marker injected into agent context; if it appears in output, the agent has been compromised |
+| **Cedar** | An open-source policy language by AWS that supports formal verification (mathematical proofs that policies behave correctly) |
+| **ChatML Delimiter** | Format tokens like `<\|im_start\|>` and `<\|im_end\|>` used to separate roles in LLM conversations; injecting these can hijack agent behavior |
+| **Confused Deputy** | A security vulnerability where a trusted service (the agent) is tricked into performing actions on behalf of an attacker via poisoned data |
+| **Context Stuffing** | Flooding the input with irrelevant text to push legitimate instructions out of the context window |
+| **CUA** | Computer Use Agent. An AI agent that interacts with applications via screen/keyboard/mouse rather than APIs |
+| **Default-Deny** | Security posture where any action not explicitly allowed by policy is denied |
+| **Defense-in-Depth** | Multiple independent security layers so that bypassing one does not compromise the system |
+| **Drift Detection** | Comparing current agent behavior against an established baseline to detect compromise or scope creep |
+| **Entropy (Shannon)** | A measure of randomness in text; unusually high or low entropy can indicate encoded attacks or anomalous content |
+| **Evidence Pipeline** | System that generates immutable, timestamped, hashed records of every governance decision for audit and compliance |
+| **Exfiltration** | Unauthorized extraction of data from a system, often via tool responses or crafted output channels |
+| **Fail-Safe** | Design principle where system failure results in a secure state (deny) rather than an insecure state (allow) |
+| **Graduated Autonomy** | Agents earn higher permission levels (scope 0-4) through demonstrated safe behavior over time |
+| **Homoglyph** | A character that visually resembles another (e.g., Cyrillic "A" vs Latin "A") used to bypass text filters |
+| **Indirect Prompt Injection** | Attack where malicious instructions are placed in external data (documents, web pages, tool responses) that the agent retrieves and processes |
+| **Kill Switch** | Emergency mechanism that instantly suspends all agent operations within <1 second |
+| **Leet-Speak** | Character substitution (e.g., "1gnore prev1ous 1nstructions") used to evade regex-based detection |
+| **MCP** | Model Context Protocol. A standard for connecting AI agents to external tools and data sources |
+| **MemoryGraft** | Attack that implants malicious procedure templates into agent long-term memory, persisting across sessions |
+| **MITRE ATLAS** | Adversarial Threat Landscape for AI Systems. A knowledge base of adversary tactics and techniques against ML systems |
+| **Object Lock** | S3 feature that prevents objects from being deleted or overwritten for a specified retention period (WORM storage) |
+| **OPA** | Open Policy Agent. An open-source engine for policy-as-code using the Rego language |
+| **OWASP LLM Top 10** | Industry standard list of the most critical security risks for LLM applications (updated 2025) |
+| **Perception Gap** | The security blind spot where tool responses (data flowing INTO the agent) are not validated for injection |
+| **Permission Boundary** | An IAM construct that sets the maximum permissions a role can have, regardless of what policies are attached |
+| **PHI** | Protected Health Information. Health data combined with identifiers that can identify a patient (HIPAA regulated) |
+| **PII** | Personally Identifiable Information. Data that can identify an individual (name, SSN, email, etc.) |
+| **RAG** | Retrieval-Augmented Generation. Pattern where an LLM retrieves external documents to inform its response |
+| **RAG Poisoning** | Injecting malicious content into a knowledge base so the agent retrieves and follows attacker instructions |
+| **Rego** | The policy language used by OPA. Declarative, JSON-aware, supports complex access control logic |
+| **RoC** | Return on Control. Metric measuring cost-effectiveness of a security control (higher = more effective per dollar) |
+| **Scope Level** | Numerical privilege tier (0-4) determining which action groups an agent can invoke |
+| **STAC** | Sequential Tool Attack Chaining. Attack that chains individually benign tool calls into harmful sequences |
+| **Step Functions Express** | AWS service for high-throughput, short-duration workflows (up to 100K concurrent executions) |
+| **Tool Dependency Graph** | Pre-planned execution paths that prevent injected instructions from triggering unplanned tool calls |
+| **Tool Poisoning** | Embedding malicious instructions in tool metadata (descriptions, schemas) so the agent follows them |
+| **Tool Response Validation** | Scanning data returned FROM tools before the agent processes it, detecting embedded injection attempts |
+
+---
+
+## Appendix: Attack Taxonomy
+
+### Direct Input Attacks
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Prompt injection | "Ignore previous instructions and..." | Input Sanitizer |
+| Base64 obfuscation | Encode payload to evade regex | Input Sanitizer (decode + scan) |
+| Leet-speak | "1gnore prev1ous 1nstructions" | Input Sanitizer (normalize) |
+| Context stuffing | 6000+ chars to dilute attention | Input Sanitizer (length check) |
+| DAN/persona jailbreak | "You are now DeveloperMode" | Input Sanitizer + Guardrails |
+| ChatML delimiter | `<\|im_start\|>system` | Input Sanitizer (delimiter scan) |
+
+### Indirect Input Attacks (Tool Response Poisoning)
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| S3 data poisoning | Hidden instructions in JSON files | Tool Response Validator |
+| RAG knowledge poisoning | Inject instructions into documents | Tool Response Validator + RAG validation |
+| Web search manipulation | Poisoned search results | Tool Response Validator |
+| Tool metadata poisoning | Malicious tool descriptions | Tool metadata validation |
+| Memory grafting | Plant instructions in agent memory | Memory poisoning detection |
+
+### Tool-Level Attacks
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Parameter injection | SQL/XSS in tool params | Parameter injection scan |
+| Sequential tool chaining | Chain benign tools into harm | Sequential chain analysis |
+| Unauthorized tool use | Invoke tool not in allowlist | Enum allowlisting |
+| MCP supply chain | Compromised MCP server | MCP auth + sandboxing |
+
+### Behavioral Attacks
+| Attack | Technique | Detection Layer |
+|--------|-----------|----------------|
+| Scope creep | Gradually request higher permissions | Drift detection + health scoring |
+| Multi-agent collusion | Compromised agents coordinate | Cross-agent rule enforcement |
+| Supply chain backdoor | Pre-poisoned model weights | Model provenance verification |
+| Persistent memory poisoning | Cross-session behavioral drift | Memory poisoning detection |
