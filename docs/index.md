@@ -312,12 +312,18 @@ Deployments are mathematically impossible to auto-approve without explicit polic
 
 ## Compliance Coverage
 
-Every governance decision generates evidence records mapped to:
+Every governance decision generates evidence records mapped to 6 regulatory frameworks:
 
-- **ISO/IEC 42001** Annex A controls (A.2 through A.10)
-- **NIST AI RMF** functions (GOVERN, MAP, MEASURE, MANAGE)
+| Framework | Coverage | Controls Mapped |
+|-----------|----------|----------------|
+| **ISO/IEC 42001** | AI management system | 9 Annex A controls (A.2 through A.10) |
+| **NIST AI RMF** | Risk management lifecycle | 12 functions (GOVERN, MAP, MEASURE, MANAGE) |
+| **NIST 800-53** | Federal security controls | 17 control families (AC, AU, CA, CM, IA, IR, RA, SA, SC, SI) |
+| **PCI DSS v4.0** | Payment card security | 10 requirements |
+| **EU AI Act** | European AI regulation | 10 articles (high-risk classification) |
+| **SP-047** | Open Security Architecture | 7/7 control areas |
 
-Evidence is stored in S3 with Object Lock (7-year retention) and SHA-256 hash chains for integrity verification.
+Evidence is stored in S3 with Object Lock (7-year COMPLIANCE mode retention) and SHA-256 hash chains for integrity verification. Every decision is immutable, timestamped, and traceable to specific compliance controls.
 
 ---
 
