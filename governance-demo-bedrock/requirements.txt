@@ -5,3 +5,13 @@ boto3>=1.28.0
 
 # Testing
 pytest>=7.0.0
+pytest-cov>=4.0.0
+moto[dynamodb,s3,sns,cloudwatch,lambda,stepfunctions]>=5.0.0
+
+# Linting and Type Checking
+ruff>=0.4.0
+mypy>=1.10.0
+boto3-stubs[dynamodb,s3,sns,cloudwatch,lambda,stepfunctions]>=1.28.0
+
+# Security
+bandit>=1.7.0

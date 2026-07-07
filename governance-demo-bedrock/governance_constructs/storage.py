@@ -14,7 +14,7 @@ from constructs import Construct
 class StorageConstruct(Construct):
     """S3 buckets, DynamoDB tables, permission boundaries, and SNS topics."""
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, *, retention_days: int = 365, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # --- S3 Buckets ---
@@ -68,7 +68,7 @@ class StorageConstruct(Construct):
                 "Rule": {
                     "DefaultRetention": {
                         "Mode": "COMPLIANCE",
-                        "Days": 365,
+                        "Days": retention_days,
                     }
                 },
             },

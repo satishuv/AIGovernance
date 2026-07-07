@@ -16,8 +16,12 @@ class GovernanceBedrockStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         skip_cloudtrail = self.node.try_get_context("skip_cloudtrail")
+        environment = self.node.try_get_context("environment") or "demo"
+        retention_days = 2555 if environment == "production" else 365
 
-        self.storage = StorageConstruct(self, "Storage")
+        self.storage = StorageConstruct(
+            self, "Storage", retention_days=retention_days
+        )
 
         self.bedrock_agent = BedrockAgentConstruct(
             self, "BedrockAgent", storage=self.storage

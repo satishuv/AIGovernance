@@ -104,10 +104,14 @@ class GovernanceEngineConstruct(Construct):
                 resources=[f"arn:aws:bedrock:{stack.region}:{stack.account}:guardrail/*"],
             )
         )
+        # cloudwatch:PutMetricData requires Resource: "*" per AWS IAM documentation.
+        # This action does not support resource-level permissions. See:
+        # https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatch.html
         self.governance_engine_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["cloudwatch:PutMetricData"],
                 resources=["*"],
+                conditions={"StringEquals": {"cloudwatch:namespace": "AGCP/Governance"}},
             )
         )
 
