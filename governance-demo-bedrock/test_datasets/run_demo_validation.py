@@ -9,7 +9,7 @@ lambda_client = boto3.client("lambda", region_name="us-east-1")
 sfn_client = boto3.client("stepfunctions", region_name="us-east-1")
 
 AGENT_ID = "0YHRUKKENP"
-ALIAS_ID = "TSTALIASID"
+ALIAS_ID = "MK9HF5CSAK"
 GOV_ENGINE = "GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y"
 
 results = []
