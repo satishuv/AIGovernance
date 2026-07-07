@@ -186,15 +186,15 @@ class TestPermissionBoundaries:
             "PolicyDocument": {
                 "Statement": Match.array_with([
                     Match.object_like({
-                        "Action": "s3:*",
+                        "Action": Match.array_with(["s3:GetObject", "s3:PutObject"]),
                         "Effect": "Allow",
                     }),
                     Match.object_like({
-                        "Action": "dynamodb:*",
+                        "Action": Match.array_with(["dynamodb:GetItem", "dynamodb:PutItem"]),
                         "Effect": "Allow",
                     }),
                     Match.object_like({
-                        "Action": "logs:*",
+                        "Action": Match.array_with(["logs:CreateLogGroup"]),
                         "Effect": "Allow",
                     }),
                 ]),
@@ -203,7 +203,7 @@ class TestPermissionBoundaries:
 
     def test_scope_boundary_managed_policies_exist(self, template):
         """Verify at least 4 managed policies exist (the 4 scope boundaries + service role policies)."""
-        template.resource_count_is("AWS::IAM::ManagedPolicy", 6)
+        template.resource_count_is("AWS::IAM::ManagedPolicy", 7)
 
 
 # --- Requirement 16.5: Kill Switch Lambda exists ---
@@ -214,7 +214,7 @@ class TestKillSwitchLambda:
     def test_kill_switch_lambda_exists(self, template):
         template.has_resource_properties("AWS::Lambda::Function", {
             "Runtime": "python3.12",
-            "Timeout": 10,
+            "Timeout": 30,
             "MemorySize": 128,
         })
 

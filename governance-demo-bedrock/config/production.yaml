@@ -1,0 +1,28 @@
+environment: production
+account_id: ""
+region: us-east-1
+
+retention:
+  object_lock_days: 2555
+  log_retention_days: 365
+  evidence_retention_days: 2555
+
+governance:
+  mode: step_functions
+  opa_mode: embedded
+  guardrail_id: ""
+  guardrail_version: "1"
+  escalation_threshold: 70
+  kill_switch_default: inactive
+
+agent:
+  foundation_model: amazon.nova-micro-v1:0
+  idle_session_ttl_seconds: 600
+  default_scope_level: 1
+
+monitoring:
+  dashboard_name: AIGovernance-Production
+  alarm_prefix: AGCP
+  cloudtrail_enabled: true
+
+removal_policy: retain
