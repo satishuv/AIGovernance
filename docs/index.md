@@ -245,6 +245,66 @@ aws lambda invoke \
 
 ---
 
+## Live Demo: Governed vs Ungoverned AI Development
+
+Real comparison from running a production user story (Arasaka-876: "SAS consultant edits control verdicts") through both approaches.
+
+### Ungoverned AI Agent (Claude Code, no governance wrapper)
+
+| Step | What Happened | Protection |
+|------|--------------|-----------|
+| Read codebase | Accessed all files freely | None |
+| Process user story | Pasted raw API signatures as input | None |
+| Write 6 files | Created components, hooks, tests in one shot | None |
+| Push to production | Only blocked by accidental IAM permission | Coincidence |
+| Evidence trail | Git commit message only | Cannot prove what checks ran |
+| Kill switch | None - no way to stop mid-flow | None |
+
+**Total governance decisions: 0. Risk visibility: 0. Audit evidence: 0.**
+
+### Governed AI Agent (same task, wrapped by governance pipeline)
+
+| Step | Action | Scope | Verdict | Risk Score | Why |
+|------|--------|-------|---------|-----------|-----|
+| Read codebase | ReadPipelineStatus | 1 | ALLOW | 35 | Low-risk read, registered agent, clean input |
+| Process user story | ReadPipelineStatus | 1 | ALLOW | 35 | Natural language passed sanitizer + guardrail |
+| Propose changes | ProposeChanges | 2 | ALLOW | 50 | Design approved, still below escalation threshold (70) |
+| Write code (staging) | StagingDeployment | 3 | ESCALATE | 100 | Requires human approval (scope 50 + deployment 50 > threshold 70) |
+| Deploy to prod (scope 2) | ProductionDeployment | 2 | DENY | 100 | Insufficient scope for production |
+| Deploy to prod (scope 4) | ProductionDeployment | 4 | ESCALATE | 100 | Even at max scope, human approval required (risk > threshold) |
+
+**Total governance decisions: 6. Denied: 1. Escalated: 2. Evidence records: 6 (immutable, hashed, auditable).**
+
+### What Governance Caught That Ungoverned Missed
+
+| # | Threat | Ungoverned Result | Governed Result |
+|---|--------|------------------|----------------|
+| 1 | Unregistered agent | Not checked | DENIED until registered |
+| 2 | API signatures in input (looks like injection) | Passed through | Bedrock Guardrail flagged as PROMPT_ATTACK |
+| 3 | Unauthorized data class access | Not checked | DENIED ("test_results" not declared) |
+| 4 | Production deploy at wrong scope | Only stopped by Bindle access (accidental) | Explicitly DENIED by policy |
+| 5 | High-risk action without human approval | No approval mechanism | ESCALATED with SNS notification |
+| 6 | No audit evidence | Nothing to show auditor | 6 decisions in DynamoDB + S3 Object Lock |
+
+### Risk Score Formula
+
+```
+Risk Score = scope_level_weight + action_group_weight + target_resource_weight
+
+Example: StagingDeployment at Scope 3
+  scope_level_weight[3]           = 50
+  action_group_weight[deployment] = 50
+  target_resource_weight[staging] = 15
+  Total (capped at 100)           = 100
+
+Escalation threshold = 70
+Result: ESCALATE (100 > 70, requires human approval)
+```
+
+Deployments are mathematically impossible to auto-approve without explicit policy override. This is by design.
+
+---
+
 ## Compliance Coverage
 
 Every governance decision generates evidence records mapped to:
