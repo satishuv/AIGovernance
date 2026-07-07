@@ -334,96 +334,96 @@ This repository is a reference implementation for educational and demonstration 
 Complete security checklist for AI agent deployments on AWS. Every item is implemented in this architecture.
 
 ### Input Defense
-- [x] Base64/hex/URL encoding detection and decoding
-- [x] ChatML/Llama delimiter injection blocking
-- [x] Unicode homoglyph normalization
-- [x] Leet-speak pattern decoding
-- [x] Context window stuffing detection (>5000 chars)
-- [x] Multilingual injection detection (German, Spanish, French, Croatian)
-- [x] Persona/roleplay jailbreak blocking (DAN, developer mode)
-- [x] Harmful content request blocking (violence, malware, fraud)
-- [x] Bedrock Guardrails content classification (8 topic denials)
+- Base64/hex/URL encoding detection and decoding
+- ChatML/Llama delimiter injection blocking
+- Unicode homoglyph normalization
+- Leet-speak pattern decoding
+- Context window stuffing detection (>5000 chars)
+- Multilingual injection detection (German, Spanish, French, Croatian)
+- Persona/roleplay jailbreak blocking (DAN, developer mode)
+- Harmful content request blocking (violence, malware, fraud)
+- Bedrock Guardrails content classification (8 topic denials)
 
 ### Output Defense
-- [x] System prompt leakage detection
-- [x] AWS ARN/credential/JWT stripping from responses
-- [x] PII detection and redaction (HIPAA: SSN, MRN, NPI, DOB)
-- [x] Canary token tripwire (agent compromise detection)
-- [x] Response size hard cap (output truncation)
+- System prompt leakage detection
+- AWS ARN/credential/JWT stripping from responses
+- PII detection and redaction (HIPAA: SSN, MRN, NPI, DOB)
+- Canary token tripwire (agent compromise detection)
+- Response size hard cap (output truncation)
 
 ### Policy Enforcement
-- [x] OPA policy engine (Rego-subset, priority-based resolution)
-- [x] Cedar formal verification (mathematically proven policies)
-- [x] Scope-based progressive autonomy (levels 0-4)
-- [x] IAM permission boundaries per scope level
-- [x] Default-deny posture (no matching rule = deny)
-- [x] Policy contradiction detection (proactive engine)
-- [x] Dead rule identification
-- [x] Coverage gap analysis
+- OPA policy engine (Rego-subset, priority-based resolution)
+- Cedar formal verification (mathematically proven policies)
+- Scope-based progressive autonomy (levels 0-4)
+- IAM permission boundaries per scope level
+- Default-deny posture (no matching rule = deny)
+- Policy contradiction detection (proactive engine)
+- Dead rule identification
+- Coverage gap analysis
 
 ### Per-Tool Security
-- [x] Enum-based action group allowlisting
-- [x] Parameter injection scanning (SQL, XSS, path traversal)
-- [x] Per-invocation tool call cap (max 25)
-- [x] Recursion depth prevention (max 1)
-- [x] Tool chain attack detection
-- [x] Per-tool rate limiting
+- Enum-based action group allowlisting
+- Parameter injection scanning (SQL, XSS, path traversal)
+- Per-invocation tool call cap (max 25)
+- Recursion depth prevention (max 1)
+- Tool chain attack detection
+- Per-tool rate limiting
 
 ### Agent Identity and Lifecycle
-- [x] Formal agent registration required
-- [x] Agent status tracking (active/suspended)
-- [x] Cryptographic token exchange for data access
-- [x] Token scoping (data classes, TTL, revocable)
-- [x] Non-repudiation (SHA-256 hash chains)
-- [x] Cross-agent rule enforcement
+- Formal agent registration required
+- Agent status tracking (active/suspended)
+- Cryptographic token exchange for data access
+- Token scoping (data classes, TTL, revocable)
+- Non-repudiation (SHA-256 hash chains)
+- Cross-agent rule enforcement
 
 ### Data Governance
-- [x] Data classification enforcement (Cedar PHI authorization)
-- [x] Tokenized data-lake access (check-in/check-out)
-- [x] Retrieval content validation (RAG poisoning prevention)
-- [x] Semantic cache governance (PII never cached)
-- [x] Exfiltration detection (output size limits, endpoint allowlisting)
+- Data classification enforcement (Cedar PHI authorization)
+- Tokenized data-lake access (check-in/check-out)
+- Retrieval content validation (RAG poisoning prevention)
+- Semantic cache governance (PII never cached)
+- Exfiltration detection (output size limits, endpoint allowlisting)
 
 ### Monitoring and Detection
-- [x] Runtime behavioral drift detection
-- [x] Continuous agent health scoring (0-100)
-- [x] Statistical anomaly detection (Shannon entropy, script mixing)
-- [x] CloudWatch dashboard (real-time metrics)
-- [x] PHI attestation dashboard (CISO deliverable)
-- [x] X-Ray distributed tracing
-- [x] Model invocation logging (CloudTrail)
+- Runtime behavioral drift detection
+- Continuous agent health scoring (0-100)
+- Statistical anomaly detection (Shannon entropy, script mixing)
+- CloudWatch dashboard (real-time metrics)
+- PHI attestation dashboard (CISO deliverable)
+- X-Ray distributed tracing
+- Model invocation logging (CloudTrail)
 
 ### Incident Response
-- [x] Kill switch (instant agent shutdown, <1 second)
-- [x] Automated scope reduction on bad behavior
-- [x] SNS operator alerts
-- [x] Graduated escalation (deny > reduce scope > kill)
+- Kill switch (instant agent shutdown, <1 second)
+- Automated scope reduction on bad behavior
+- SNS operator alerts
+- Graduated escalation (deny > reduce scope > kill)
 
 ### Evidence and Compliance
-- [x] Immutable evidence (S3 Object Lock, 7-year retention)
-- [x] SHA-256 hash chain integrity
-- [x] ISO 42001 control mapping (9 Annex A controls)
-- [x] NIST AI RMF mapping (12 functions)
-- [x] NIST 800-53 mapping (17 controls)
-- [x] PCI DSS v4.0 mapping (10 requirements)
-- [x] EU AI Act mapping (10 articles)
-- [x] SP-047 alignment (7/7 control areas)
+- Immutable evidence (S3 Object Lock, 7-year retention)
+- SHA-256 hash chain integrity
+- ISO 42001 control mapping (9 Annex A controls)
+- NIST AI RMF mapping (12 functions)
+- NIST 800-53 mapping (17 controls)
+- PCI DSS v4.0 mapping (10 requirements)
+- EU AI Act mapping (10 articles)
+- SP-047 alignment (7/7 control areas)
 
 ### Architecture
-- [x] Dual-mode execution (Lambda dev / Step Functions prod)
-- [x] Parallel execution (halves latency)
-- [x] Async evidence writing (non-blocking)
-- [x] 100,000+ concurrent executions
-- [x] Fail-safe deny (never fails open)
-- [x] Zero false positives on legitimate requests
+- Dual-mode execution (Lambda dev / Step Functions prod)
+- Parallel execution (halves latency)
+- Async evidence writing (non-blocking)
+- 100,000+ concurrent executions
+- Fail-safe deny (never fails open)
+- Zero false positives on legitimate requests
 
 ### Validation
-- [x] 8,470+ attack payloads from 13 academic benchmarks
-- [x] 93.4% detection on pure attack datasets
-- [x] 21/21 demo scenarios validated
-- [x] Holmes security scan: 0 findings
-- [x] ASH automated scan: passed (false positives only)
-- [x] AWS AIML Security Assessment: key checks passed
+- 8,470+ attack payloads from 13 academic benchmarks
+- 93.4% detection on pure attack datasets
+- 21/21 demo scenarios validated
+- Holmes security scan: 0 findings
+- ASH automated scan: passed (false positives only)
+- AWS AIML Security Assessment: key checks passed
 
 ---
 
