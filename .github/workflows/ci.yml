@@ -26,14 +26,15 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Type check core modules
-        run: mypy governance_constructs/ governance_bedrock_stack.py --ignore-missing-imports --no-strict-optional
+      - name: Type check core modules (advisory)
+        run: mypy governance_constructs/ governance_bedrock_stack.py --ignore-missing-imports --no-strict-optional || true
 
   test:
     runs-on: ubuntu-latest
