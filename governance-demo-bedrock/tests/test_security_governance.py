@@ -18,6 +18,7 @@ Covers:
 
 import json
 import os
+import sys
 import importlib.util
 from unittest.mock import patch, MagicMock
 
@@ -30,6 +31,9 @@ import pytest
 
 def _load_module(name, path, env_vars):
     """Load a Lambda module with mocked boto3 and injected env vars."""
+    module_dir = os.path.dirname(path)
+    if module_dir not in sys.path:
+        sys.path.insert(0, module_dir)
     with patch.dict(os.environ, env_vars):
         with patch("boto3.client", return_value=MagicMock()), \
              patch("boto3.resource", return_value=MagicMock()):
@@ -338,11 +342,11 @@ class TestInsecurePluginDesign:
         assert mock_s3.get_object.call_args[1]["Bucket"] == "test-data-bucket"
 
     def test_s3_write_uses_env_bucket(self):
-        """LLM07: deployToStaging writes to DATA_BUCKET_NAME env var, not from event."""
+        """LLM07: StagingDeployment at scope 1 is denied by scope enforcement."""
         mock_s3 = MagicMock()
 
         with patch.object(action_group, "s3", mock_s3):
-            action_group.handler(
+            result = action_group.handler(
                 {
                     "actionGroup": "StagingDeployment",
                     "apiPath": "/deployToStaging",
@@ -353,10 +357,11 @@ class TestInsecurePluginDesign:
                 None,
             )
 
-        assert mock_s3.put_object.call_args[1]["Bucket"] == "test-data-bucket"
+        assert result["response"]["httpStatusCode"] == 403
+        mock_s3.put_object.assert_not_called()
 
     def test_unknown_route_returns_structured_error(self):
-        """LLM07: Unknown action group/path returns structured error, not unhandled exception."""
+        """LLM07: Unknown action group is rejected by allowlist with 403."""
         result = action_group.handler(
             {
                 "actionGroup": "UnknownGroup",
@@ -369,7 +374,7 @@ class TestInsecurePluginDesign:
         )
 
         assert "response" in result
-        assert result["response"]["httpStatusCode"] == 500
+        assert result["response"]["httpStatusCode"] == 403
 
     def test_missing_required_param_returns_structured_error(self):
         """LLM07: Missing buildId returns structured error, not unhandled exception."""

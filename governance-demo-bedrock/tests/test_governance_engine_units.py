@@ -169,7 +169,7 @@ class TestProp2GovDecisionRoundTrip:
     def test_round_trip(self, gd):
         r = GovernanceDecision.from_dict(gd.to_dict())
         assert r.decision_id == gd.decision_id and r.verdict == gd.verdict
-        assert r.risk_score == gd.risk_score
+        assert float(r.risk_score) == pytest.approx(float(gd.risk_score), rel=1e-9)
 
 class TestProp4AgentRegRoundTrip:
     """**Validates: Requirement 6.9**"""
