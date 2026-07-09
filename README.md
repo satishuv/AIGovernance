@@ -280,7 +280,7 @@ Each scope maps to a dedicated **IAM Permission Boundary** enforced by AWS (not 
 | Policy Engine | OPA (Open Policy Agent) Rego-subset + Cedar formal verification |
 | Content Safety | Amazon Bedrock Guardrails (HIPAA PII + 8 topic denials) |
 | Governance Orchestration | AWS Step Functions Express Workflows |
-| Per-Layer Lambdas | AWS Lambda (Python 3.12, 14 functions) |
+| Per-Layer Lambdas | AWS Lambda (Python 3.12, 5 Lambda packages, 65 modules) |
 | Event-Driven Post-Processing | Amazon EventBridge |
 | State Management | Amazon DynamoDB (22 tables) |
 | Policy Storage | Amazon S3 (versioned, OPA + Rego files) |
@@ -333,7 +333,7 @@ governance-demo-bedrock/
     seed_data.py                      Seed Lambda + all table data
   governance_bedrock_stack.py         Thin orchestrator (~55 lines)
   lambdas/
-    governance_engine/                25+ governance modules
+    governance_engine/                65 governance modules
       index.py                        Thin entrypoint (routes to orchestrator/API)
       pipeline_orchestrator.py        20-step governance pipeline
       api_router.py                   API Gateway event handling

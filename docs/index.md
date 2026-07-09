@@ -122,7 +122,7 @@ AIGovernance supports two execution modes, switchable via the `GOVERNANCE_MODE` 
 
 ### Development Mode (Single Lambda)
 
-In `lambda` mode, all 20 security modules execute sequentially within a single Governance Engine Lambda. Same checks, simpler topology. Best for debugging and low-traffic environments.
+In `lambda` mode, all governance modules execute sequentially within a single Governance Engine Lambda via the pipeline orchestrator. Same checks, simpler topology. Best for debugging and low-traffic environments.
 
 ---
 
@@ -351,24 +351,44 @@ Evidence is stored in S3 with Object Lock (7-year COMPLIANCE mode retention) and
 
 ```
 governance-demo-bedrock/              Active codebase
+  governance_constructs/              6 modular CDK constructs
+    storage.py                        S3, DynamoDB, IAM boundaries, SNS
+    bedrock_agent.py                  Agent, action groups, scope enforcer
+    governance_engine.py              Lambda, Step Functions, EventBridge
+    monitoring.py                     CloudWatch dashboard, alarms, CloudTrail
+    api.py                            API Gateway (kill switch + approvals)
+    seed_data.py                      Seed Lambda + all table data
+  governance_bedrock_stack.py         Thin CDK orchestrator (~58 lines)
   lambdas/
-    governance_engine/                20+ security modules (monolithic mode)
+    governance_engine/                65 governance modules
+      index.py                        Thin entrypoint (routes to orchestrator/API)
+      pipeline_orchestrator.py        20-step governance pipeline + simulator
+      api_router.py                   API Gateway event handling
+      tool_response_validator.py      Validates data FROM tools
+      shadow_ai_discovery.py          Discovers unregistered AI assets
+      supply_chain_governance.py      MCP/tool/model supply chain
+      operator_rbac.py                6 roles, 21 permissions for operators
+      cost_governance.py              Budget controls, carbon tracking
+      agent_lifecycle_states.py       9-state lifecycle enforcement
+      bias_monitoring.py              Fairness metrics (four-fifths rule)
+      evidence_graph.py               Connected evidence for investigations
+      formal_assurance.py             5 invariant proofs
+      executive_analytics.py          CISO reporting, ROI metrics
+      ...                             (52 more modules)
+    action_group/                     Bedrock Agent tools (per-call security)
     scope_enforcer/                   Request orchestrator + mode selector
-    input_defense/                    Input sanitization Lambda (Step Functions)
-    authorization/                    Identity + auth Lambda (Step Functions)
-    policy_risk/                      Policy eval + risk scoring Lambda (Step Functions)
-    post_decision/                    Async evidence + metrics (EventBridge target)
-    action_group/                     Bedrock Agent business logic
     kill_switch/                      Emergency shutdown
     seed_tables/                      DynamoDB initialization
-  state_machine/
-    governance_pipeline.asl.json      Step Functions ASL definition
+  scripts/
+    collect_evidence.py               Automated compliance evidence package
+    governed_dev_demo.py              Live governance demo (6 decisions)
+  config/
+    demo.yaml                         Demo environment settings
+    production.yaml                   Production environment settings
+  state_machine/                      Step Functions ASL definition
   schemas/                            OpenAPI action group schemas
-  sample_data/                        Policies, configs, compliance mappings
-  tests/                              CDK + governance tests
-  governance_bedrock_stack.py         CDK infrastructure (single stack)
-
-governance-demo/                      Frozen reference (OWASP test suite only)
+  tests/                              225 tests (CDK + unit + security)
+  docs/                               9 documentation files
 ```
 
 ---
