@@ -1,275 +1,114 @@
-# Runtime Governance Framework for Agentic AI on AWS
+# AI Agent Runtime Governance Framework
 
-*A production-grade reference architecture that governs autonomous AI agents with defense-in-depth security, OPA policy enforcement, HIPAA PII detection, tool response validation, and automated compliance evidence generation. Built on Amazon Bedrock Agents, deployed via modular AWS CDK constructs.*
+## The Problem
 
----
+AI agents read data from their environment and that data can become instructions. A tool response, a document, a metadata field can contain hidden commands that reprogram the agent. No security system in history was designed for software that can be hijacked by the data it processes.
 
-Run **21 validated demo scenarios**, detect **93.4% of 8,470+ real-world attacks** from 13 academic benchmarks, and deploy a complete governance pipeline with one command.
+Traditional security validates inputs and sanitizes outputs. But an AI agent also CONSUMES tool responses, READS tool descriptions, and CHAINS actions through autonomous reasoning. These three surfaces have no protection in any existing framework, product, or standard.
 
-**Live site:** [satishuv.github.io/AIGovernance](https://satishuv.github.io/AIGovernance/)
-
-## Table of Contents
-
-- [What It Does](#what-it-does)
-- [Why Use This Framework?](#why-use-this-framework)
-- [Architecture](#architecture)
-- [Three-Engine Governance Model](#three-engine-governance-model)
-- [Attack Resilience](#attack-resilience)
-- [Governed vs Ungoverned AI Development](#governed-vs-ungoverned-ai-development)
-- [HIPAA PII Detection](#hipaa-pii-detection)
-- [Quick Start](#quick-start)
-- [Scope Levels](#scope-levels)
-- [Technology Stack](#technology-stack)
-- [Security Controls (93)](#security-controls)
-- [Compliance Coverage](#compliance-coverage)
-- [Documentation](#documentation)
-- [License](#license)
+**This project is the enforcement layer that governs what an AI agent does between receiving a request and taking an action.**
 
 ---
 
 ## What It Does
 
-This framework wraps every AI agent action with a governance pipeline that evaluates, approves or denies, and logs decisions in real-time. It provides:
+Every time an AI agent attempts an action, this framework:
 
-| Challenge | How This Framework Helps |
-|-----------|------------------------|
-| AI agents invoke tools autonomously | Every tool call is authorized by OPA policy before execution |
-| Prompt injection bypasses model safety | 6-layer input defense catches base64, ChatML, leet-speak, multilingual attacks |
-| Tool responses contain hidden instructions | Tool response validator detects injection in data returned FROM tools |
-| No audit trail for AI decisions | Immutable evidence records (SHA-256, S3 Object Lock, 7-year retention) |
-| Compliance requires continuous proof | Automated evidence collection across 6 frameworks (ISO 42001, NIST AI RMF, 800-53, PCI DSS, EU AI Act) |
-| Single guardrail layer is insufficient | 8 independent security modules, none trusts the others |
-| HIPAA PHI leaks in responses | Bedrock Guardrails with custom regex (MRN, NPI, DOB, Insurance ID) |
-| No emergency shutdown capability | Kill switch disables agent in under 1 second |
-| Cannot prove governance effectiveness | `python scripts/collect_evidence.py` generates a complete audit package |
+1. **Evaluates** the request against policy, risk scoring, and behavioral analysis
+2. **Decides** ALLOW, DENY, or ESCALATE (require human approval)
+3. **Enforces** the decision at the AWS infrastructure layer (IAM boundaries, not just prompts)
+4. **Validates** data returned from tools before the agent can process it
+5. **Records** an immutable, hash-chained evidence record of every decision
+
+All of this happens in under 150 milliseconds. The agent cannot override it.
 
 ---
 
-## Why Use This Framework?
+## Why This Exists
 
-| If you need... | This framework provides... |
-|---------------|--------------------------|
-| Runtime governance (not just policy docs) | 20-step pipeline evaluating every action before execution |
-| Empirical proof your defenses work | 8,470+ attacks tested from 13 academic benchmarks (93.4% detection) |
-| Tool response security (perception gap) | Validates data returned FROM tools before agent processes it |
-| HIPAA-grade PII protection | Bedrock Guardrails + custom healthcare regex patterns |
-| Policy-as-code (industry standard) | OPA engine with Rego-subset evaluation, priority-based resolution |
-| Scalability for production | Step Functions Express supporting 100,000+ concurrent executions |
-| Automated compliance evidence | One command generates a full audit package across 6 frameworks |
-| Zero false positives | Validated: legitimate requests always pass (21/21 scenarios) |
+| What exists today | What it does | What it cannot do |
+|-------------------|-------------|-------------------|
+| AWS Bedrock Guardrails | Filters input/output text | Cannot govern tool calls, action sequences, or return-path data |
+| OPA / Cedar | Evaluates access policies | Cannot detect prompt injection or sequential attack chains |
+| WAFs | Protect HTTP requests | Cannot understand that an AI action emerged from compromised context |
+| OWASP / NIST / ISO | Name the risks | Cannot enforce anything at runtime |
+
+This framework combines all of these into a single runtime enforcement engine for the complete attack surface of an autonomous AI agent.
 
 ---
 
 ## Architecture
 
 ```
-                              User Request
-                                   |
-                                   v
-                          +------------------+
-                          | Scope Enforcer   |  Reads scope level (0-4)
-                          +--------+---------+
-                                   |
-                                   v
-+==========================================================================+
-|                    GOVERNANCE SECURITY WRAPPER                            |
-|                    (runs IN PARALLEL with agent actions)                  |
-|                                                                          |
-|  +------------------------------------------------------------------+   |
-|  |  LAYER 1: Kill Switch + Behavioral Invariants                     |   |
-|  |  (hard limits no model can override)                              |   |
-|  +------------------------------------------------------------------+   |
-|                                   |                                      |
-|                  +----------------+----------------+                     |
-|                  |     PARALLEL EXECUTION          |                     |
-|  +---------------------------+  +---------------------------+           |
-|  | Input Defense Lambda      |  | Authorization Lambda      |           |
-|  | - Unicode normalization   |  | - Agent identity          |           |
-|  | - Base64/hex decoding     |  | - Agent registry          |           |
-|  | - ChatML/Llama delimiters |  | - Environment isolation   |           |
-|  | - Leet-speak detection    |  | - Tool/model approval     |           |
-|  | - Context stuffing        |  | - Per-tool rate limits    |           |
-|  | - Regex threat patterns   |  | - Tool chain detection    |           |
-|  +---------------------------+  +---------------------------+           |
-|                  |                                 |                     |
-|                  +----------------+----------------+                     |
-|                                   |                                      |
-|  +------------------------------------------------------------------+   |
-|  |  Policy + Risk Decision Lambda                                    |   |
-|  |  - OPA policy engine (Rego-subset, priority-based resolution)     |   |
-|  |  - Risk scoring (0-100)  - Drift detection                        |   |
-|  |  - Verdict: ALLOW / DENY / ESCALATE                               |   |
-|  +------------------------------------------------------------------+   |
-+==========================================================================+
-                                   |
-              +--------------------+--------------------+
-              |                    |                    |
-         DENY |               ESCALATE            ALLOW |
-              v                    v                    v
-     +-------------+     +----------------+   +------------------+
-     | Blocked     |     | Human Approval |   | Bedrock Agent    |
-     | (explain)   |     | Queue (SNS)    |   | (Nova Micro)     |
-     +-------------+     +----------------+   +--------+---------+
-                                                       |
-                                              +--------+--------+
-                                              |   |   |   |
-                                             S1  S2  S3  S4
-                                              v   v   v   v
-                                          Read Propose Stage Prod
-                                              |
-                                              v
-                  +------------------------------------------------------------------+
-                  |  Tool Response Validator (scans data FROM tools for injection)    |
-                  +------------------------------------------------------------------+
-                                              |
-                                              v
-                  +------------------------------------------------------------------+
-                  |  Output Guardrails + HIPAA PII Detection                         |
-                  +------------------------------------------------------------------+
-                                              |
-                                              v
-                  +------------------------------------------------------------------+
-                  |  Async Evidence (EventBridge, non-blocking)                      |
-                  |  SHA-256 + ISO 42001 + NIST AI RMF + 4 more frameworks          |
-                  +------------------------------------------------------------------+
+  REQUEST ──▶ GOVERNANCE CONTROL PLANE ──▶ DECISION ──▶ AGENT EXECUTION
+                                                              │
+                                                              ▼
+                                                    EVIDENCE (immutable)
 ```
 
----
+**Control Plane** (evaluates every request):
+- Kill switch check (instant shutdown if active)
+- Input defense (8 sanitization checks)
+- Agent + tool authorization (registry, scope, rate limits)
+- Policy evaluation (OPA + Cedar)
+- Risk scoring (0-100 composite)
+- Drift and behavioral monitoring
+- Decision engine (ALLOW / DENY / ESCALATE)
 
-## Three-Engine Governance Model
+**Execution Plane** (after ALLOW):
+- Bedrock Agent with scope-gated action groups (levels 0-4)
+- Per-tool security on every tool call (parameter scan, rate limit, chain detection)
+- Tool response validation (scans data FROM tools for injection)
+- Output guardrails (PII stripping, credential removal, exfiltration blocking)
 
-| Engine | When | Purpose | Components |
-|--------|------|---------|-----------|
-| **Preventive** | Before execution | Block unauthorized or dangerous actions | OPA policy engine, input sanitizer, Bedrock Guardrails, scope enforcement, behavioral invariants, per-tool authorization, tool response validation |
-| **Detective** | During and after | Monitor behavior, detect anomalies, alert | Runtime drift detection, continuous health monitoring, statistical anomaly detection, CloudWatch metrics |
-| **Proactive** | Before config changes | Validate governance policies are correct | Policy contradiction detection, dead rule identification, coverage gap analysis |
-
----
-
-## Attack Resilience
-
-### Defense Layers (Execution Order)
-
-Each layer runs at a specific point in the request lifecycle. The pipeline is sequential - a request blocked at Layer 1 never reaches Layer 7.
-
-| Order | Layer | Runs In | When | What It Catches |
-|-------|-------|---------|------|----------------|
-| 1 | **Kill Switch** | Governance Engine Lambda | First check, before anything else | All requests when emergency shutdown active |
-| 2 | **Behavioral Invariants** | Governance Engine Lambda | Before input analysis | Time-of-day violations, tool call caps, recursion limits, canary injection |
-| 3 | **Input Sanitizer** | Governance Engine Lambda | Before threat detection | Base64/hex/URL encoding, ChatML/Llama delimiters, unicode homoglyphs, leet-speak, context stuffing, multilingual injection |
-| 4 | **Bedrock Guardrails** | Governance Engine Lambda | After sanitization | Harmful content, violence, jailbreaks, illegal activities (semantic AI classification) |
-| 5 | **Threat Detector** | Governance Engine Lambda | After guardrails | SQL injection, prompt injection (regex), destructive commands from DynamoDB pattern table |
-| 6 | **Agent Identity + Registry** | Governance Engine Lambda | After threat checks | Unregistered agents, suspended agents, environment isolation, data class violations |
-| 7 | **Tool/Model Authorization** | Governance Engine Lambda | After identity | Unapproved tools, per-tool rate limits, tool chain detection, scope violations |
-| 8 | **OPA Policy Engine** | Governance Engine Lambda | Core evaluation | Policy violations (Rego-subset rules), time-based policies, scope-action matrix |
-| 9 | **Risk Scoring** | Governance Engine Lambda | After policy eval | Computes 0-100 risk score from scope weight + action weight + target weight |
-| 10 | **Decision Engine** | Governance Engine Lambda | After risk scoring | ALLOW / DENY / ESCALATE verdict based on policy + risk + threshold (70) |
-| 11 | **Tool Response Validator** | Action Group Lambda | After tool executes, before agent sees response | Injection patterns in S3/DynamoDB data, action directives, sensitive data stripping |
-| 12 | **Output Guardrails** | Scope Enforcer Lambda | After agent responds, before user sees it | System prompt leakage, ARN/credential exposure, canary tripwire, PII detection |
-| 13 | **Evidence Pipeline** | Governance Engine Lambda (async) | After decision, non-blocking | Writes immutable SHA-256 evidence to S3 Object Lock |
-
-### Where Each Layer Lives in the Pipeline
-
-```
-USER REQUEST
-    |
-    v
-[Scope Enforcer Lambda]
-    |
-    v
-[Governance Engine Lambda - pipeline_orchestrator.py]
-    |-- Step 1: Kill Switch check
-    |-- Step 2: Behavioral Invariants
-    |-- Step 3: Input Sanitizer (input_sanitizer.py)
-    |-- Step 4: Bedrock Guardrails (bedrock_guardrails.py)
-    |-- Step 5: Threat Detector (threat_detector.py)
-    |-- Step 6: Agent Identity (agent_identity.py + agent_registry.py)
-    |-- Step 7: Tool Auth (tool_execution_auth.py)
-    |-- Step 8: OPA Policy (opa_engine.py)
-    |-- Step 9: Risk Scoring (risk_scoring.py)
-    |-- Step 10: Decision (decision_engine.py)
-    |-- Step 11: Evidence write (async, evidence_pipeline.py)
-    |
-    v  (if ALLOW)
-[Bedrock Agent invokes tool]
-    |
-    v
-[Action Group Lambda - index.py]
-    |-- Tool Response Validator (tool_response_validator.py)
-    |-- Tool executes (reads S3/DynamoDB)
-    |-- Response sanitized before returning to agent
-    |
-    v
-[Scope Enforcer Lambda - output path]
-    |-- Output Guardrails (PII, ARN stripping, canary check)
-    |
-    v
-USER RESPONSE
-```
-
-### Tested Against Real-World Attacks
-
-Validated against **8,470+ unique attack payloads** from 13 published academic benchmarks:
-
-| Dataset | Source | Attacks | Detection |
-|---------|--------|---------|-----------|
-| AdvBench | ICML 2024 | 520 | **98.8%** |
-| ChatGPT Jailbreaks | rubend18 | 79 | **100.0%** |
-| JailbreakBench | NeurIPS 2024 | 100 | **95.0%** |
-| HarmfulQA | Declare Lab | 1,000 | 87%+ |
-| LLM-LAT Harmful | LLM-LAT | 1,000 | 85%+ |
-| BeaverTails | PKU Alignment | 604 | 85%+ |
-| In-the-Wild Jailbreaks | TrustAI Lab | 666 | 80%+ |
-| Deepset Injections | Deepset | 203 | 75.9% |
-| Gandalf Ignore | Lakera | 111 | 81.1% |
-| Do-Not-Answer | LibrAI | 939 | 80%+ |
-| + 3 additional benchmarks | Various 2024-2025 | 3,248 | 93%+ |
-| **Total** | **13 sources** | **8,470+** | **93.4%** |
+**Evidence Plane** (async, non-blocking):
+- SHA-256 hash chain per decision
+- S3 Object Lock (7-year immutable retention)
+- Compliance mapping (ISO 42001, NIST AI RMF, EU AI Act, PCI DSS, NIST 800-53)
 
 ---
 
-## Governed vs Ungoverned AI Development
+## Three Novel Contributions
 
-Live comparison from running a production user story through both approaches:
+These address attack surfaces that no existing standard, framework, or product covers:
 
-### Ungoverned (AI coding directly)
+**1. Tool Response Validation (the "Perception Gap")**
 
-| Step | What Happened | Protection |
-|------|--------------|-----------|
-| Read codebase | Accessed all files freely | None |
-| Process user story | Pasted raw API signatures as input | None |
-| Write 6 files | Created components, hooks, tests in one shot | None |
-| Push to production | Only blocked by accidental IAM permission | Coincidence |
-| Evidence trail | Git commit message only | Cannot prove what checks ran |
+Every framework validates what goes INTO tools. Nobody validates what comes BACK. This framework scans all tool responses for injection, anomalies, and sensitive data before the agent can reason over them.
 
-**Total governance decisions: 0. Risk visibility: 0. Audit evidence: 0.**
+**2. Sequential Chain Governance**
 
-### Governed (same task, wrapped by governance pipeline)
+Every access control system evaluates one action at a time. This framework evaluates whether a SEQUENCE of individually-safe actions produces harm when combined.
 
-| Step | Action | Scope | Verdict | Risk Score |
-|------|--------|-------|---------|-----------|
-| Read codebase | ReadPipelineStatus | 1 | ALLOW | 35 |
-| Process user story | ReadPipelineStatus | 1 | ALLOW | 35 |
-| Propose changes | ProposeChanges | 2 | ALLOW | 50 |
-| Write code (staging) | StagingDeployment | 3 | ESCALATE | 100 |
-| Deploy to prod (scope 2) | ProductionDeployment | 2 | DENY | 100 |
-| Deploy to prod (scope 4) | ProductionDeployment | 4 | ESCALATE | 100 |
+**3. Tool Metadata Defense**
 
-**Total governance decisions: 6. Denied: 1. Escalated: 2. Evidence: 6 immutable records.**
+AI agents read tool descriptions to decide how to use them. Those descriptions can contain hidden adversarial instructions. This framework validates tool metadata against policy before the agent processes it.
 
 ---
 
-## HIPAA PII Detection
+## Graduated Autonomy
 
-| PII Type | Action | Example |
-|----------|--------|---------|
-| SSN | **BLOCK** (entire response) | `123-45-6789` |
-| Credit Card | **BLOCK** (entire response) | `4111-1111-1111-1111` |
-| Name | ANONYMIZE | `John Smith` to `{NAME}` |
-| Medical Record Number | ANONYMIZE | `MRN-4829301` to `{Medical_Record_Number}` |
-| National Provider ID | ANONYMIZE | `NPI 1234567890` to `{NPI_Number}` |
-| Date of Birth | ANONYMIZE | `DOB: 03/15/1985` to `{Date_of_Birth}` |
-| Insurance ID | ANONYMIZE | `Member ID: XYZ789` to `{Insurance_ID}` |
+Agents earn trust through demonstrated safe behavior:
+
+| Level | What the agent can do | Enforcement |
+|-------|----------------------|-------------|
+| 0 | Nothing (kill switch) | Deny-all IAM policy |
+| 1 | Read-only queries | S3 GetObject only |
+| 2 | Propose changes | + DynamoDB writes to pending |
+| 3 | Deploy to staging | + S3 writes to staging path |
+| 4 | Deploy to production | + S3 writes to production path |
+
+Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infrastructure layer.
+
+---
+
+## Validation
+
+- **Attack datasets**: 8,470+ payloads from 13 academic benchmarks (JailbreakBench, AdvBench, Deepset, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, and others)
+- **Detection rate**: 93.4% on pure attack datasets. Multi-layer defense reduces residual attack success from 73-84% baseline to under 9%
+- **End-to-end scenarios**: 21 governance scenarios covering all verdicts, all scope levels, and all attack categories
+- **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
+- **Test suite**: 225 automated tests (unit + integration + security)
 
 ---
 
@@ -277,167 +116,46 @@ Live comparison from running a production user story through both approaches:
 
 ```bash
 cd governance-demo-bedrock
-
-# Install
 python -m venv .venv
-source .venv/Scripts/activate   # Windows
+source .venv/Scripts/activate
 pip install -r requirements.txt
 
-# Deploy (single command, ~3 minutes)
-export AWS_PROFILE=your-profile
+# Deploy
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
-# Validate demo (must show 21/21 PASS)
-python test_datasets/run_demo_validation.py
-
-# Collect evidence package
-python scripts/collect_evidence.py --scope monthly
-
-# Run governed development demo
-python scripts/governed_dev_demo.py
+# Validate
+python test_datasets/run_demo_validation.py    # 21 scenarios
+python -m pytest tests/ -v                     # 225 tests
 ```
 
 ---
 
-## Scope Levels
+## Technology
 
-| Level | Action Groups Permitted | Risk Score Weight |
-|-------|------------------------|-------------------|
-| **0** | None (kill switch) | 0 |
-| **1** | ReadPipelineStatus | 10 |
-| **2** | + ProposeChanges | 25 |
-| **3** | + StagingDeployment | 50 |
-| **4** | + ProductionDeployment | 75 |
-
-Each scope maps to a dedicated **IAM Permission Boundary** enforced by AWS (not just application logic).
-
----
-
-## Technology Stack
-
-| Component | Service |
-|-----------|---------|
-| AI Agent Runtime | Amazon Bedrock Agents (Nova Micro) |
-| Policy Engine | OPA (Open Policy Agent) Rego-subset + Cedar formal verification |
-| Content Safety | Amazon Bedrock Guardrails (HIPAA PII + 8 topic denials) |
-| Governance Orchestration | AWS Step Functions Express Workflows |
-| Per-Layer Lambdas | AWS Lambda (Python 3.12, 5 Lambda packages, 65 modules) |
-| Event-Driven Post-Processing | Amazon EventBridge |
-| State Management | Amazon DynamoDB (22 tables) |
-| Policy Storage | Amazon S3 (versioned, OPA + Rego files) |
-| Evidence Storage | Amazon S3 (Object Lock COMPLIANCE mode, SHA-256 hash chains) |
-| Monitoring | Amazon CloudWatch (dashboard + 3 alarms + 10 custom metrics) |
-| Distributed Tracing | AWS X-Ray |
-| Alerts | Amazon SNS |
-| API Endpoints | Amazon API Gateway (kill switch + approvals) |
+| Layer | Service |
+|-------|---------|
+| AI Agent | Amazon Bedrock Agents (Nova Micro) |
+| Governance Orchestration | AWS Step Functions Express (100K+ concurrent) |
+| Policy Engine | OPA (Rego-subset, embedded or external) |
+| State | Amazon DynamoDB (25+ tables) |
+| Evidence | Amazon S3 (Object Lock, 7-year WORM) |
 | Infrastructure | AWS CDK (Python, 6 modular constructs) |
-| CI/CD | GitHub Actions (lint, test, security scan, CDK synth) |
-
----
-
-## Security Controls
-
-**93 controls across 12 domains.** Full checklist with evidence requirements:
-
-- [AI Agent Security Checklist](governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) (threat-informed, 22 papers cited)
-- [Evidence Collection Guide](governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) (per-control evidence + automation scripts)
-
-Domains: Input Defense, Tool Response Validation, Output Defense, Policy Enforcement, Per-Tool Security, Agent Identity, Memory/RAG Security, Data Governance, Monitoring, Incident Response, Evidence/Compliance, Architecture.
-
----
-
-## Compliance Coverage
-
-| Framework | Controls Mapped |
-|-----------|----------------|
-| ISO/IEC 42001 | 9 Annex A controls (A.2 through A.10) |
-| NIST AI RMF | 12 functions (GOVERN, MAP, MEASURE, MANAGE) |
-| NIST 800-53 | 17 controls (AC, AU, CA, CM, IA, IR, RA, SA, SC, SI) |
-| PCI DSS v4.0 | 10 requirements |
-| EU AI Act | 10 articles (high-risk system requirements) |
-| SP-047 | 7/7 control areas (Open Security Architecture) |
-
-Evidence stored in S3 with Object Lock (configurable: 365 days demo / 2555 days production) and SHA-256 hash chains.
-
----
-
-## Repository Structure
-
-```
-governance-demo-bedrock/
-  governance_constructs/              6 modular CDK constructs
-    storage.py                        S3, DynamoDB, IAM boundaries, SNS
-    bedrock_agent.py                  Agent, action groups, scope enforcer
-    governance_engine.py              Lambda, Step Functions, EventBridge
-    monitoring.py                     CloudWatch dashboard, alarms, CloudTrail
-    api.py                            API Gateway (kill switch + approvals)
-    seed_data.py                      Seed Lambda + all table data
-  governance_bedrock_stack.py         Thin orchestrator (~55 lines)
-  lambdas/
-    governance_engine/                65 governance modules
-      index.py                        Thin entrypoint (routes to orchestrator/API)
-      pipeline_orchestrator.py        20-step governance pipeline
-      api_router.py                   API Gateway event handling
-      tool_response_validator.py      Validates data FROM tools (perception gap)
-      input_sanitizer.py              6-layer input defense
-      opa_engine.py                   OPA policy evaluation
-      output_guardrails.py            Response validation + PII
-      ...
-    action_group/                     Bedrock Agent tools (per-call security)
-    scope_enforcer/                   Request orchestrator
-    kill_switch/                      Emergency shutdown
-  scripts/
-    collect_evidence.py               Automated compliance evidence package
-    governed_dev_demo.py              Live governance demo (6 decisions)
-  config/
-    demo.yaml                         Demo environment settings
-    production.yaml                   Production environment settings
-  tests/                              20 CDK tests (all passing)
-  test_datasets/                      8,470+ attacks from 13 benchmarks
-  docs/
-    AI_AGENT_SECURITY_CHECKLIST.md    93 controls (threat-informed)
-    EVIDENCE_COLLECTION_GUIDE.md      Per-control evidence requirements
-    ARCHITECTURE.md                   Detailed architecture
-    HIPAA_DEMO_GUIDE.md               HIPAA PII demo scenarios
-```
-
----
-
-## Research Foundations
-
-| Source | Contribution |
-|--------|-------------|
-| **AWS Bedrock Guardrails** | Content filtering, PII detection, contextual grounding |
-| **AWS AI Service Cards** | Responsible AI transparency and intended use boundaries |
-| **NVIDIA NeMo Guardrails** | Programmable rails pattern: input/output/dialog rails |
-| **OWASP LLM Top 10 (2025)** | Attack taxonomy: prompt injection, insecure output, supply chain |
-| **OWASP Top 10 for Agentic Applications** | Agent-specific risks: excessive agency, tool poisoning |
-| **NIST AI RMF (AI 100-1)** | Risk management lifecycle: GOVERN, MAP, MEASURE, MANAGE |
-| **ISO/IEC 42001** | AI management system controls (Annex A.2 through A.10) |
-| **MITRE ATLAS** | Adversarial threat landscape for AI systems |
-| **CrowdStrike 2026 Global Threat Report** | 89% increase in AI attacks, 550% ChatGPT on criminal forums |
-| **22 Academic Papers (2024-2025)** | MCPTox, STAC, MemoryGraft, ASB, ART, IPIGuard, and more |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [GitHub Pages Site](https://satishuv.github.io/AIGovernance/) | Full architecture, checklist, glossary, governed dev demo |
-| [Security Checklist](governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | 93 controls with citations and attack success rates |
-| [Evidence Guide](governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | What to collect, where it lives, how to automate |
-| [Architecture](governance-demo-bedrock/docs/ARCHITECTURE.md) | SDLC flow, three engines, threat coverage |
-| [HIPAA Demo](governance-demo-bedrock/docs/HIPAA_DEMO_GUIDE.md) | 3 realistic HIPAA scenarios |
-| [SECURITY.md](governance-demo-bedrock/SECURITY.md) | Vulnerability reporting + IAM exception documentation |
-| [CONTRIBUTING.md](governance-demo-bedrock/CONTRIBUTING.md) | Development workflow and code style |
+| Document | Audience |
+|----------|----------|
+| [Architecture Deep-Dives](governance-demo-bedrock/docs/architecture/) | Platform architects |
+| [Security Checklist (93 controls)](governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | Security reviewers |
+| [Control Catalog (377 controls)](governance-demo-bedrock/docs/CONTROL_CATALOG.md) | Compliance teams |
+| [Module Map (72 modules)](governance-demo-bedrock/lambdas/governance_engine/MODULE_MAP.md) | Developers |
+| [Threat Model](governance-demo-bedrock/docs/THREAT_MODEL.md) | Risk assessors |
+| [Evidence Collection Guide](governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | Auditors |
 
 ---
 
-## License
+## Author
 
-MIT License. See [LICENSE](governance-demo-bedrock/LICENSE).
-
----
-
-**Built by Author**, Associate Assurance Consultant, [Affiliation]
+**Author** - [Affiliation]
