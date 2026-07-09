@@ -10,7 +10,14 @@
 
 AI Governance is where cybersecurity was in 2003-2007. There is no definitive architecture yet. No AI NIST 800-53. No AI MITRE ATT&CK. No AI CIS Controls. No AI IAM. No AI SIEM. No AI SOAR. No AI CMDB.
 
-This book defines the complete AI Governance Body of Knowledge: 20 domains, 1,000+ controls, and the reference architecture that implements them. It is the foundation for a new discipline.
+This book defines the complete AI Governance Body of Knowledge: 20 domains, 10,000+ controls, 200,000+ implementation patterns, and the reference architecture that implements them. It is the foundation for a new discipline.
+
+Scale:
+- 20 domains
+- 500 controls per domain = 10,000 controls
+- 20 requirements per control = 200,000 requirements
+- 10 implementation patterns per requirement = 2,000,000 patterns
+- Each pattern: code + tests + threats + evidence + compliance mappings
 
 ---
 
@@ -27,7 +34,7 @@ This book defines the complete AI Governance Body of Knowledge: 20 domains, 1,00
 
 **Chapter 2: The AI-GBoK Framework**
 - 2.1 20 Domains of AI Governance
-- 2.2 Control Hierarchy: Domain > Control > Requirement > Pattern
+- 2.2 Control Hierarchy: Domain (20) > Control (10,000) > Requirement (200,000) > Pattern (2,000,000)
 - 2.3 Maturity Levels: Reactive > Defined > Managed > Optimizing > Adaptive
 - 2.4 Mapping to Existing Frameworks (NIST, ISO, OWASP, MITRE)
 - 2.5 How to Use This Book
@@ -450,7 +457,7 @@ This book defines the complete AI Governance Body of Knowledge: 20 domains, 1,00
 
 ## Appendices
 
-**Appendix A:** Complete Control Catalog (1,000+ controls across 20 domains)
+**Appendix A:** Complete Control Catalog (10,000+ controls across 20 domains)
 **Appendix B:** Threat Taxonomy (MITRE ATLAS alignment + AI-specific extensions)
 **Appendix C:** Compliance Cross-Reference Matrix (all frameworks mapped to domains)
 **Appendix D:** Glossary of Terms (200+ definitions)
