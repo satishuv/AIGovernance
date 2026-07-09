@@ -66,7 +66,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 - S3 Object Lock (7-year immutable retention)
 - Compliance mapping (ISO 42001, NIST AI RMF, EU AI Act, PCI DSS, NIST 800-53)
 
-Full architecture documentation: [governance-demo-bedrock/docs/architecture/](governance-demo-bedrock/docs/architecture/)
+Full architecture documentation: [../governance-demo-bedrock/docs/architecture/](../governance-demo-bedrock/docs/architecture/)
 
 ---
 
@@ -150,12 +150,12 @@ python -m pytest tests/ -v                     # 225 tests
 
 | Document | Audience |
 |----------|----------|
-| [Architecture Deep-Dives](governance-demo-bedrock/docs/architecture/) | Platform architects |
-| [Security Checklist (93 controls)](governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | Security reviewers |
-| [Control Catalog (377 controls)](governance-demo-bedrock/docs/CONTROL_CATALOG.md) | Compliance teams |
-| [Module Map (72 modules)](governance-demo-bedrock/lambdas/governance_engine/MODULE_MAP.md) | Developers |
-| [Threat Model](governance-demo-bedrock/docs/THREAT_MODEL.md) | Risk assessors |
-| [Evidence Collection Guide](governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | Auditors |
+| [Architecture Deep-Dives](../governance-demo-bedrock/docs/architecture/) | Platform architects |
+| [Security Checklist (93 controls)](../governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | Security reviewers |
+| [Control Catalog (377 controls)](../governance-demo-bedrock/docs/CONTROL_CATALOG.md) | Compliance teams |
+| [Module Map (72 modules)](../governance-demo-bedrock/lambdas/governance_engine/MODULE_MAP.md) | Developers |
+| [Threat Model](../governance-demo-bedrock/docs/THREAT_MODEL.md) | Risk assessors |
+| [Evidence Collection Guide](../governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | Auditors |
 
 ---
 
