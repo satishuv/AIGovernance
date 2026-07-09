@@ -128,9 +128,17 @@ def _write_evidence_to_s3(decision: GovernanceDecision) -> None:
 
 
 def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Execute the full governance decision pipeline."""
+    """Execute the full governance decision pipeline.
+
+    Supports simulation_mode: when event contains "simulation_mode": true,
+    the pipeline evaluates the request fully but skips all side effects
+    (evidence writes, CloudWatch metrics, approval notifications, health
+    updates, drift recording). Returns enriched response with simulation
+    metadata for what-if analysis.
+    """
     from index import DecimalEncoder
 
+    simulation_mode = event.get("simulation_mode", False)
     agent_id = event.get("agent_id", "")
     action_request = {
         "agent_id": agent_id,
@@ -404,155 +412,178 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         decision_engine.log_decision(decision)
 
-        # Evidence write
-        evidence_record = None
-        evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
-        with tracker.track("evidence_write_initiation"):
-            if evidence_bucket:
+        # --- Side effects (skipped in simulation mode) ---
+        if not simulation_mode:
+            # Evidence write
+            evidence_record = None
+            evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
+            with tracker.track("evidence_write_initiation"):
+                if evidence_bucket:
+                    try:
+                        ev_s3 = boto3.client("s3")
+                        evidence_record = evidence_pipeline.write_evidence(
+                            decision=decision, s3_client=ev_s3, bucket=evidence_bucket,
+                            environment=agent_environment or "dev", agent_id=agent_id,
+                        )
+                    except Exception as ev_exc:
+                        logger.error(json.dumps({
+                            "event": "evidence_pipeline_write_failed",
+                            "error": str(ev_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
+                        }))
+                        try:
+                            cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
+                        except Exception:
+                            pass
+                else:
+                    safe_write_evidence(_write_evidence_to_s3, decision)
+
+            # Control trace
+            if evidence_record is not None and control_trace_table is not None:
                 try:
-                    ev_s3 = boto3.client("s3")
-                    evidence_record = evidence_pipeline.write_evidence(
-                        decision=decision, s3_client=ev_s3, bucket=evidence_bucket,
-                        environment=agent_environment or "dev", agent_id=agent_id,
-                    )
-                except Exception as ev_exc:
+                    traces = evidence_pipeline.generate_control_traces(evidence_record, evidence_record.framework_mapping or [])
+                    if traces:
+                        ControlTraceManager.store_traces(traces, control_trace_table)
+                except Exception as ct_exc:
                     logger.error(json.dumps({
-                        "event": "evidence_pipeline_write_failed",
-                        "error": str(ev_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
+                        "event": "control_trace_storage_failed",
+                        "error": str(ct_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
                     }))
-                    try:
-                        cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
-                    except Exception:
-                        pass
-            else:
-                safe_write_evidence(_write_evidence_to_s3, decision)
 
-        # Control trace
-        if evidence_record is not None and control_trace_table is not None:
-            try:
-                traces = evidence_pipeline.generate_control_traces(evidence_record, evidence_record.framework_mapping or [])
-                if traces:
-                    ControlTraceManager.store_traces(traces, control_trace_table)
-            except Exception as ct_exc:
-                logger.error(json.dumps({
-                    "event": "control_trace_storage_failed",
-                    "error": str(ct_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
-                }))
-
-        # Approval workflow for escalated decisions
-        if decision.verdict == "escalate" and approval_workflow is not None:
-            try:
-                approval_id = approval_workflow.create_pending_approval(decision, timeout_seconds=3600)
-                approval_record = approval_workflow._get_approval(approval_id)
-                if approval_record is not None:
-                    try:
-                        sns_client = boto3.client("sns")
-                        topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
-                        if topic_arn:
-                            approval_workflow.notify_approvers(approval_record, sns_client, topic_arn)
-                    except Exception:
-                        pass
-            except Exception as aw_exc:
-                logger.error(json.dumps({
-                    "event": "approval_workflow_failed",
-                    "error": str(aw_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
-                }))
-
-        # Decision history
-        if decision_history is not None:
-            try:
-                decision_history.index_decision(decision)
-            except Exception as dh_exc:
-                logger.error(json.dumps({
-                    "event": "decision_history_indexing_failed",
-                    "error": str(dh_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
-                }))
-
-        # CloudWatch metrics
-        try:
-            cw_metrics_publisher.publish_decision_metric(decision.verdict, cloudwatch_client)
-            cw_metrics_publisher.publish_risk_score_metric(risk_assessment.risk_score, cloudwatch_client)
-        except Exception:
-            pass
-
-        # Continuous monitoring + drift recording
-        if AGENT_HEALTH_TABLE_NAME:
-            try:
-                health_table = dynamodb.Table(AGENT_HEALTH_TABLE_NAME)
-                health_monitor = ContinuousMonitoringManager()
-                health_monitor.update_health(agent_id, decision.verdict, risk_assessment.risk_score if risk_assessment else 0, health_table)
-            except Exception:
-                pass
-
-        if runtime_drift_table is not None:
-            try:
-                drift_detector = RuntimeDriftDetector()
-                drift_detector.record_activity(agent_id, action_request.get("action_group", ""), action_request.get("target_resource", ""), action_request.get("scope_level", 1), runtime_drift_table)
-            except Exception:
-                pass
-
-        if tool_auth_table is not None and decision.verdict == "allow":
-            try:
-                tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
-                if tool_name:
-                    tool_exec_auth = ToolExecutionAuthManager()
-                    tool_exec_auth.record_tool_call(agent_id, tool_name, tool_auth_table)
-            except Exception:
-                pass
-
-        # Output exfiltration check
-        output_text = event.get("output_text", "")
-        if output_text:
-            try:
-                exfil_config = {}
-                if exfiltration_allowlist_table is not None:
-                    allowlist = exfiltration_detector.load_allowlist(exfiltration_allowlist_table)
-                    exfil_config["allowlist"] = allowlist
-                exfil_result = exfiltration_detector.evaluate_output(agent_id, output_text, scope_level, exfil_config)
-                if exfil_result.blocked:
-                    exfiltration_detector.block_and_log(agent_id, exfil_result)
-                    return _deny_response(
-                        reason=f"Output blocked: {exfil_result.pattern_type} detected",
-                        agent_id=agent_id, error_category="exfiltration_blocked",
-                    )
-            except Exception:
-                pass
-
-        # Graduated scope reduction
-        if (decision_history is not None and scope_reduction_history_table is not None and scope_table_resource is not None):
-            try:
-                rolling_avg, dec_count = graduated_scope_reduction.compute_rolling_avg_risk(agent_id, dynamodb.Table(DECISION_HISTORY_TABLE_NAME))
-                if rolling_avg > 0:
-                    threshold = 70.0
-                    exceeded, duration = graduated_scope_reduction.check_sustained_threshold(agent_id, rolling_avg, threshold, 1800, scope_reduction_history_table)
-                    if exceeded:
-                        cooldown_active, remaining = graduated_scope_reduction.check_cooldown(agent_id, scope_reduction_history_table)
-                        if not cooldown_active:
-                            mode = graduated_scope_reduction.get_reduction_mode(dynamodb.Table(os.environ.get("RISK_CONFIG_TABLE_NAME", "")))
+            # Approval workflow for escalated decisions
+            if decision.verdict == "escalate" and approval_workflow is not None:
+                try:
+                    approval_id = approval_workflow.create_pending_approval(decision, timeout_seconds=3600)
+                    approval_record = approval_workflow._get_approval(approval_id)
+                    if approval_record is not None:
+                        try:
                             sns_client = boto3.client("sns")
                             topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
-                            graduated_scope_reduction.execute_reduction(
-                                agent_id, mode, scope_table_resource,
-                                dynamodb.Table(PENDING_APPROVAL_TABLE_NAME) if PENDING_APPROVAL_TABLE_NAME else None,
-                                sns_client, topic_arn,
-                                {"rolling_avg": rolling_avg, "threshold": threshold, "sustained_seconds": duration},
-                            )
+                            if topic_arn:
+                                approval_workflow.notify_approvers(approval_record, sns_client, topic_arn)
+                        except Exception:
+                            pass
+                except Exception as aw_exc:
+                    logger.error(json.dumps({
+                        "event": "approval_workflow_failed",
+                        "error": str(aw_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
+                    }))
+
+            # Decision history
+            if decision_history is not None:
+                try:
+                    decision_history.index_decision(decision)
+                except Exception as dh_exc:
+                    logger.error(json.dumps({
+                        "event": "decision_history_indexing_failed",
+                        "error": str(dh_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
+                    }))
+
+            # CloudWatch metrics
+            try:
+                cw_metrics_publisher.publish_decision_metric(decision.verdict, cloudwatch_client)
+                cw_metrics_publisher.publish_risk_score_metric(risk_assessment.risk_score, cloudwatch_client)
             except Exception:
                 pass
+
+            # Continuous monitoring + drift recording
+            if AGENT_HEALTH_TABLE_NAME:
+                try:
+                    health_table = dynamodb.Table(AGENT_HEALTH_TABLE_NAME)
+                    health_monitor = ContinuousMonitoringManager()
+                    health_monitor.update_health(agent_id, decision.verdict, risk_assessment.risk_score if risk_assessment else 0, health_table)
+                except Exception:
+                    pass
+
+            if runtime_drift_table is not None:
+                try:
+                    drift_detector = RuntimeDriftDetector()
+                    drift_detector.record_activity(agent_id, action_request.get("action_group", ""), action_request.get("target_resource", ""), action_request.get("scope_level", 1), runtime_drift_table)
+                except Exception:
+                    pass
+
+            if tool_auth_table is not None and decision.verdict == "allow":
+                try:
+                    tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
+                    if tool_name:
+                        tool_exec_auth = ToolExecutionAuthManager()
+                        tool_exec_auth.record_tool_call(agent_id, tool_name, tool_auth_table)
+                except Exception:
+                    pass
+
+            # Output exfiltration check
+            output_text = event.get("output_text", "")
+            if output_text:
+                try:
+                    exfil_config = {}
+                    if exfiltration_allowlist_table is not None:
+                        allowlist = exfiltration_detector.load_allowlist(exfiltration_allowlist_table)
+                        exfil_config["allowlist"] = allowlist
+                    exfil_result = exfiltration_detector.evaluate_output(agent_id, output_text, scope_level, exfil_config)
+                    if exfil_result.blocked:
+                        exfiltration_detector.block_and_log(agent_id, exfil_result)
+                        return _deny_response(
+                            reason=f"Output blocked: {exfil_result.pattern_type} detected",
+                            agent_id=agent_id, error_category="exfiltration_blocked",
+                        )
+                except Exception:
+                    pass
+
+            # Graduated scope reduction
+            if (decision_history is not None and scope_reduction_history_table is not None and scope_table_resource is not None):
+                try:
+                    rolling_avg, dec_count = graduated_scope_reduction.compute_rolling_avg_risk(agent_id, dynamodb.Table(DECISION_HISTORY_TABLE_NAME))
+                    if rolling_avg > 0:
+                        threshold = 70.0
+                        exceeded, duration = graduated_scope_reduction.check_sustained_threshold(agent_id, rolling_avg, threshold, 1800, scope_reduction_history_table)
+                        if exceeded:
+                            cooldown_active, remaining = graduated_scope_reduction.check_cooldown(agent_id, scope_reduction_history_table)
+                            if not cooldown_active:
+                                mode = graduated_scope_reduction.get_reduction_mode(dynamodb.Table(os.environ.get("RISK_CONFIG_TABLE_NAME", "")))
+                                sns_client = boto3.client("sns")
+                                topic_arn = os.environ.get("OPERATOR_SNS_TOPIC_ARN", "")
+                                graduated_scope_reduction.execute_reduction(
+                                    agent_id, mode, scope_table_resource,
+                                    dynamodb.Table(PENDING_APPROVAL_TABLE_NAME) if PENDING_APPROVAL_TABLE_NAME else None,
+                                    sns_client, topic_arn,
+                                    {"rolling_avg": rolling_avg, "threshold": threshold, "sustained_seconds": duration},
+                                )
+                except Exception:
+                    pass
 
         # Latency metric
         latency_metric = tracker.record_latency(decision.decision_id)
         decision.latency_breakdown = latency_metric.component_latencies
 
-        try:
-            cw_metrics_publisher.publish_latency_metric(latency_metric.total_elapsed_ms, cloudwatch_client)
-        except Exception:
-            pass
+        if not simulation_mode:
+            try:
+                cw_metrics_publisher.publish_latency_metric(latency_metric.total_elapsed_ms, cloudwatch_client)
+            except Exception:
+                pass
 
         # Return decision
         response_body = decision.to_dict()
         if canary_tokens:
             response_body["_canary_tokens"] = canary_tokens
+        if simulation_mode:
+            response_body["simulation"] = True
+            response_body["would_execute"] = decision.verdict == "allow"
+            response_body["side_effects_skipped"] = [
+                "evidence_write", "control_trace", "approval_workflow",
+                "decision_history", "cloudwatch_metrics", "health_update",
+                "drift_recording", "scope_reduction",
+            ]
+            response_body["risk_factors"] = {
+                "scope_level": scope_level,
+                "action_group": action_group,
+                "target_resource": target_resource,
+                "risk_score": risk_assessment.risk_score if risk_assessment else 0,
+                "escalation_threshold": risk_engine.escalation_threshold,
+                "exceeds_threshold": (risk_assessment.risk_score if risk_assessment else 0) >= risk_engine.escalation_threshold,
+            }
+            if decision.verdict == "escalate":
+                response_body["remediation"] = "Request human approval via the approval API, or reduce risk by using a lower scope level"
+            elif decision.verdict == "deny":
+                response_body["remediation"] = f"Action requires appropriate scope and policy. Current scope: {scope_level}"
         return json.loads(json.dumps(response_body, cls=DecimalEncoder))
 
     except Exception as exc:
