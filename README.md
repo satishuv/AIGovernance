@@ -152,23 +152,21 @@ This framework wraps every AI agent action with a governance pipeline that evalu
 
 Each layer runs at a specific point in the request lifecycle. The pipeline is sequential - a request blocked at Layer 1 never reaches Layer 7.
 
-| Order | Layer | Runs In | When | What It Catches | Active? |
-|-------|-------|---------|------|----------------|---------|
-| 1 | **Kill Switch** | Governance Engine Lambda | First check, before anything else | All requests when emergency shutdown active | YES (live) |
-| 2 | **Behavioral Invariants** | Governance Engine Lambda | Before input analysis | Time-of-day violations, tool call caps, recursion limits, canary injection | YES (live) |
-| 3 | **Input Sanitizer** | Governance Engine Lambda | Before threat detection | Base64/hex/URL encoding, ChatML/Llama delimiters, unicode homoglyphs, leet-speak, context stuffing, multilingual injection | YES (live) |
-| 4 | **Bedrock Guardrails** | Governance Engine Lambda | After sanitization | Harmful content, violence, jailbreaks, illegal activities (semantic AI classification) | YES (live) |
-| 5 | **Threat Detector** | Governance Engine Lambda | After guardrails | SQL injection, prompt injection (regex), destructive commands from DynamoDB pattern table | YES (live) |
-| 6 | **Agent Identity + Registry** | Governance Engine Lambda | After threat checks | Unregistered agents, suspended agents, environment isolation, data class violations | YES (live) |
-| 7 | **Tool/Model Authorization** | Governance Engine Lambda | After identity | Unapproved tools, per-tool rate limits, tool chain detection, scope violations | YES (live) |
-| 8 | **OPA Policy Engine** | Governance Engine Lambda | Core evaluation | Policy violations (Rego-subset rules), time-based policies, scope-action matrix | YES (live) |
-| 9 | **Risk Scoring** | Governance Engine Lambda | After policy eval | Computes 0-100 risk score from scope weight + action weight + target weight | YES (live) |
-| 10 | **Decision Engine** | Governance Engine Lambda | After risk scoring | ALLOW / DENY / ESCALATE verdict based on policy + risk + threshold (70) | YES (live) |
-| 11 | **Tool Response Validator** | Action Group Lambda | After tool executes, before agent sees response | Injection patterns in S3/DynamoDB data, action directives, sensitive data stripping | YES (live) |
-| 12 | **Output Guardrails** | Scope Enforcer Lambda | After agent responds, before user sees it | System prompt leakage, ARN/credential exposure, canary tripwire, PII detection | YES (live) |
-| 13 | **Evidence Pipeline** | Governance Engine Lambda (async) | After decision, non-blocking | Writes immutable SHA-256 evidence to S3 Object Lock | YES (live) |
-
-**All 13 layers are active in the deployed Lambda.** None are mock-only or planned-only.
+| Order | Layer | Runs In | When | What It Catches |
+|-------|-------|---------|------|----------------|
+| 1 | **Kill Switch** | Governance Engine Lambda | First check, before anything else | All requests when emergency shutdown active |
+| 2 | **Behavioral Invariants** | Governance Engine Lambda | Before input analysis | Time-of-day violations, tool call caps, recursion limits, canary injection |
+| 3 | **Input Sanitizer** | Governance Engine Lambda | Before threat detection | Base64/hex/URL encoding, ChatML/Llama delimiters, unicode homoglyphs, leet-speak, context stuffing, multilingual injection |
+| 4 | **Bedrock Guardrails** | Governance Engine Lambda | After sanitization | Harmful content, violence, jailbreaks, illegal activities (semantic AI classification) |
+| 5 | **Threat Detector** | Governance Engine Lambda | After guardrails | SQL injection, prompt injection (regex), destructive commands from DynamoDB pattern table |
+| 6 | **Agent Identity + Registry** | Governance Engine Lambda | After threat checks | Unregistered agents, suspended agents, environment isolation, data class violations |
+| 7 | **Tool/Model Authorization** | Governance Engine Lambda | After identity | Unapproved tools, per-tool rate limits, tool chain detection, scope violations |
+| 8 | **OPA Policy Engine** | Governance Engine Lambda | Core evaluation | Policy violations (Rego-subset rules), time-based policies, scope-action matrix |
+| 9 | **Risk Scoring** | Governance Engine Lambda | After policy eval | Computes 0-100 risk score from scope weight + action weight + target weight |
+| 10 | **Decision Engine** | Governance Engine Lambda | After risk scoring | ALLOW / DENY / ESCALATE verdict based on policy + risk + threshold (70) |
+| 11 | **Tool Response Validator** | Action Group Lambda | After tool executes, before agent sees response | Injection patterns in S3/DynamoDB data, action directives, sensitive data stripping |
+| 12 | **Output Guardrails** | Scope Enforcer Lambda | After agent responds, before user sees it | System prompt leakage, ARN/credential exposure, canary tripwire, PII detection |
+| 13 | **Evidence Pipeline** | Governance Engine Lambda (async) | After decision, non-blocking | Writes immutable SHA-256 evidence to S3 Object Lock |
 
 ### Where Each Layer Lives in the Pipeline
 
