@@ -6,7 +6,7 @@ AI agents read data from their environment and that data can become instructions
 
 Traditional security validates inputs and sanitizes outputs. But an AI agent also CONSUMES tool responses, READS tool descriptions, and CHAINS actions through autonomous reasoning. These three surfaces have no protection in any existing framework, product, or standard.
 
-This project is the enforcement layer that governs what an AI agent does between receiving a request and taking an action.
+**This project is the enforcement layer that governs what an AI agent does between receiving a request and taking an action.**
 
 ---
 
@@ -66,8 +66,6 @@ This framework combines all of these into a single runtime enforcement engine fo
 - S3 Object Lock (7-year immutable retention)
 - Compliance mapping (ISO 42001, NIST AI RMF, EU AI Act, PCI DSS, NIST 800-53)
 
-Full architecture documentation: [../governance-demo-bedrock/docs/architecture/](../governance-demo-bedrock/docs/architecture/)
-
 ---
 
 ## Three Novel Contributions
@@ -80,7 +78,7 @@ Every framework validates what goes INTO tools. Nobody validates what comes BACK
 
 **2. Sequential Chain Governance**
 
-Every access control system evaluates one action at a time. This framework evaluates whether a SEQUENCE of individually-safe actions produces harm when combined. Traditional per-action authorization cannot detect this.
+Every access control system evaluates one action at a time. This framework evaluates whether a SEQUENCE of individually-safe actions produces harm when combined.
 
 **3. Tool Metadata Defense**
 
@@ -88,30 +86,29 @@ AI agents read tool descriptions to decide how to use them. Those descriptions c
 
 ---
 
-## Graduated Autonomy Model
+## Graduated Autonomy
 
 Agents earn trust through demonstrated safe behavior:
 
-| Level | What the agent can do | What's enforced |
-|-------|----------------------|-----------------|
+| Level | What the agent can do | Enforcement |
+|-------|----------------------|-------------|
 | 0 | Nothing (kill switch) | Deny-all IAM policy |
 | 1 | Read-only queries | S3 GetObject only |
-| 2 | Propose changes | + DynamoDB writes to pending table |
+| 2 | Propose changes | + DynamoDB writes to pending |
 | 3 | Deploy to staging | + S3 writes to staging path |
 | 4 | Deploy to production | + S3 writes to production path |
 
-Each level maps to a dedicated IAM Permission Boundary. The agent's scope level is stored in DynamoDB and can only be modified by authorized operators.
+Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infrastructure layer.
 
 ---
 
 ## Validation
 
-The framework is validated against real-world attack research:
-
-- **Attack datasets**: 8,470+ payloads from 13 academic benchmarks (JailbreakBench, AdvBench, Deepset, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, and 7 others)
-- **Detection rate**: 93.4% on pure attack datasets, with multi-layer defense reducing residual attack success from 73-84% baseline to under 9%
-- **End-to-end validation**: 21 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), all scope levels, and all attack categories
+- **Attack datasets**: 8,470+ payloads from 13 academic benchmarks (JailbreakBench, AdvBench, Deepset, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, and others)
+- **Detection rate**: 93.4% on pure attack datasets. Multi-layer defense reduces residual attack success from 73-84% baseline to under 9%
+- **End-to-end scenarios**: 21 governance scenarios covering all verdicts, all scope levels, and all attack categories
 - **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
+- **Test suite**: 225 automated tests (unit + integration + security)
 
 ---
 
