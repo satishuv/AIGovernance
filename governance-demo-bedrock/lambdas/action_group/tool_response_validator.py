@@ -1,5 +1,9 @@
 """Tool Response Validator - validates data returned FROM tools BEFORE the agent processes it.
 
+NOTE: This is a copy of lambdas/governance_engine/tool_response_validator.py.
+Both Lambdas need this module at deploy time (flat import constraint).
+Source of truth: lambdas/governance_engine/tool_response_validator.py
+
 Closes the perception gap: input sanitizer checks what goes INTO tools,
 output guardrails check what the agent says to users, but nothing checked
 what tools return to the agent. This is the #1 exploited vector in
