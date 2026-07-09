@@ -68,6 +68,50 @@ This framework combines all of these into a single runtime enforcement engine fo
 
 ---
 
+## How Scoring and Decisions Work
+
+Every request gets a **risk score (0-100)** computed from four weighted factors:
+
+```
+Risk Score = scope_weight + action_weight + target_weight + history_weight
+```
+
+| Factor | What it measures | Weight examples |
+|--------|-----------------|-----------------|
+| Scope level | How much power the agent has | Level 1 = 10, Level 3 = 50, Level 4 = 75 |
+| Action type | How dangerous the action is | Read = 10, Deploy = 50, Emergency = 60 |
+| Target resource | What's being acted on | Development = 5, Staging = 15, Production = 30 |
+| History | Recent denial patterns | +5 per recent denial |
+
+**Decision logic (what happens with the score):**
+
+| Condition | Verdict | What happens |
+|-----------|---------|-------------|
+| Policy says DENY | **DENY** | Blocked immediately, regardless of score |
+| Policy says ESCALATE | **ESCALATE** | Human approval required, regardless of score |
+| Policy says ALLOW but score >= 70 | **ESCALATE** | Too risky for auto-approval, human decides |
+| Policy says ALLOW and score < 70 | **ALLOW** | Safe to execute |
+
+**Example:**
+
+```
+Agent at Scope 3 requests "deploy to staging"
+
+  Scope weight:     50  (level 3)
+  Action weight:    50  (deployment)
+  Target weight:    15  (staging)
+  History weight:    0  (no recent denials)
+  ─────────────────────
+  Total:           115 → capped at 100
+
+  Score = 100, threshold = 70
+  100 >= 70 → ESCALATE (requires human approval)
+```
+
+Deployments are mathematically impossible to auto-approve. This is by design.
+
+---
+
 ## Three Novel Contributions
 
 These address attack surfaces that no existing standard, framework, or product covers:
