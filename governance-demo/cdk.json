@@ -1,6 +1,0 @@
-{
-  "app": "python app.py",
-  "context": {
-    "@aws-cdk/core:stackName": "AgenticGovernanceDemo"
-  }
-}
