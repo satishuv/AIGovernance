@@ -148,17 +148,66 @@ This framework wraps every AI agent action with a governance pipeline that evalu
 
 ## Attack Resilience
 
-### Multi-Layer Defense Stack
+### Defense Layers (Execution Order)
 
-| Layer | What It Catches | Detection Method |
-|-------|----------------|-----------------|
-| Input Sanitizer | Encoding attacks (base64, hex, URL), ChatML/Llama delimiters, unicode homoglyphs, leet-speak, context stuffing, multilingual injection | Pattern matching + decoding |
-| Bedrock Guardrails | Harmful content, violence, hate, jailbreaks, illegal activities, misinformation | AI content classification |
-| Threat Detector | SQL injection, prompt injection (regex), destructive commands | Configurable DynamoDB patterns |
-| Per-tool enforcement | SQL injection in parameters, unauthorized tools, rate limit abuse, tool chaining | Inline checks (~15ms) |
-| Tool Response Validator | Injection in S3/DynamoDB data, action directives in tool output, sensitive data in responses | Pattern + entropy + format analysis |
-| Statistical anomaly | High entropy, script mixing, repetition patterns, unusual character distribution | Shannon entropy + z-score |
-| Output Guardrails | System prompt leakage, credential exposure, ARN leaks, canary tripwire, PII | Regex + Bedrock Guardrails |
+Each layer runs at a specific point in the request lifecycle. The pipeline is sequential - a request blocked at Layer 1 never reaches Layer 7.
+
+| Order | Layer | Runs In | When | What It Catches | Active? |
+|-------|-------|---------|------|----------------|---------|
+| 1 | **Kill Switch** | Governance Engine Lambda | First check, before anything else | All requests when emergency shutdown active | YES (live) |
+| 2 | **Behavioral Invariants** | Governance Engine Lambda | Before input analysis | Time-of-day violations, tool call caps, recursion limits, canary injection | YES (live) |
+| 3 | **Input Sanitizer** | Governance Engine Lambda | Before threat detection | Base64/hex/URL encoding, ChatML/Llama delimiters, unicode homoglyphs, leet-speak, context stuffing, multilingual injection | YES (live) |
+| 4 | **Bedrock Guardrails** | Governance Engine Lambda | After sanitization | Harmful content, violence, jailbreaks, illegal activities (semantic AI classification) | YES (live) |
+| 5 | **Threat Detector** | Governance Engine Lambda | After guardrails | SQL injection, prompt injection (regex), destructive commands from DynamoDB pattern table | YES (live) |
+| 6 | **Agent Identity + Registry** | Governance Engine Lambda | After threat checks | Unregistered agents, suspended agents, environment isolation, data class violations | YES (live) |
+| 7 | **Tool/Model Authorization** | Governance Engine Lambda | After identity | Unapproved tools, per-tool rate limits, tool chain detection, scope violations | YES (live) |
+| 8 | **OPA Policy Engine** | Governance Engine Lambda | Core evaluation | Policy violations (Rego-subset rules), time-based policies, scope-action matrix | YES (live) |
+| 9 | **Risk Scoring** | Governance Engine Lambda | After policy eval | Computes 0-100 risk score from scope weight + action weight + target weight | YES (live) |
+| 10 | **Decision Engine** | Governance Engine Lambda | After risk scoring | ALLOW / DENY / ESCALATE verdict based on policy + risk + threshold (70) | YES (live) |
+| 11 | **Tool Response Validator** | Action Group Lambda | After tool executes, before agent sees response | Injection patterns in S3/DynamoDB data, action directives, sensitive data stripping | YES (live) |
+| 12 | **Output Guardrails** | Scope Enforcer Lambda | After agent responds, before user sees it | System prompt leakage, ARN/credential exposure, canary tripwire, PII detection | YES (live) |
+| 13 | **Evidence Pipeline** | Governance Engine Lambda (async) | After decision, non-blocking | Writes immutable SHA-256 evidence to S3 Object Lock | YES (live) |
+
+**All 13 layers are active in the deployed Lambda.** None are mock-only or planned-only.
+
+### Where Each Layer Lives in the Pipeline
+
+```
+USER REQUEST
+    |
+    v
+[Scope Enforcer Lambda]
+    |
+    v
+[Governance Engine Lambda - pipeline_orchestrator.py]
+    |-- Step 1: Kill Switch check
+    |-- Step 2: Behavioral Invariants
+    |-- Step 3: Input Sanitizer (input_sanitizer.py)
+    |-- Step 4: Bedrock Guardrails (bedrock_guardrails.py)
+    |-- Step 5: Threat Detector (threat_detector.py)
+    |-- Step 6: Agent Identity (agent_identity.py + agent_registry.py)
+    |-- Step 7: Tool Auth (tool_execution_auth.py)
+    |-- Step 8: OPA Policy (opa_engine.py)
+    |-- Step 9: Risk Scoring (risk_scoring.py)
+    |-- Step 10: Decision (decision_engine.py)
+    |-- Step 11: Evidence write (async, evidence_pipeline.py)
+    |
+    v  (if ALLOW)
+[Bedrock Agent invokes tool]
+    |
+    v
+[Action Group Lambda - index.py]
+    |-- Tool Response Validator (tool_response_validator.py)
+    |-- Tool executes (reads S3/DynamoDB)
+    |-- Response sanitized before returning to agent
+    |
+    v
+[Scope Enforcer Lambda - output path]
+    |-- Output Guardrails (PII, ARN stripping, canary check)
+    |
+    v
+USER RESPONSE
+```
 
 ### Tested Against Real-World Attacks
 
