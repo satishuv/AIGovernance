@@ -39,12 +39,3 @@
 | [Threat Model](THREAT_MODEL.md) | Attack taxonomy and defense mapping |
 | [Implementation Guide](IMPLEMENTATION_GUIDE.md) | How controls map to code |
 
----
-
-## Internal (development notes, not for external readers)
-
-| Document | Content |
-|----------|---------|
-| [Deploy to personal account](internal/DEPLOY_PERSONAL_ACCOUNT.md) | Step-by-step personal deploy |
-| [Console demo guide](internal/DEMO_CONSOLE_GUIDE_PERSONAL_ACCOUNT.md) | AWS Console walkthrough |
-| [Root cause analysis](internal/ROOT_CAUSE_ANALYSIS.md) | Debug notes from Bedrock agent issues |
