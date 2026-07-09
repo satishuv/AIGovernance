@@ -10,46 +10,112 @@ This project accompanies the whitepaper *"Building Trustworthy Agentic AI"* and 
 
 ---
 
-## Architecture Overview
+## Enterprise AI Runtime Governance Control Plane
+
+*How does an AI agent request get governed before it acts?*
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      User / Operator                        │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │ invoke                       │ emergency stop
-               ▼                              ▼
-┌──────────────────────┐        ┌──────────────────────────┐
-│   Scope Enforcer λ   │        │     Kill Switch λ        │
-│                      │        │  • scope → 0             │
-│  1. Read scope level │        │  • deny-all IAM policy   │
-│  2. Swap IAM boundary│        └──────────────────────────┘
-│  3. Invoke Agent     │
-└──────────┬───────────┘
-           │ bedrock-agent-runtime:InvokeAgent
-           ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    Bedrock Agent (Amazon Nova Micro)           │
-│                                                              │
-│  Action Groups (graduated by scope level):                   │
-│  ┌──────────────────┐  ┌──────────────────┐                 │
-│  │ ReadPipeline     │  │ ProposeChanges   │  Scope 1-2      │
-│  │ Status (scope≥1) │  │ (scope≥2)        │                 │
-│  └──────────────────┘  └──────────────────┘                 │
-│  ┌──────────────────┐  ┌──────────────────┐                 │
-│  │ Staging          │  │ Production       │  Scope 3-4      │
-│  │ Deployment (≥3)  │  │ Deployment (≥4)  │                 │
-│  └──────────────────┘  └──────────────────┘                 │
-│                              │                               │
-│                    Action Group Lambda                        │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-        ┌──────────┐   ┌────────────┐   ┌────────────┐
-        │ S3 Data  │   │ DynamoDB   │   │ CloudWatch │
-        │ Bucket   │   │ Tables     │   │ + Trail    │
-        └──────────┘   └────────────┘   └────────────┘
+╔══════════════════════════════════════════════════════════════════════════╗
+║  LAYER 1: REQUEST                                                       ║
+║                                                                         ║
+║    User / Operator / Upstream Service                                   ║
+║         │                                                               ║
+║         ▼                                                               ║
+║    API Gateway / Scope Enforcer Lambda                                  ║
+╚════════════════════════════╤═════════════════════════════════════════════╝
+                             │
+         ┌───────────────────┴─────────────── TRUST BOUNDARY ──────┐
+         │                                                          │
+╔════════▼═════════════════════════════════════════════════════════════════╗
+║  LAYER 2: GOVERNANCE CONTROL PLANE (Blue)                               ║
+║                                                                         ║
+║  ┌─────────────┐   ┌──────────────────────────────────────────────────┐ ║
+║  │ Kill Switch │──▶│             Governance Engine                     │ ║
+║  │ (scope = 0  │   │                                                  │ ║
+║  │  = instant  │   │  1. Agent Registry + Scope Table lookup          │ ║
+║  │  shutdown)  │   │  2. Input Defense (8 sanitization checks)        │ ║
+║  └─────────────┘   │  3. Agent + Tool Authorization                   │ ║
+║                     │  4. OPA + Cedar Policy Evaluation                │ ║
+║                     │  5. Risk Scoring + Trust Assessment              │ ║
+║                     │  6. Drift / Behavioral Monitoring                │ ║
+║                     │  7. Decision Engine                              │ ║
+║                     └─────────────────────┬───────────────────────────┘ ║
+║                                           │                             ║
+╚═══════════════════════════════════════════╤══════════════════════════════╝
+                                            │
+              ┌─────────────────────────────┼──────────────────────┐
+              │                             │                      │
+              ▼                             ▼                      ▼
+┌──────────────────────┐   ┌───────────────────────┐   ┌────────────────────┐
+│    ## DENY ##        │   │   ^^ ESCALATE ^^      │   │   ** ALLOW **      │
+│                      │   │                       │   │                    │
+│ Return explanation   │   │ Human approval queue  │   │ Proceed to agent   │
+│ Log + evidence       │   │ SNS operator alert    │   │ execution          │
+└──────────────────────┘   └───────────────────────┘   └─────────┬──────────┘
+                                                                  │
+         ┌────────────────────────────────────────── TRUST BOUNDARY ──────┐
+         │                                                                 │
+╔════════▼═════════════════════════════════════════════════════════════════════╗
+║  LAYER 3: AGENT EXECUTION PLANE (Green)                                     ║
+║                                                                             ║
+║    Bedrock Agent (Nova Micro) ──▶ Action Groups (scope-gated)               ║
+║         │                              │                                    ║
+║         │                   ┌──────────┼──────────┐                         ║
+║         │                   ▼          ▼          ▼                         ║
+║         │            ReadPipeline  Staging    Production                     ║
+║         │            Propose       Deploy     Deploy                         ║
+║         │                   │          │          │                          ║
+║         │                   └──────────┼──────────┘                         ║
+║         │                              ▼                                    ║
+║         │              ┌───────────────────────────────┐                    ║
+║         │              │ Per-Tool Security (15ms each) │                    ║
+║         │              │  - Scope enforcement          │                    ║
+║         │              │  - Parameter injection scan   │                    ║
+║         │              │  - Rate limiting + chain det. │                    ║
+║         │              └───────────────┬───────────────┘                    ║
+║         │                              ▼                                    ║
+║         │              ┌───────────────────────────────┐                    ║
+║         │              │ Enterprise Systems            │                    ║
+║         │              │  S3 | DynamoDB | Pipelines    │                    ║
+║         │              └───────────────┬───────────────┘                    ║
+║         │                              │                                    ║
+║         │                              ▼                                    ║
+║         │              ┌───────────────────────────────┐                    ║
+║         │              │ Tool Response Validator       │                    ║
+║         │              │  - Injection detection        │                    ║
+║         │              │  - Data classification        │                    ║
+║         │              │  - Anomaly scoring            │                    ║
+║         │              └───────────────┬───────────────┘                    ║
+║         │                              ▼                                    ║
+║         │              ┌───────────────────────────────┐                    ║
+║         │              │ Output Guardrails             │                    ║
+║         │              │  - PII/credential stripping   │                    ║
+║         │              │  - Exfiltration blocking      │                    ║
+║         │              │  - Content safety             │                    ║
+║         │              └───────────────┬───────────────┘                    ║
+║         │                              │                                    ║
+╚═════════╪══════════════════════════════╪════════════════════════════════════╝
+          │                              │
+          │         ┌────────────────────┘
+          │         │
+╔═════════▼═════════▼══════════════════════════════════════════════════════════╗
+║  LAYER 4: EVIDENCE & COMPLIANCE PLANE (async, non-blocking side-stream)     ║
+║                                                                             ║
+║  Every decision and action flows here automatically:                        ║
+║                                                                             ║
+║  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐   ║
+║  │ S3 Object    │  │ Evidence     │  │ CloudWatch   │  │ Compliance    │   ║
+║  │ Lock (7yr)   │  │ Graph        │  │ + CloudTrail │  │ Mapping       │   ║
+║  │              │  │              │  │              │  │               │   ║
+║  │ Immutable    │  │ SHA-256      │  │ Real-time    │  │ ISO 42001     │   ║
+║  │ WORM storage │  │ hash chains  │  │ metrics      │  │ NIST AI RMF   │   ║
+║  │              │  │              │  │              │  │ EU AI Act     │   ║
+║  └──────────────┘  └──────────────┘  └──────────────┘  └───────────────┘   ║
+║                                                                             ║
+╚═════════════════════════════════════════════════════════════════════════════╝
 ```
+
+> **Detailed architecture:** [docs/architecture/](docs/architecture/) has deep-dives on runtime flow, control plane internals, threat-defense mapping, evidence pipeline, shadow AI discovery, and supply chain governance.
 
 
 ## Scope Levels
