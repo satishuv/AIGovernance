@@ -1,12 +1,6 @@
 # Runtime Governance Framework for Agentic AI on AWS
 
-*A production-grade, open-source reference architecture that governs autonomous AI agents with defense-in-depth security, OPA policy enforcement, HIPAA PII detection, tool response validation, and automated compliance evidence generation. Built on Amazon Bedrock Agents, deployed via modular AWS CDK constructs.*
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
-[![AWS CDK](https://img.shields.io/badge/AWS_CDK-v2-orange.svg)](https://docs.aws.amazon.com/cdk/)
-[![Controls](https://img.shields.io/badge/Security_Controls-93-green.svg)](governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md)
-[![Tests](https://img.shields.io/badge/Demo_Scenarios-21%2F21_PASS-brightgreen.svg)](governance-demo-bedrock/test_datasets/run_demo_validation.py)
+*A production-grade reference architecture that governs autonomous AI agents with defense-in-depth security, OPA policy enforcement, HIPAA PII detection, tool response validation, and automated compliance evidence generation. Built on Amazon Bedrock Agents, deployed via modular AWS CDK constructs.*
 
 ---
 
