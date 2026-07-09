@@ -1,0 +1,50 @@
+[
+  {
+    "PolicyName": "GovernanceBedrockStack-Scope4BoundaryBE394DEE-FBjcvINywHlY",
+    "PolicyId": "ANPA5LN74CXF43NDUOEFI",
+    "Arn": "arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope4BoundaryBE394DEE-FBjcvINywHlY",
+    "Path": "/",
+    "DefaultVersionId": "v1",
+    "AttachmentCount": 0,
+    "PermissionsBoundaryUsageCount": 0,
+    "IsAttachable": true,
+    "CreateDate": "2026-07-04 04:28:26+00:00",
+    "UpdateDate": "2026-07-04 04:28:26+00:00"
+  },
+  {
+    "PolicyName": "GovernanceBedrockStack-Scope2Boundary37BDACAA-5GVtWr5pCY4e",
+    "PolicyId": "ANPA5LN74CXFSUYTNCTNE",
+    "Arn": "arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope2Boundary37BDACAA-5GVtWr5pCY4e",
+    "Path": "/",
+    "DefaultVersionId": "v1",
+    "AttachmentCount": 0,
+    "PermissionsBoundaryUsageCount": 0,
+    "IsAttachable": true,
+    "CreateDate": "2026-07-04 04:28:26+00:00",
+    "UpdateDate": "2026-07-04 04:28:26+00:00"
+  },
+  {
+    "PolicyName": "GovernanceBedrockStack-Scope3Boundary3B7E8EEC-WIVmfgrn5fhP",
+    "PolicyId": "ANPA5LN74CXFVLUSX5GVW",
+    "Arn": "arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope3Boundary3B7E8EEC-WIVmfgrn5fhP",
+    "Path": "/",
+    "DefaultVersionId": "v1",
+    "AttachmentCount": 0,
+    "PermissionsBoundaryUsageCount": 0,
+    "IsAttachable": true,
+    "CreateDate": "2026-07-04 04:28:26+00:00",
+    "UpdateDate": "2026-07-04 04:28:26+00:00"
+  },
+  {
+    "PolicyName": "GovernanceBedrockStack-Scope1BoundaryBA0533D7-SsNpTtsJwyTz",
+    "PolicyId": "ANPA5LN74CXFWNBZE4GYQ",
+    "Arn": "arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope1BoundaryBA0533D7-SsNpTtsJwyTz",
+    "Path": "/",
+    "DefaultVersionId": "v1",
+    "AttachmentCount": 0,
+    "PermissionsBoundaryUsageCount": 0,
+    "IsAttachable": true,
+    "CreateDate": "2026-07-04 04:28:25+00:00",
+    "UpdateDate": "2026-07-04 04:28:25+00:00"
+  }
+]

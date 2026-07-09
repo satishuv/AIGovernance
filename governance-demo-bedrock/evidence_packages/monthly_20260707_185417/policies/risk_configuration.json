@@ -1,0 +1,64 @@
+[
+  {
+    "description": "Base risk weight per risk category",
+    "weights": {
+      "configuration_change": "20",
+      "data_access": "5",
+      "emergency_action": "35",
+      "data_modification": "15",
+      "deployment": "25"
+    },
+    "config_key": "category_base_weights"
+  },
+  {
+    "description": "Risk score threshold above which actions are escalated",
+    "value": "70",
+    "config_key": "escalation_threshold"
+  },
+  {
+    "cooldown_seconds": "7200",
+    "value": "approval-gated",
+    "high_risk_threshold": "70",
+    "config_key": "scope_reduction_mode",
+    "description": "Graduated scope reduction configuration",
+    "sustained_period_seconds": "1800",
+    "time_window_seconds": "3600"
+  },
+  {
+    "description": "Risk weight per scope level",
+    "weights": {
+      "0": "0",
+      "1": "10",
+      "2": "25",
+      "3": "50",
+      "4": "75"
+    },
+    "config_key": "scope_level_weights"
+  },
+  {
+    "description": "Risk weight multiplier per recent action in history",
+    "value": "5",
+    "config_key": "history_factor_weight"
+  },
+  {
+    "description": "Risk weight per target resource type",
+    "weights": {
+      "development": "5",
+      "default": "10",
+      "production": "30",
+      "staging": "15"
+    },
+    "config_key": "target_resource_weights"
+  },
+  {
+    "description": "Risk weight per action group category",
+    "weights": {
+      "configuration_change": "40",
+      "data_access": "10",
+      "emergency_action": "60",
+      "data_modification": "30",
+      "deployment": "50"
+    },
+    "config_key": "action_group_weights"
+  }
+]

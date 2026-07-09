@@ -1,0 +1,20 @@
+[
+  {
+    "name": "AGCP-EvidenceWriteFailureAlarm",
+    "state": "INSUFFICIENT_DATA",
+    "description": "Evidence write failure rate exceeds threshold",
+    "threshold": 1.0
+  },
+  {
+    "name": "AGCP-KillSwitchActivationAlarm",
+    "state": "INSUFFICIENT_DATA",
+    "description": "Kill switch has been activated",
+    "threshold": 1.0
+  },
+  {
+    "name": "AGCP-PolicyEvalLatencyAlarm",
+    "state": "INSUFFICIENT_DATA",
+    "description": "Policy evaluation latency exceeds 200ms",
+    "threshold": 200.0
+  }
+]

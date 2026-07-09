@@ -1,0 +1,11 @@
+[
+  {
+    "agent_id": "demo-agent",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "environment": "dev",
+    "updated_by": "cdk-init",
+    "status": "active",
+    "display_name": "Demo Agent",
+    "scope_level": "1"
+  }
+]

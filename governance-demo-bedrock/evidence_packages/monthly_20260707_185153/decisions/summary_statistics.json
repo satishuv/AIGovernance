@@ -1,0 +1,19 @@
+{
+  "period": {
+    "start": "2026-06-07T18:51:53.363622+00:00",
+    "end": "2026-07-07T18:51:53.363622+00:00"
+  },
+  "total_decisions": 2985,
+  "verdict_counts": {
+    "allow": 2886,
+    "deny": 82,
+    "escalate": 17
+  },
+  "risk_score_stats": {
+    "min": 25.0,
+    "max": 100.0,
+    "avg": 38.051926298157454
+  },
+  "denial_rate": 0.02747068676716918,
+  "escalation_rate": 0.005695142378559464
+}

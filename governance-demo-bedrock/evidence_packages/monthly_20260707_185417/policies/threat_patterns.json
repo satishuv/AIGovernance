@@ -1,0 +1,74 @@
+[
+  {
+    "category": "suspicious",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "sus-partial-prompt-1",
+    "risk_weight": "30",
+    "description": "Suspicious: partial prompt injection indicator",
+    "pattern": "you\\s+are\\s+now"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-prompt-injection-2",
+    "risk_weight": "100",
+    "description": "Prompt injection: system override attempt",
+    "pattern": "system:\\s*override"
+  },
+  {
+    "category": "suspicious",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "sus-encoding-1",
+    "risk_weight": "20",
+    "description": "Suspicious: unusual URL encoding sequences",
+    "pattern": "%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}.*%[0-9a-fA-F]{2}"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-disallowed-cmd-1",
+    "risk_weight": "100",
+    "description": "Disallowed command: rm -rf",
+    "pattern": "rm\\s+-rf"
+  },
+  {
+    "category": "suspicious",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "sus-length-1",
+    "risk_weight": "25",
+    "description": "Suspicious: anomalous input length (>5000 chars)",
+    "pattern": ".{5000,}"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-prompt-injection-1",
+    "risk_weight": "100",
+    "description": "Prompt injection: ignore previous instructions",
+    "pattern": "ignore\\s+previous\\s+instructions"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-sql-injection-2",
+    "risk_weight": "100",
+    "description": "SQL injection: OR 1=1 tautology",
+    "pattern": "or\\s+1\\s*=\\s*1"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-disallowed-cmd-2",
+    "risk_weight": "100",
+    "description": "Disallowed command: format c:",
+    "pattern": "format\\s+c:"
+  },
+  {
+    "category": "known_bad",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "pattern_id": "kb-sql-injection-1",
+    "risk_weight": "100",
+    "description": "SQL injection: DROP TABLE attempt",
+    "pattern": "';\\s*drop\\s+table"
+  }
+]

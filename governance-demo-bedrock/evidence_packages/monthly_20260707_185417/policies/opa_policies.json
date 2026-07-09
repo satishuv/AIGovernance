@@ -1,0 +1,193 @@
+[
+  {
+    "key": "policies/allow-production-deployment-at-scope-3.json",
+    "content": {
+      "rule_name": "allow_production_at_scope_3_plus",
+      "description": "Allow production deployments for agents at scope 3 or higher. Agent has earned full deployment privileges.",
+      "outcome": "allow",
+      "priority": 20,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "ProductionDeployment"
+        },
+        {
+          "field": "input.scope_level",
+          "op": ">=",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/allow-propose-changes-at-scope-2.json",
+    "content": {
+      "rule_name": "allow_propose_changes",
+      "description": "Allow ProposeChanges actions at scope level 2 or higher. Agents can draft deployment plans and rollback strategies.",
+      "outcome": "allow",
+      "priority": 80,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "ProposeChanges"
+        },
+        {
+          "field": "input.scope_level",
+          "op": ">=",
+          "value": 2
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/allow-read-at-scope-1.json",
+    "content": {
+      "rule_name": "allow_read_pipeline",
+      "description": "Allow ReadPipelineStatus at scope 1 or higher. Low-risk read-only action.",
+      "outcome": "allow",
+      "priority": 100,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "ReadPipelineStatus"
+        },
+        {
+          "field": "input.scope_level",
+          "op": ">=",
+          "value": 1
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/allow-staging-deployment-at-scope-3.json",
+    "content": {
+      "rule_name": "allow_staging_deployment",
+      "description": "Allow StagingDeployment actions at scope level 3 or higher. Agents can deploy to staging and run integration tests.",
+      "outcome": "allow",
+      "priority": 60,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "StagingDeployment"
+        },
+        {
+          "field": "input.scope_level",
+          "op": ">=",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/default-deny.json",
+    "content": {
+      "rule_name": "default_deny",
+      "description": "Catch-all: deny any action not explicitly allowed by a higher-priority rule. Fail-safe default.",
+      "outcome": "deny",
+      "priority": 9999,
+      "category": "preventive",
+      "conditions": []
+    }
+  },
+  {
+    "key": "policies/deny-production-deployment-below-scope-3.json",
+    "content": {
+      "rule_name": "deny_production_below_scope_3",
+      "description": "Deny production deployments for agents below scope 3. Production access must be earned through demonstrated safe behavior.",
+      "outcome": "deny",
+      "priority": 10,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "ProductionDeployment"
+        },
+        {
+          "field": "input.scope_level",
+          "op": "<",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/deny-propose-changes-below-scope-2.json",
+    "content": {
+      "rule_name": "deny_propose_below_scope_2",
+      "description": "Deny ProposeChanges for agents below scope 2. Proposing changes requires elevated trust.",
+      "outcome": "deny",
+      "priority": 15,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "ProposeChanges"
+        },
+        {
+          "field": "input.scope_level",
+          "op": "<",
+          "value": 2
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/deny-staging-deployment-below-scope-3.json",
+    "content": {
+      "rule_name": "deny_staging_below_scope_3",
+      "description": "Deny StagingDeployment for agents below scope 3. Staging deploys require scope 3 or higher.",
+      "outcome": "deny",
+      "priority": 12,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "StagingDeployment"
+        },
+        {
+          "field": "input.scope_level",
+          "op": "<",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/escalate-staging-deploy.json",
+    "content": {
+      "rule_name": "escalate_staging_deployment",
+      "description": "Staging deployments require human approval. Developer must confirm before agent deploys to staging environment.",
+      "outcome": "escalate",
+      "priority": 50,
+      "category": "preventive",
+      "conditions": [
+        {
+          "field": "input.action_group",
+          "op": "==",
+          "value": "StagingDeployment"
+        },
+        {
+          "field": "input.scope_level",
+          "op": "<",
+          "value": 4
+        }
+      ]
+    }
+  },
+  {
+    "key": "policies/rego/governance.rego",
+    "content": "package governance\n\n# AI Agent Governance Policies (OPA Rego)\n# Used when OPA_MODE=external with a standalone OPA service.\n# The embedded mode uses the JSON equivalents in the parent directory.\n\ndefault allow = false\ndefault escalate = false\n\n# ---------------------------------------------------------------\n# PREVENTIVE: Block before execution\n# ---------------------------------------------------------------\n\n# Allow read-only pipeline queries at any scope\nallow {\n    input.action_group == \"ReadPipelineStatus\"\n}\n\n# Allow production deployment at scope 3+\nallow {\n    input.action_group == \"ProductionDeployment\"\n    input.scope_level >= 3\n    within_business_hours\n}\n\n# Allow propose changes at scope 2+\nallow {\n    input.action_group == \"ProposeChanges\"\n    input.scope_level >= 2\n}\n\n# Deny production deployment below scope 3\ndeny {\n    input.action_group == \"ProductionDeployment\"\n    input.scope_level < 3\n}\n\n# Deny production deployment outside business hours\ndeny {\n    input.action_group == \"ProductionDeployment\"\n    not within_business_hours\n}\n\n# ---------------------------------------------------------------\n# DETECTIVE: Escalate for human review\n# ---------------------------------------------------------------\n\n# Staging deployments need human confirmation\nescalate {\n    input.action_group == \"StagingDeployment\"\n    input.scope_level < 4\n}\n\n# ---------------------------------------------------------------\n# HELPER RULES\n# ---------------------------------------------------------------\n\nwithin_business_hours {\n    input.hour >= 6\n    input.hour <= 22\n}\n\n# Result aggregation\nreason = msg {\n    deny\n    msg := \"Action denied by policy\"\n}\n\nreason = msg {\n    escalate\n    not deny\n    msg := \"Action escalated for human approval\"\n}\n\nreason = msg {\n    allow\n    not deny\n    not escalate\n    msg := \"Action allowed by policy\"\n}\n\nmatched_rules[rule] {\n    deny\n    rule := \"deny\"\n}\n\nmatched_rules[rule] {\n    escalate\n    rule := \"escalate\"\n}\n\nmatched_rules[rule] {\n    allow\n    rule := \"allow\"\n}\n"
+  }
+]

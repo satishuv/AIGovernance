@@ -1,0 +1,72 @@
+{
+  "DecisionCount": {
+    "statistic": "Sum",
+    "datapoints": [],
+    "total_datapoints": 0
+  },
+  "RiskScore": {
+    "statistic": "Average",
+    "datapoints": [
+      {
+        "timestamp": "2026-07-06 18:50:00+00:00",
+        "value": 35.8309898770556
+      }
+    ],
+    "total_datapoints": 1
+  },
+  "PipelineLatency": {
+    "statistic": "Average",
+    "datapoints": [
+      {
+        "timestamp": "2026-07-06 18:50:00+00:00",
+        "value": 161.96781726287506
+      }
+    ],
+    "total_datapoints": 1
+  },
+  "SecurityBlock": {
+    "statistic": "Sum",
+    "datapoints": [],
+    "total_datapoints": 0
+  },
+  "EvidenceWriteCount": {
+    "statistic": "Sum",
+    "datapoints": [
+      {
+        "timestamp": "2026-07-06 18:50:00+00:00",
+        "value": 4275.0
+      }
+    ],
+    "total_datapoints": 1
+  },
+  "EvidenceWriteFailureCount": {
+    "statistic": "Sum",
+    "datapoints": [],
+    "total_datapoints": 0
+  },
+  "KillSwitchActivationCount": {
+    "statistic": "Sum",
+    "datapoints": [],
+    "total_datapoints": 0
+  },
+  "DenialRate": {
+    "statistic": "Average",
+    "datapoints": [
+      {
+        "timestamp": "2026-07-06 18:50:00+00:00",
+        "value": 0.17441670365854994
+      }
+    ],
+    "total_datapoints": 1
+  },
+  "AgentHealthScore": {
+    "statistic": "Average",
+    "datapoints": [],
+    "total_datapoints": 0
+  },
+  "DriftScore": {
+    "statistic": "Maximum",
+    "datapoints": [],
+    "total_datapoints": 0
+  }
+}

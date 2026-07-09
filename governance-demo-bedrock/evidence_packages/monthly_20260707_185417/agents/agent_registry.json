@@ -1,0 +1,17 @@
+[
+  {
+    "agent_id": "demo-agent",
+    "environment": "all",
+    "purpose": "Software Deployment Pipeline Agent",
+    "tools": [
+      "ReadPipelineStatus",
+      "ProposeChanges"
+    ],
+    "data_classes": [
+      "pipeline_status",
+      "deployment_config"
+    ],
+    "owner": "governance-admin",
+    "approved_scope": "2"
+  }
+]

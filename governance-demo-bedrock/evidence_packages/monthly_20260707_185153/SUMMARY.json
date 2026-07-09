@@ -1,0 +1,30 @@
+{
+  "report_generated": "2026-07-07T18:52:17.442651+00:00",
+  "period": {
+    "start": "2026-06-07T18:51:53.363622+00:00",
+    "end": "2026-07-07T18:51:53.363622+00:00"
+  },
+  "framework": "AIGovernance Runtime Framework",
+  "account": "917914785227",
+  "region": "us-east-1",
+  "controls_implemented": 93,
+  "domains": 12,
+  "evidence_sections": [
+    "infrastructure",
+    "policies",
+    "agents",
+    "decisions",
+    "integrity",
+    "monitoring",
+    "validation"
+  ],
+  "compliance_frameworks": [
+    "ISO/IEC 42001",
+    "NIST AI RMF",
+    "NIST 800-53",
+    "PCI DSS v4.0",
+    "EU AI Act",
+    "SP-047"
+  ],
+  "output_directory": "C:\\Users\\satishuv\\AI Blog Setup\\governance-demo-bedrock\\scripts\\..\\evidence_packages\\monthly_20260707_185153"
+}

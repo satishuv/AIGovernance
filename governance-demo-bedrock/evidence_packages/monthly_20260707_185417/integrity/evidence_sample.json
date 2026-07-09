@@ -1,0 +1,23 @@
+{
+  "total_objects_sampled": 10,
+  "sample_records": [
+    {
+      "key": "evidence/all/demo-agent/2026/07/05/08e04bfa-ad06-4286-b4e0-011d4bf1f7f0.json",
+      "has_integrity_hash": true,
+      "size_bytes": 735,
+      "last_modified": "2026-07-05 21:16:55+00:00"
+    },
+    {
+      "key": "evidence/all/demo-agent/2026/07/05/0e57c2b2-ef68-4cea-8f62-ec47bf40d41f.json",
+      "has_integrity_hash": true,
+      "size_bytes": 735,
+      "last_modified": "2026-07-05 21:16:52+00:00"
+    },
+    {
+      "key": "evidence/all/demo-agent/2026/07/05/27ad96ee-9837-409a-bd6e-4d7e55b182df.json",
+      "has_integrity_hash": true,
+      "size_bytes": 731,
+      "last_modified": "2026-07-05 23:05:15+00:00"
+    }
+  ]
+}

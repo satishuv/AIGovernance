@@ -1,0 +1,34 @@
+[
+  {
+    "last_updated": "2026-07-07T17:19:22.792099+00:00",
+    "agent_id": "demo-agent",
+    "denial_count_1h": "82",
+    "avg_risk": "61.3",
+    "status": "critical",
+    "health_score": "11",
+    "escalation_count_24h": "16",
+    "score_history": [
+      "100",
+      "35",
+      "35",
+      "35",
+      "35",
+      "100",
+      "100",
+      "35",
+      "35",
+      "35",
+      "35",
+      "100",
+      "100",
+      "35",
+      "35",
+      "35",
+      "35",
+      "100",
+      "100",
+      "35"
+    ],
+    "record_type": "health_state"
+  }
+]

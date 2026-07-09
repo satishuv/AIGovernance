@@ -1,0 +1,29 @@
+[
+  {
+    "name": "clean_response",
+    "expect_blocked": false,
+    "was_blocked": false,
+    "injections_found": [],
+    "passed": true
+  },
+  {
+    "name": "injection_blocked",
+    "expect_blocked": true,
+    "was_blocked": true,
+    "injections_found": [
+      "urgency-social-engineering",
+      "urgent-action-directive",
+      "fake-governance-override"
+    ],
+    "passed": true
+  },
+  {
+    "name": "chatml_blocked",
+    "expect_blocked": true,
+    "was_blocked": true,
+    "injections_found": [
+      "chatml-delimiter"
+    ],
+    "passed": true
+  }
+]

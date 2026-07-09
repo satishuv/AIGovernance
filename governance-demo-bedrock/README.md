@@ -1,12 +1,12 @@
-# Agentic AI Governance Demo — Amazon Bedrock Edition
+# AI Agent Runtime Governance Framework
 
-> **This is the primary demo.** Deploy this, present this, share this.
->
-> The folder `governance-demo/` in this repo is a separate, minimal Lambda reference implementation. It is NOT a second demo. It exists solely as a clean reference that the OWASP LLM security test suite (`tests/test_security_governance.py`) validates against. You do not need to deploy or explain it.
+A runtime enforcement engine for autonomous AI agents. Evaluates every agent action in <150ms, decides ALLOW / DENY / ESCALATE, enforces the decision at the infrastructure layer, and records immutable evidence of every decision.
 
-A production-ready reference architecture demonstrating **scope-based governance** for autonomous AI agents built on [Amazon Bedrock Agents](https://aws.amazon.com/bedrock/agents/).
+**The problem this solves:** AI agents read and reason over data that can reprogram them. No existing security framework governs what an agent does between receiving a prompt and executing an action. This framework fills that gap.
 
-This project accompanies the whitepaper *"Building Trustworthy Agentic AI"* and shows how to enforce graduated autonomy, real-time scope control, and an emergency kill switch — all deployed as a single AWS CDK stack.
+**What it is NOT:** A set of guidelines, principles, or policies. This is running code that physically blocks unauthorized AI agent actions at the AWS infrastructure layer.
+
+Built on [Amazon Bedrock Agents](https://aws.amazon.com/bedrock/agents/). Deployed as a single AWS CDK stack.
 
 ---
 
@@ -136,36 +136,50 @@ Each scope level maps to a dedicated **IAM Permission Boundary** that restricts 
 
 ```
 governance-demo-bedrock/
-├── app.py                        # CDK app entry point
-├── governance_bedrock_stack.py    # Full CDK stack definition
-├── cdk.json                      # CDK configuration
-├── requirements.txt              # Python dependencies
+│
+├── app.py                          # CDK app entry point
+├── governance_bedrock_stack.py     # CDK stack (~58 lines, 6 modular constructs)
+├── governance_constructs/          # CDK constructs (infrastructure-as-code)
+│   ├── api.py                      #   API Gateway + Lambda integration
+│   ├── bedrock_agent.py            #   Bedrock Agent + Action Groups
+│   ├── governance_engine.py        #   Governance Lambda + Step Functions
+│   ├── monitoring.py               #   CloudWatch dashboards + alarms
+│   ├── seed_data.py                #   Sample data deployment
+│   └── storage.py                  #   DynamoDB + S3 + Object Lock
 │
 ├── lambdas/
-│   ├── action_group/             # Bedrock Agent action group handler
-│   │   └── index.py              #   8 operations across 4 action groups
-│   ├── scope_enforcer/           # Governance orchestrator
-│   │   └── index.py              #   Scope check → boundary swap → invoke agent
-│   └── kill_switch/              # Emergency stop
-│       └── index.py              #   Scope→0 + deny-all IAM policy
+│   ├── governance_engine/          # 72 modules (see MODULE_MAP.md inside)
+│   │   ├── index.py                #   Lambda entrypoint
+│   │   ├── pipeline_orchestrator.py#   20-step governance pipeline
+│   │   ├── decision_engine.py      #   ALLOW / DENY / ESCALATE
+│   │   ├── input_sanitizer.py      #   8-layer input defense
+│   │   ├── tool_response_validator.py # Return-path validation
+│   │   ├── opa_engine.py           #   Policy-as-code evaluation
+│   │   └── MODULE_MAP.md           #   ← READ THIS to understand the 72 modules
+│   ├── action_group/               # Bedrock Agent tool execution
+│   ├── scope_enforcer/             # Entry point (scope check + agent invoke)
+│   ├── kill_switch/                # Emergency shutdown (<1s)
+│   └── seed_tables/                # Initial data seeding
 │
-├── schemas/                      # OpenAPI 3.0 specs for each action group
-│   ├── read_pipeline_status.json
-│   ├── propose_changes.json
-│   ├── staging_deployment.json
-│   └── production_deployment.json
+├── tests/                          # 225 tests (9 test files)
+├── test_datasets/                  # Attack payloads (8,470+ from 13 benchmarks)
+├── test_payloads/                  # Manual test payloads and outputs
+├── scripts/                        # Operational scripts
+│   ├── collect_evidence.py         #   Export compliance evidence packages
+│   ├── governed_dev_demo.py        #   End-to-end governance demonstration
+│   └── benchmark_latency.py        #   Latency benchmarking
 │
-├── sample_data/                  # Mock pipeline data (deployed to S3)
-│   ├── builds/                   #   Build manifests
-│   ├── test-results/             #   Test result reports
-│   ├── configs/                  #   Staging & production configs
-│   └── rollback-plans/           #   Rollback strategies
+├── config/                         # Environment configs (demo, production)
+├── schemas/                        # OpenAPI 3.0 action group schemas
+├── sample_data/                    # Policies, compliance mappings, mock data
+├── state_machine/                  # Step Functions ASL definition
 │
-├── tests/
-│   └── test_governance_bedrock_stack.py  # CDK assertion tests
-│
-└── docs/
-    └── ARCHITECTURE.md           # Detailed architecture notes
+└── docs/                           # ← START HERE for documentation
+    ├── README.md                   #   Documentation index
+    ├── architecture/               #   6 technical deep-dives
+    ├── AI_AGENT_SECURITY_CHECKLIST.md  # 93 controls from 22 papers
+    ├── CONTROL_CATALOG.md          #   377 controls across 20 domains
+    └── internal/                   #   Development notes (not for external)
 ```
 
 ---
