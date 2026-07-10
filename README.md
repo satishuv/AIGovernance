@@ -163,14 +163,15 @@ This framework combines all of these into a single runtime enforcement engine fo
 
 ## How Scoring and Decisions Work
 
-Every request gets a **risk score (0-100)** computed from four weighted factors:
+Every request gets a **risk score (0-100)** computed from five weighted factors:
 
 ```
-Risk Score = scope_weight + action_weight + target_weight + history_weight
+Risk Score = base_weight + scope_weight + action_weight + target_weight + history_weight
 ```
 
 | Factor | What it measures | Weight examples |
 |--------|-----------------|-----------------|
+| Category base | Inherent risk of action category | Data access = 5, Deployment = 25, Emergency = 35 |
 | Scope level | How much power the agent has | Level 1 = 10, Level 3 = 50, Level 4 = 75 |
 | Action type | How dangerous the action is | Read = 10, Deploy = 50, Emergency = 60 |
 | Target resource | What's being acted on | Development = 5, Staging = 15, Production = 30 |
@@ -190,12 +191,13 @@ Risk Score = scope_weight + action_weight + target_weight + history_weight
 ```
 Agent at Scope 3 requests "deploy to staging"
 
+  Category base:    25  (deployment category)
   Scope weight:     50  (level 3)
   Action weight:    50  (deployment)
   Target weight:    15  (staging)
   History weight:    0  (no recent denials)
   ─────────────────────
-  Total:           115 → capped at 100
+  Total:           140 → capped at 100
 
   Score = 100, threshold = 70
   100 >= 70 → ESCALATE (requires human approval)
@@ -241,9 +243,9 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 ## Validation
 
-- **Attack datasets**: 6,400+ payloads from 20 academic benchmark datasets (JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, Anthropic HH-RLHF, and others)
-- **Detection rate**: 100% on tested benchmarks (493 payloads across 4 datasets). Research literature shows multi-layer defense reduces residual attack success from 73-84% baseline to under 9%
-- **End-to-end scenarios**: 19 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), scope enforcement, and attack categories
+- **Attack datasets**: 6,972 payloads from 13 academic attack benchmarks (JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, and others)
+- **Detection rate**: 100% on the 4 benchmarks tested live (493 payloads: JailbreakBench, Deepset, ChatGPT Jailbreaks, Gandalf). Remaining 9 datasets available for extended validation.
+- **End-to-end scenarios**: 21 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), scope enforcement, and attack categories
 - **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
 - **Test suite**: 225 automated tests (unit + integration + security)
 
@@ -261,7 +263,7 @@ pip install -r requirements.txt
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate
-python test_datasets/run_demo_validation.py    # 19 scenarios
+python test_datasets/run_demo_validation.py    # 21 scenarios
 python -m pytest tests/ -v                     # 225 tests
 ```
 
