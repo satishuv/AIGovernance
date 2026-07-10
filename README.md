@@ -84,7 +84,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 │                                ▼                                            │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  Risk Scoring (0-100)                                               │    │
-│  │  scope_weight + action_weight + target_weight + history             │    │
+│  │  base + scope + action + target + history (5 factors, capped)       │    │
 │  │                                                                     │    │
 │  │  Score < 70 ─────────── ALLOW                                       │    │
 │  │  Score >= 70 ────────── ESCALATE (human approval required)          │    │
@@ -243,7 +243,7 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 ## Validation
 
-- **Attack datasets**: 6,972 payloads from 13 academic attack benchmarks (JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, and others)
+- **Attack datasets**: 9,465 payloads across 20 benchmark files (~8,972 unique after deduplication) from sources including JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, Anthropic HH-RLHF, and others
 - **Detection rate**: 100% on the 4 benchmarks tested live (493 payloads: JailbreakBench, Deepset, ChatGPT Jailbreaks, Gandalf). Remaining 9 datasets available for extended validation.
 - **End-to-end scenarios**: 21 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), scope enforcement, and attack categories
 - **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats

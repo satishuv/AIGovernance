@@ -1,0 +1,20 @@
+global_settings:
+  threshold: HIGH
+  fail_on_findings: false
+
+scanners:
+  detect-secrets:
+    exclude_files:
+      - ".*test_datasets.*"
+      - ".*PRESENTATION_DECK.*"
+      - ".*test_scenarios.*"
+      - ".*cdk\\.out.*"
+  checkov:
+    exclude_files:
+      - ".*cdk\\.out.*"
+  bandit:
+    exclude_files:
+      - ".*cdk\\.out.*"
+    suppress_rules:
+      - B310  # urlopen - used intentionally for OPA external endpoint
+      - B613  # base64 decode - used intentionally for attack detection

@@ -11,7 +11,7 @@ This checklist fills that gap. It is:
 - **Implementation-specific**: every control maps to a Python module with working code
 - **Threat-informed**: every control is justified by a peer-reviewed attack paper with measured success rates
 - **Novel**: covers attack surfaces (tool response poisoning, MCP supply chain, sequential tool chaining) that no existing standard addresses because the research is from 2025 and standards take 3-5 years to incorporate new threats
-- **Empirically validated**: tested against 6,972 real attack payloads from 13 attack benchmarks
+- **Empirically validated**: tested against 9,465 attack payloads across 20 benchmark datasets (~8,972 unique after deduplication)
 
 **Why existing frameworks cannot cover this:**
 

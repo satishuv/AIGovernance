@@ -423,7 +423,7 @@ Scale:
 - 23.5 Evidence Collection (automated compliance packages)
 
 **Chapter 24: Attack Resilience**
-- 24.1 6,972 Attack Payloads (13 attack benchmarks)
+- 24.1 9,465 Attack Payloads (13 attack benchmarks)
 - 24.2 100% (on 4 tested benchmarks) Detection Rate (methodology and results)
 - 24.3 Defense Layer Execution Order (13 layers, sequential)
 - 24.4 Governed Development Demo (6 governance decisions, live)
@@ -482,7 +482,7 @@ Scale:
 | Domain 4: AI Discovery | `shadow_ai_discovery.py` |
 | Domain 5: AI Lifecycle | `agent_lifecycle_states.py` (9 states) |
 | Domain 8: AI Risk | `risk_scoring.py`, `bias_monitoring.py` |
-| Domain 9: AI Threat Intelligence | `threat_detector.py`, 6,972 attack dataset |
+| Domain 9: AI Threat Intelligence | `threat_detector.py`, 9,465 attack dataset |
 | Domain 10: AI Security Controls | 93 controls, 13 defense layers |
 | Domain 11: AI Detection Engineering | `input_sanitizer.py`, `tool_response_validator.py` |
 | Domain 12: AI Incident Response | `kill_switch.py`, graduated scope reduction |
