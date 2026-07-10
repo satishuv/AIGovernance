@@ -286,12 +286,12 @@ python -m pytest tests/ -v                     # 225 tests
 
 | Document | Audience |
 |----------|----------|
-| [Architecture Deep-Dives](../governance-demo-bedrock/docs/architecture/) | Platform architects |
-| [Security Checklist (93 controls)](../governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | Security reviewers |
-| [Control Catalog (377 controls)](../governance-demo-bedrock/docs/CONTROL_CATALOG.md) | Compliance teams |
-| [Module Map (72 modules)](../governance-demo-bedrock/lambdas/governance_engine/MODULE_MAP.md) | Developers |
-| [Threat Model](../governance-demo-bedrock/docs/THREAT_MODEL.md) | Risk assessors |
-| [Evidence Collection Guide](../governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | Auditors |
+| [Architecture Deep-Dives](https://github.com/satishuv/AIGovernance/tree/main/governance-demo-bedrock/docs/architecture) | Platform architects |
+| [Security Checklist (96 controls)](https://github.com/satishuv/AIGovernance/blob/main/governance-demo-bedrock/docs/AI_AGENT_SECURITY_CHECKLIST.md) | Security reviewers |
+| [Control Catalog (377 controls)](https://github.com/satishuv/AIGovernance/blob/main/governance-demo-bedrock/docs/CONTROL_CATALOG.md) | Compliance teams |
+| [Module Map (72 modules)](https://github.com/satishuv/AIGovernance/blob/main/governance-demo-bedrock/lambdas/governance_engine/MODULE_MAP.md) | Developers |
+| [Threat Model](https://github.com/satishuv/AIGovernance/blob/main/governance-demo-bedrock/docs/THREAT_MODEL.md) | Risk assessors |
+| [Evidence Collection Guide](https://github.com/satishuv/AIGovernance/blob/main/governance-demo-bedrock/docs/EVIDENCE_COLLECTION_GUIDE.md) | Auditors |
 
 ---
 
