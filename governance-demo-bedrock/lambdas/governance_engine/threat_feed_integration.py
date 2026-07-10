@@ -166,9 +166,13 @@ class ThreatFeedIntegrator:
         description: str,
         risk_weight: int,
         source: FeedSource,
-        active: bool = True,
+        active: bool = False,
     ) -> Optional[ThreatPattern]:
         """Ingest a single threat pattern from an external feed.
+
+        Patterns default to STAGING (active=False). They must pass validation
+        via PatternStagingGate before going live. This prevents malicious or
+        overly-broad patterns from causing denial-of-service via false positives.
 
         Args:
             pattern_regex: Regex or literal string to match against inputs.
@@ -177,6 +181,7 @@ class ThreatFeedIntegrator:
             risk_weight: Numeric weight (1-100) for risk scoring.
             source: FeedSource metadata about where this pattern came from.
             active: Whether the pattern should be active immediately.
+                    Defaults to False (staging). Set True only for operator-verified patterns.
 
         Returns:
             The created ThreatPattern, or None if validation fails.
@@ -1013,3 +1018,256 @@ class SelfTestRunner:
             def noop(text: str):
                 return {"blocked": False}
             return noop
+
+
+# ---------------------------------------------------------------------------
+# PatternStagingGate
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StagingResult:
+    """Result of testing a staged pattern against historical decisions.
+
+    Attributes:
+        pattern_id: The pattern being validated.
+        total_tested: Number of historical inputs tested against.
+        false_positives: Count of legitimate inputs that would be blocked.
+        true_positives: Count of known-bad inputs that are correctly caught.
+        fp_rate: False positive rate (0.0 to 1.0).
+        verdict: 'activate', 'quarantine', or 'needs_review'.
+        tested_at: ISO 8601 timestamp.
+    """
+
+    pattern_id: str
+    total_tested: int
+    false_positives: int
+    true_positives: int
+    fp_rate: float
+    verdict: str
+    tested_at: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "pattern_id": self.pattern_id,
+            "total_tested": self.total_tested,
+            "false_positives": self.false_positives,
+            "true_positives": self.true_positives,
+            "fp_rate": round(self.fp_rate, 4),
+            "verdict": self.verdict,
+            "tested_at": self.tested_at or datetime.now(timezone.utc).isoformat(),
+        }
+
+
+class PatternStagingGate:
+    """Validates staged patterns before activation.
+
+    Tests a new pattern against historical legitimate inputs to measure
+    false positive rate. Only activates patterns with FP rate below threshold.
+
+    Flow:
+        New pattern (active=False) → test against known-good inputs →
+        FP rate < 2% → ACTIVATE (set active=True in DynamoDB)
+        FP rate >= 2% → QUARANTINE (stays inactive, operator alerted)
+
+    This prevents:
+        - Overly broad regex (e.g., '.*') blocking all requests
+        - Malicious patterns injected to cause denial of service
+        - Auto-promoted anomalies that match too many legitimate inputs
+    """
+
+    FP_THRESHOLD = 0.02  # 2% max false positive rate
+    MIN_TEST_SAMPLES = 50  # minimum inputs to test against
+
+    def __init__(self, dynamodb_table=None) -> None:
+        self._table = dynamodb_table
+        self._known_good_inputs: List[str] = []
+
+    def set_table(self, dynamodb_table) -> None:
+        """Set or replace the DynamoDB table reference."""
+        self._table = dynamodb_table
+
+    def load_known_good_inputs(self, inputs: List[str]) -> None:
+        """Load legitimate inputs to test patterns against.
+
+        These should be real inputs that SHOULD be allowed (from decision
+        history where verdict=allow). The more diverse, the better the
+        false positive estimate.
+        """
+        self._known_good_inputs = inputs
+        logger.info(json.dumps({
+            "audit_event": "staging_gate_inputs_loaded",
+            "count": len(inputs),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
+
+    def validate_pattern(self, pattern_id: str, pattern_regex: str) -> StagingResult:
+        """Test a staged pattern against known-good inputs.
+
+        Args:
+            pattern_id: The pattern identifier in DynamoDB.
+            pattern_regex: The regex to test.
+
+        Returns:
+            StagingResult with verdict: 'activate', 'quarantine', or 'needs_review'.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+
+        if len(self._known_good_inputs) < self.MIN_TEST_SAMPLES:
+            logger.warning(json.dumps({
+                "audit_event": "staging_gate_insufficient_samples",
+                "pattern_id": pattern_id,
+                "available": len(self._known_good_inputs),
+                "required": self.MIN_TEST_SAMPLES,
+                "timestamp": now,
+            }))
+            return StagingResult(
+                pattern_id=pattern_id,
+                total_tested=len(self._known_good_inputs),
+                false_positives=0,
+                true_positives=0,
+                fp_rate=0.0,
+                verdict="needs_review",
+                tested_at=now,
+            )
+
+        try:
+            compiled = re.compile(pattern_regex, re.IGNORECASE)
+        except re.error:
+            return StagingResult(
+                pattern_id=pattern_id,
+                total_tested=0,
+                false_positives=0,
+                true_positives=0,
+                fp_rate=1.0,
+                verdict="quarantine",
+                tested_at=now,
+            )
+
+        false_positives = 0
+        for text in self._known_good_inputs:
+            if compiled.search(text):
+                false_positives += 1
+
+        total = len(self._known_good_inputs)
+        fp_rate = false_positives / total if total > 0 else 0.0
+
+        if fp_rate < self.FP_THRESHOLD:
+            verdict = "activate"
+        else:
+            verdict = "quarantine"
+
+        result = StagingResult(
+            pattern_id=pattern_id,
+            total_tested=total,
+            false_positives=false_positives,
+            true_positives=0,
+            fp_rate=fp_rate,
+            verdict=verdict,
+            tested_at=now,
+        )
+
+        logger.info(json.dumps({
+            "audit_event": "staging_gate_validation",
+            "pattern_id": pattern_id,
+            "total_tested": total,
+            "false_positives": false_positives,
+            "fp_rate": round(fp_rate, 4),
+            "verdict": verdict,
+            "timestamp": now,
+        }))
+
+        return result
+
+    def activate_pattern(self, pattern_id: str) -> bool:
+        """Activate a staged pattern (set active=True in DynamoDB).
+
+        Only call this after validate_pattern returns verdict='activate'.
+        """
+        if self._table is None:
+            return False
+
+        try:
+            self._table.update_item(
+                Key={"pattern_id": pattern_id},
+                UpdateExpression="SET active = :a, activated_at = :t",
+                ExpressionAttributeValues={
+                    ":a": True,
+                    ":t": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            logger.info(json.dumps({
+                "audit_event": "pattern_activated",
+                "pattern_id": pattern_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return True
+        except Exception as e:
+            logger.error(json.dumps({
+                "audit_event": "pattern_activation_failed",
+                "pattern_id": pattern_id,
+                "error": str(e)[:200],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return False
+
+    def quarantine_pattern(self, pattern_id: str, reason: str) -> bool:
+        """Quarantine a pattern that failed validation.
+
+        Keeps it in DynamoDB for review but ensures it stays inactive.
+        """
+        if self._table is None:
+            return False
+
+        try:
+            self._table.update_item(
+                Key={"pattern_id": pattern_id},
+                UpdateExpression="SET active = :a, quarantined = :q, quarantine_reason = :r, quarantined_at = :t",
+                ExpressionAttributeValues={
+                    ":a": False,
+                    ":q": True,
+                    ":r": reason,
+                    ":t": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            logger.info(json.dumps({
+                "audit_event": "pattern_quarantined",
+                "pattern_id": pattern_id,
+                "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return True
+        except Exception as e:
+            logger.error(json.dumps({
+                "audit_event": "pattern_quarantine_failed",
+                "pattern_id": pattern_id,
+                "error": str(e)[:200],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return False
+
+    def process_staged_patterns(self, staged_patterns: List[Dict[str, str]]) -> List[StagingResult]:
+        """Validate all staged patterns and activate or quarantine each.
+
+        Args:
+            staged_patterns: List of dicts with 'pattern_id' and 'pattern' keys.
+
+        Returns:
+            List of StagingResult for each processed pattern.
+        """
+        results = []
+        for p in staged_patterns:
+            pattern_id = p.get("pattern_id", "")
+            pattern_regex = p.get("pattern", "")
+
+            result = self.validate_pattern(pattern_id, pattern_regex)
+            results.append(result)
+
+            if result.verdict == "activate":
+                self.activate_pattern(pattern_id)
+            elif result.verdict == "quarantine":
+                self.quarantine_pattern(
+                    pattern_id,
+                    f"FP rate {result.fp_rate:.2%} exceeds threshold {self.FP_THRESHOLD:.2%}"
+                )
+
+        return results
