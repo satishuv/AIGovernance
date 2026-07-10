@@ -161,6 +161,26 @@ This framework combines all of these into a single runtime enforcement engine fo
 
 ---
 
+## Three Governance Engines
+
+The architecture runs three engines in concert. Each operates at a different point in time:
+
+| Engine | When it runs | What it does | Key modules |
+|--------|-------------|-------------|-------------|
+| **Preventive** | BEFORE execution | Blocks unauthorized or dangerous actions before the agent acts | Kill switch, input sanitizer, OPA policy, tool authorization, behavioral invariants, scope enforcement |
+| **Detective** | DURING and AFTER | Monitors for anomalies, drift, and degradation while the agent operates | Runtime drift detection, continuous health scoring, anomaly detector, CloudWatch metrics, sequential chain monitoring |
+| **Proactive** | BEFORE deployment | Validates that policies and configurations are safe before they go live | Policy contradiction detection, dead rule identification, coverage gap analysis, formal invariant verification |
+
+**How they work together:**
+
+- Preventive stops known-bad actions in real time (< 200ms)
+- Detective catches unknown-bad patterns that Preventive missed (baseline deviation, statistical anomalies)
+- Proactive ensures the governance rules themselves are correct before they're deployed (no contradictions, no gaps)
+
+A new attack that bypasses Preventive (because no pattern exists yet) is caught by Detective (because it deviates from baseline behavior). Detective flags it, the anomaly gets promoted to a named pattern via `threat_feed_integration.py`, and Preventive catches it from then on. That's the self-improving loop.
+
+---
+
 ## How Scoring and Decisions Work
 
 Every request gets a **risk score (0-100)** computed from five weighted factors:
