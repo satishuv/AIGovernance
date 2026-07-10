@@ -56,9 +56,17 @@ This framework combines all of these into a single runtime enforcement engine fo
 │         │                                                                   │
 │         ▼                                                                   │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Input Defense (8 checks in parallel)                               │    │
-│  │  Base64 | ChatML | Homoglyph | Leet | Stuffing | Multilingual |     │    │
-│  │  Persona | Harmful content                                          │    │
+│  │  Input Defense (sequential pipeline, short-circuits on first fail)  │    │
+│  │                                                                     │    │
+│  │  1. Unicode normalization (homoglyphs → ASCII)                      │    │
+│  │  2. Encoded payload decoding (Base64, hex, URL)                     │    │
+│  │  3. Delimiter injection scan (ChatML, Llama tags)                   │    │
+│  │  4. Context stuffing check (>5000 chars)                            │    │
+│  │  5. Instruction override detection (leet-speak, persona, multilingual)│   │
+│  │  6. Bedrock Guardrails (harmful content, PII)                       │    │
+│  │  7. Threat pattern matching (regex from DynamoDB)                   │    │
+│  │                                                                     │    │
+│  │  Any check fails → DENY immediately, remaining checks skipped       │    │
 │  └──────────────────────────────┬──────────────────────────────────────┘    │
 │                                 │                                           │
 │         ┌───────────────────────┼───────────────────────┐                   │
