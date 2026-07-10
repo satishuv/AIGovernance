@@ -245,7 +245,7 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 - **Attack datasets**: 9,465 payloads across 20 benchmark files (~8,972 unique after deduplication) from sources including JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, Anthropic HH-RLHF, and others
 - **Detection rate**: 93.4% on a 500-sample from 2,972 known attacks (live test on Isengard, July 2026). 100% on 4 curated injection benchmarks (493 payloads). The 6.6% gap represents subtle attacks that bypass input defense but may be caught by downstream layers (tool response validator, output guardrails).
-- **End-to-end scenarios**: 21 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), scope enforcement, and attack categories
+- **End-to-end validation**: 21 pre-demo smoke tests (runs in 30s against live Lambda), 2,000 governance scenarios (run via `run_2000_on_isengard.py`), and 225 automated unit/integration tests
 - **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
 - **Test suite**: 225 automated tests (unit + integration + security)
 
