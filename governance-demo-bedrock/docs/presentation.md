@@ -133,7 +133,7 @@ Result: **ENTIRE RESPONSE BLOCKED** (critical PHI)
 |-------------------|---------------|
 | PHI detection (164.312) | Bedrock Guardrails + custom regex (MRN, NPI, DOB) |
 | Minimum necessary (164.502) | Scope levels limit data access (1-4) |
-| Audit controls (164.312) | Evidence pipeline (SHA-256, 7-year Object Lock) |
+| Audit controls (164.312) | Evidence pipeline (SHA-256, Object Lock (configurable retention)) |
 | Access controls (164.312) | OPA policies + IAM permission boundaries |
 | Transmission security | TLS + output sanitization |
 | Breach notification | Kill switch + SNS operator alerts |

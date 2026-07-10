@@ -161,7 +161,7 @@ Build-47 passed all tests. 142 tests passed. Branch: main.
 |-------------------|---------------|
 | PHI detection (164.312) | Bedrock Guardrails PII entities + custom regex |
 | Minimum necessary (164.502) | Scope levels limit data access |
-| Audit controls (164.312) | Evidence pipeline (SHA-256, 7-year retention) |
+| Audit controls (164.312) | Evidence pipeline (SHA-256, configurable retention (default 1 year, 7 years in production)) |
 | Access controls (164.312) | OPA policies + IAM boundaries |
 | Transmission security | TLS everywhere + output sanitization |
 | Breach notification | Kill switch + SNS alerts |

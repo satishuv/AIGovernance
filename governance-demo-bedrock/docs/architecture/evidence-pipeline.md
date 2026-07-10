@@ -62,7 +62,7 @@ Every governance decision and agent action produces an immutable evidence record
 │                                                                     │
 │  Bucket: governance-evidence-{account-id}                           │
 │  Key: evidence/{year}/{month}/{day}/{evidence_id}.json              │
-│  Object Lock: GOVERNANCE mode, 7-year retention                     │
+│  Object Lock: GOVERNANCE mode, configurable retention (default 1 year, 7 years in production)                     │
 │                                                                     │
 │  Once written:                                                      │
 │    - Cannot be deleted (even by root account)                       │
@@ -158,7 +158,7 @@ evidence_packages/
 |----------|-----------|
 | Cannot deny a decision was made | SHA-256 hash + timestamp in Object Lock |
 | Cannot alter a past record | Hash chain breaks on any modification |
-| Cannot delete evidence | S3 Object Lock GOVERNANCE mode (7-year) |
+| Cannot delete evidence | S3 Object Lock GOVERNANCE mode (configurable retention) |
 | Cannot claim different sequence | Hash chain encodes ordering |
 | Cannot backdate | Timestamp from Lambda execution context (AWS-signed) |
 | Cannot forge | Evidence written by governance Lambda only (IAM-restricted) |
@@ -175,4 +175,4 @@ Evidence writing is fully asynchronous:
 | Time to evidence availability | 1-2 seconds |
 | Storage cost per decision | ~0.5 KB (JSON) |
 | Monthly volume (1000 decisions/day) | ~15 MB |
-| 7-year retention cost | ~$0.01/month (S3 Glacier after 90 days) |
+| configurable retention (default 1 year, 7 years in production) cost | ~$0.01/month (S3 Glacier after 90 days) |

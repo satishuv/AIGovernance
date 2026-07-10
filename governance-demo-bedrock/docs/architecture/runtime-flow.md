@@ -1,6 +1,6 @@
 # Runtime Flow: 20-Step Governance Pipeline
 
-The complete sequence from user request to governed response. Every step runs in <150ms total for ALLOW, <50ms for DENY (short-circuits early).
+The complete sequence from user request to governed response. Every step runs in <200ms total for ALLOW, <50ms for DENY (short-circuits early).
 
 ---
 
@@ -35,7 +35,7 @@ User Request
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  STEPS 4-11: Input Defense (8 checks, parallel in Step Functions)    │
+│  STEPS 4-11: Input Defense (7 checks, sequential - short-circuits on first fail)    │
 │                                                                     │
 │  4. Base64/hex/URL encoding detection and decode                     │
 │  5. ChatML/Llama delimiter injection scan                            │
@@ -157,7 +157,7 @@ EventBridge --> [PostDecision Lambda]   <-- ASYNC (non-blocking)
 - Parallel: Input defense and authorization run simultaneously (halves latency)
 - Async: Evidence writing does not block the response
 - Scale: 100,000+ concurrent executions
-- Latency: ~150ms for ALLOW, <50ms for DENY (short-circuits early)
+- Latency: ~200ms for ALLOW, <50ms for DENY (short-circuits early)
 
 ### Single Lambda (Development)
 
@@ -193,4 +193,4 @@ The pipeline is designed to fail fast:
 | Tool not in allowlist | Step 12 | <40ms |
 | Policy DENY | Step 13 | <50ms |
 | Behavioral invariant violated | Step 16 | <60ms |
-| Full ALLOW path | Step 18 | ~150ms |
+| Full ALLOW path | Step 18 | ~200ms |

@@ -273,7 +273,7 @@ python scripts/verify_evidence_chain.py --bucket [ImmutableEvidenceBucket] --dat
 | Evidence Type | Storage | Retention | Integrity |
 |---------------|---------|-----------|-----------|
 | Governance decisions | DynamoDB DecisionHistoryTable | Indefinite | Table-level encryption |
-| Immutable evidence records | S3 ImmutableEvidenceBucket | 7 years (Object Lock) | SHA-256 hash chain + WORM |
+| Immutable evidence records | S3 ImmutableEvidenceBucket | configurable (Object Lock) | SHA-256 hash chain + WORM |
 | Control traces | DynamoDB ControlTraceTable | Indefinite | Table-level encryption |
 | CloudWatch metrics | CloudWatch | 15 months (standard) | AWS-managed |
 | CloudTrail events | S3 TrailBucket | Configurable | Log file integrity validation |

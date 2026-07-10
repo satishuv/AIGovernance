@@ -115,7 +115,7 @@ EventBridge --> [PostDecision Lambda]   <-- ASYNC (non-blocking)
 - Parallel: Input defense and authorization run simultaneously
 - Async: Evidence writing does not block the response
 - Scale: 100,000+ concurrent executions
-- Latency: ~150ms for ALLOW, <50ms for DENY (short-circuits early)
+- Latency: ~200ms for ALLOW, <50ms for DENY (short-circuits early)
 
 ### Single Lambda (Development)
 
@@ -257,7 +257,7 @@ This architecture addresses the known GenAI security threat landscape. Every thr
 | Function call validation gaps | No validation on tool invocations | tool_execution_auth (per-tool parameter validation on every call) |
 | RAG content filtering bypass | Unfiltered retrieved content | retrieval_validator (validates before context injection) |
 | Least privilege violation | Overly permissive access | IAM permission boundaries (scope 1-4, enforced by AWS) |
-| Insecure logging | Sensitive data in unprotected logs | evidence_pipeline (S3 Object Lock, encrypted, 7-year retention) |
+| Insecure logging | Sensitive data in unprotected logs | evidence_pipeline (S3 Object Lock, encrypted, configurable retention (default 1 year, 7 years in production)) |
 | Orchestration logic flaws | Policy contradictions, dead rules | proactive_engine (validates policy integrity before deploy) |
 | Credential exposure | API keys in responses | output_guardrails (credential pattern detection + redaction) |
 | Agent privilege boundaries | Weak isolation between agent scopes | Scope enforcement + IAM boundaries (two independent layers) |
@@ -277,7 +277,7 @@ This architecture satisfies standard GenAI security review requirements:
 | Response data usage audit | evidence_pipeline (every response logged with SHA-256 hash) |
 | Emergency shutdown mechanism | kill_switch + behavioral_invariants (auto-trigger on canary leak) |
 | Authentication and authorization | agent_identity + agent_registry + tool_execution_auth |
-| Prompt and response logging | evidence_pipeline (S3 Object Lock, 7-year immutable retention) |
+| Prompt and response logging | evidence_pipeline (S3 Object Lock, configurable immutable retention) |
 | Automated security testing | 10-scenario attack battery + benchmark script |
 | Session isolation | Scope enforcement + environment isolation + per-agent evidence partitions |
 | Human-in-the-loop for high-risk | ESCALATE verdict + approval_workflow + SNS notifications |

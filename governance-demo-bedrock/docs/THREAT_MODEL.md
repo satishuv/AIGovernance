@@ -122,4 +122,4 @@ Agent output       -->  [ Output Guardrails ]              -->  End user
 | DynamoDB eventually-consistent reads on scope table | Low | Scope changes propagate within milliseconds; risk window is negligible |
 | `cloudwatch:PutMetricData` uses `Resource: "*"` | Low | Restricted to namespace `AGCP/Governance` via IAM condition; AWS limitation |
 | Model-level hallucination affecting action selection | Medium | Governance validates the ACTION, not the model's reasoning; wrong action still gets governed |
-| Latency overhead (1.2-2s per decision in Lambda mode) | Low | Step Functions mode reduces to ~150ms; acceptable for governed workloads |
+| Latency overhead (1.2-2s per decision in Lambda mode) | Low | Step Functions mode reduces to ~200ms; acceptable for governed workloads |

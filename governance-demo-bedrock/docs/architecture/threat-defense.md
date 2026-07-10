@@ -74,7 +74,7 @@ Each threat is covered by multiple independent layers. Bypassing one layer does 
 
 | Threat | Layer 1 (Preventive) | Layer 2 (Per-Tool) | Layer 3 (Infrastructure) | Layer 4 (Detective) |
 |--------|---------------------|-------------------|-------------------------|-------------------|
-| Prompt injection | Input sanitizer (8 checks) | N/A | Bedrock Guardrails | Entropy anomaly |
+| Prompt injection | Input sanitizer (7 checks) | N/A | Bedrock Guardrails | Entropy anomaly |
 | Scope escalation | OPA policy DENY | Scope-action check | IAM boundary | Drift detection |
 | SQL injection | Threat detector | Parameter scan | DB parameterization | CloudTrail audit |
 | Data exfiltration | Exfiltration detector | Output sanitization | S3 bucket policies | Size anomaly |
@@ -107,7 +107,7 @@ Each threat is covered by multiple independent layers. Bypassing one layer does 
 |--------------------|-------------|--------|
 | Excessive Agency (LLM08) | Scope levels + IAM boundaries + tool allowlist | scope_enforcer + tool_execution_auth |
 | Insecure Plugin Design (LLM07) | Parameter validation + rate limiting + sandboxing | tool_execution_auth |
-| Prompt Injection (LLM01) | 8-layer input sanitizer + behavioral invariants | input_sanitizer |
+| Prompt Injection (LLM01) | 7-step input defense + behavioral invariants | input_sanitizer |
 | Sensitive Data Disclosure (LLM06) | PII detection + credential stripping + output caps | output_guardrails |
 | Supply Chain Vulnerabilities (LLM05) | Model provenance + tool registry + MCP auth | agent_registry + supply_chain |
 | Improper Output Handling (LLM02) | Tool response validator + output guardrails | tool_response_validator |

@@ -24,7 +24,7 @@ It sits between the AI agent and the end user. Every response the agent generate
 | **PII** | Name, SSN, DOB, address, phone, email | Guardrail PII entities detect all standard types |
 | **Minimum Necessary** (164.502) | Only disclose the minimum PHI needed for the purpose | Guardrail strips identifiers, keeps clinical data |
 | **Access Controls** (164.312a) | Restrict who/what can access PHI | OPA policies + scope levels |
-| **Audit Controls** (164.312b) | Record who accessed what and when | Evidence pipeline (SHA-256, 7-year retention) |
+| **Audit Controls** (164.312b) | Record who accessed what and when | Evidence pipeline (SHA-256, configurable retention (default 1 year, 7 years in production)) |
 | **Transmission Security** (164.312e) | Protect PHI in transit | Output guardrails strip PHI before transit |
 
 ---
