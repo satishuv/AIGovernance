@@ -2,7 +2,7 @@
 
 ## The Problem
 
-AI agents read data from their environment and that data can become instructions. A tool response, a document, a metadata field can contain hidden commands that reprogram the agent. No security system in history was designed for software that can be hijacked by the data it processes.
+AI agents read data from external sources - tool responses, documents, metadata fields - and that data can become instructions. Any of these sources can contain hidden commands that reprogram the agent. No security system in history was designed for software that can be hijacked by the data it processes.
 
 Traditional security validates inputs and sanitizes outputs. But an AI agent also CONSUMES tool responses, READS tool descriptions, and CHAINS actions through autonomous reasoning. These three surfaces have no protection in any existing framework, product, or standard.
 
