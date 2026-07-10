@@ -236,6 +236,23 @@ A prioritized view of what matters most. Use this to decide where to invest secu
 
 ---
 
+## 13. Agent Output Security (Code and Content Quality)
+
+This domain addresses a gap exposed by the SWExploit paper (arXiv:2509.25894): AI agents can produce outputs that are functionally correct but contain hidden vulnerabilities. Traditional testing (does it pass tests?) is insufficient when an adversary can craft inputs that guide the agent toward vulnerable-but-correct outputs.
+
+| # | Control | Threat Mitigated | Reference |
+|---|---------|-----------------|-----------|
+| 13.1 | Security scanning of agent-generated code before merge | Functionally-correct-but-vulnerable patches | [SWExploit (arXiv:2509.25894)](https://arxiv.org/abs/2509.25894): 91% ASR |
+| 13.2 | Adversarial issue detection (misleading reproduction steps) | Issue-based manipulation of coding agents | [SWExploit](https://arxiv.org/abs/2509.25894): adversarial issue generation |
+| 13.3 | Output semantic validation (does output match stated intent?) | Semantic divergence between request and result | Agent output integrity |
+| 13.4 | Vulnerability pattern scanning on all agent-produced artifacts | Known vulnerability patterns in generated code (SQLi, XSS, path traversal) | OWASP Secure Coding |
+| 13.5 | Diff-aware security review (focus on what changed, not whole file) | Vulnerability injection via minimal code changes | SWExploit: injection point analysis |
+| 13.6 | Test adequacy verification (do tests actually exercise security properties?) | False confidence from passing tests that don't test security | SWExploit: "passing all tests is not inherently reliable" |
+| 13.7 | Self-improving threat detection (anomaly-to-pattern promotion) | Novel attacks that bypass current pattern matching | Continuous adaptation requirement |
+| 13.8 | Threat intelligence feed integration (auto-update patterns) | Architecture becoming obsolete as new attacks emerge | Threat feed automation |
+
+---
+
 ## Key Research Findings Summary
 
 ### Attack Success Rates (Undefended)
@@ -296,7 +313,7 @@ While [MITRE ATLAS](https://atlas.mitre.org/) (Adversarial Threat Landscape for 
 
 ---
 
-**Total: 93 security controls across 12 domains, informed by 22 peer-reviewed papers and industry threat intelligence.**
+**Total: 101 security controls across 13 domains, informed by 22 peer-reviewed papers and industry threat intelligence.**
 
 ---
 
