@@ -40,31 +40,116 @@ This framework combines all of these into a single runtime enforcement engine fo
 ## Architecture
 
 ```
-  REQUEST ──▶ GOVERNANCE CONTROL PLANE ──▶ DECISION ──▶ AGENT EXECUTION
-                                                              │
-                                                              ▼
-                                                    EVIDENCE (immutable)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   User / Operator / Upstream Service                                        │
+│                                                                             │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  GOVERNANCE CONTROL PLANE                                          <150ms   │
+│                                                                             │
+│  ┌─────────────┐                                                            │
+│  │ Kill Switch │──── scope = 0? ──── DENY immediately (< 5ms)              │
+│  └──────┬──────┘                                                            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Input Defense (8 checks in parallel)                               │    │
+│  │  Base64 | ChatML | Homoglyph | Leet | Stuffing | Multilingual |     │    │
+│  │  Persona | Harmful content                                          │    │
+│  └──────────────────────────────┬──────────────────────────────────────┘    │
+│                                 │                                           │
+│         ┌───────────────────────┼───────────────────────┐                   │
+│         ▼                       ▼                       ▼                   │
+│  ┌─────────────┐      ┌──────────────────┐     ┌──────────────┐            │
+│  │ Agent       │      │ Tool             │     │ Policy       │            │
+│  │ Registry    │      │ Authorization    │     │ Engine       │            │
+│  │             │      │                  │     │              │            │
+│  │ Registered? │      │ Allowlisted?     │     │ OPA + Cedar  │            │
+│  │ Active?     │      │ Rate limit OK?   │     │ Scope check  │            │
+│  │ Scope valid?│      │ Params clean?    │     │ Time-of-day  │            │
+│  └──────┬──────┘      └────────┬─────────┘     └──────┬───────┘            │
+│         │                      │                       │                    │
+│         └──────────────────────┼───────────────────────┘                    │
+│                                ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Risk Scoring (0-100)                                               │    │
+│  │  scope_weight + action_weight + target_weight + history             │    │
+│  │                                                                     │    │
+│  │  Score < 70 ─────────── ALLOW                                       │    │
+│  │  Score >= 70 ────────── ESCALATE (human approval required)          │    │
+│  │  Policy DENY ────────── DENY (blocked, explain why)                 │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+└───────────────────┬──────────────────────┬──────────────────────┬───────────┘
+                    │                      │                      │
+                    ▼                      ▼                      ▼
+         ┌──────────────┐      ┌───────────────────┐     ┌──────────────┐
+         │              │      │                   │     │              │
+         │    DENY      │      │    ESCALATE       │     │    ALLOW     │
+         │              │      │                   │     │              │
+         │ Return       │      │ Queue for human   │     │ Proceed to   │
+         │ explanation  │      │ SNS alert sent    │     │ execution    │
+         │              │      │ Timeout = DENY    │     │              │
+         └──────────────┘      └───────────────────┘     └──────┬───────┘
+                                                                │
+┌───────────────────────────────────────────────────────────────▼──────────────┐
+│  AGENT EXECUTION PLANE                                                       │
+│                                                                              │
+│  Bedrock Agent (Nova Micro)                                                  │
+│       │                                                                      │
+│       ▼                                                                      │
+│  ┌──────────────────────────────────────────────────────────────────────┐    │
+│  │  Scope-Gated Action Groups                                           │    │
+│  │  Level 1: Read  │  Level 2: Propose  │  Level 3: Stage  │  Level 4  │    │
+│  └──────────────────────────────────────────────────────────┬───────────┘    │
+│                                                             │                │
+│       ▼                                                     │                │
+│  ┌──────────────────────────────────────┐                   │                │
+│  │  Per-Tool Security (every call)      │                   │                │
+│  │  - Scope enforcement                 │                   │                │
+│  │  - Parameter injection scan          │                   │                │
+│  │  - Rate limiting + chain detection   │                   │                │
+│  └──────────────────┬───────────────────┘                   │                │
+│                     ▼                                       │                │
+│  ┌──────────────────────────────────────┐                   │                │
+│  │  Enterprise Systems                  │                   │                │
+│  │  S3 | DynamoDB | Pipelines           │                   │                │
+│  └──────────────────┬───────────────────┘                   │                │
+│                     ▼                                       │                │
+│  ┌──────────────────────────────────────┐                   │                │
+│  │  Tool Response Validator             │◄──────────────────┘                │
+│  │  (scans data FROM tools before       │                                    │
+│  │   agent can reason over it)          │                                    │
+│  └──────────────────┬───────────────────┘                                    │
+│                     ▼                                                        │
+│  ┌──────────────────────────────────────┐                                    │
+│  │  Output Guardrails                   │                                    │
+│  │  - PII / credential stripping        │                                    │
+│  │  - Exfiltration blocking             │                                    │
+│  │  - System prompt leak detection      │                                    │
+│  └──────────────────┬───────────────────┘                                    │
+│                     │                                                        │
+└─────────────────────┼────────────────────────────────────────────────────────┘
+                      │
+┌─────────────────────▼────────────────────────────────────────────────────────┐
+│  EVIDENCE PLANE (async, non-blocking -- adds 0ms to response time)           │
+│                                                                              │
+│  Every decision and every tool call produces:                                │
+│                                                                              │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌───────────┐  │
+│  │ SHA-256 Hash   │  │ S3 Object Lock │  │ CloudWatch     │  │Compliance │  │
+│  │ Chain          │  │ (7yr WORM)     │  │ + CloudTrail   │  │Mapping    │  │
+│  │                │  │                │  │                │  │           │  │
+│  │ Tamper =       │  │ Even root      │  │ Real-time      │  │ISO 42001  │  │
+│  │ chain breaks   │  │ cannot delete  │  │ metrics        │  │NIST RMF   │  │
+│  │                │  │                │  │                │  │EU AI Act  │  │
+│  └────────────────┘  └────────────────┘  └────────────────┘  └───────────┘  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
-
-**Control Plane** (evaluates every request):
-- Kill switch check (instant shutdown if active)
-- Input defense (8 sanitization checks)
-- Agent + tool authorization (registry, scope, rate limits)
-- Policy evaluation (OPA + Cedar)
-- Risk scoring (0-100 composite)
-- Drift and behavioral monitoring
-- Decision engine (ALLOW / DENY / ESCALATE)
-
-**Execution Plane** (after ALLOW):
-- Bedrock Agent with scope-gated action groups (levels 0-4)
-- Per-tool security on every tool call (parameter scan, rate limit, chain detection)
-- Tool response validation (scans data FROM tools for injection)
-- Output guardrails (PII stripping, credential removal, exfiltration blocking)
-
-**Evidence Plane** (async, non-blocking):
-- SHA-256 hash chain per decision
-- S3 Object Lock (7-year immutable retention)
-- Compliance mapping (ISO 42001, NIST AI RMF, EU AI Act, PCI DSS, NIST 800-53)
 
 ---
 
