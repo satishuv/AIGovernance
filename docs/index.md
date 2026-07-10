@@ -20,7 +20,7 @@ Every time an AI agent attempts an action, this framework:
 4. **Validates** data returned from tools before the agent can process it
 5. **Records** an immutable, hash-chained evidence record of every decision
 
-All of this happens in under 150 milliseconds. The agent cannot override it.
+All of this happens in under 200 milliseconds (budget enforced by circuit breaker). The agent cannot override it.
 
 ---
 
@@ -48,7 +48,7 @@ This framework combines all of these into a single runtime enforcement engine fo
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  GOVERNANCE CONTROL PLANE                                          <150ms   │
+│  GOVERNANCE CONTROL PLANE                                          <200ms   │
 │                                                                             │
 │  ┌─────────────┐                                                            │
 │  │ Kill Switch │──── scope = 0? ──── DENY immediately (< 5ms)              │
@@ -75,7 +75,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 │  │ Agent       │      │ Tool             │     │ Policy       │            │
 │  │ Registry    │      │ Authorization    │     │ Engine       │            │
 │  │             │      │                  │     │              │            │
-│  │ Registered? │      │ Allowlisted?     │     │ OPA + Cedar  │            │
+│  │ Registered? │      │ Allowlisted?     │     │ OPA (Rego)   │            │
 │  │ Active?     │      │ Rate limit OK?   │     │ Scope check  │            │
 │  │ Scope valid?│      │ Params clean?    │     │ Time-of-day  │            │
 │  └──────┬──────┘      └────────┬─────────┘     └──────┬───────┘            │
@@ -149,7 +149,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 │                                                                              │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌───────────┐  │
 │  │ SHA-256 Hash   │  │ S3 Object Lock │  │ CloudWatch     │  │Compliance │  │
-│  │ Chain          │  │ (7yr WORM)     │  │ + CloudTrail   │  │Mapping    │  │
+│  │ Chain          │  │ (WORM)         │  │ + CloudTrail   │  │Mapping    │  │
 │  │                │  │                │  │                │  │           │  │
 │  │ Tamper =       │  │ Even root      │  │ Real-time      │  │ISO 42001  │  │
 │  │ chain breaks   │  │ cannot delete  │  │ metrics        │  │NIST RMF   │  │
@@ -241,9 +241,9 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 ## Validation
 
-- **Attack datasets**: 8,470+ payloads from 13 academic benchmarks (JailbreakBench, AdvBench, Deepset, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, and others)
-- **Detection rate**: 93.4% on pure attack datasets. Multi-layer defense reduces residual attack success from 73-84% baseline to under 9%
-- **End-to-end scenarios**: 21 governance scenarios covering all verdicts, all scope levels, and all attack categories
+- **Attack datasets**: 6,400+ payloads from 20 academic benchmark datasets (JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, Anthropic HH-RLHF, and others)
+- **Detection rate**: 100% on tested benchmarks (493 payloads across 4 datasets). Research literature shows multi-layer defense reduces residual attack success from 73-84% baseline to under 9%
+- **End-to-end scenarios**: 19 governance scenarios covering all verdicts (ALLOW, DENY, ESCALATE), scope enforcement, and attack categories
 - **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
 - **Test suite**: 225 automated tests (unit + integration + security)
 
@@ -261,7 +261,7 @@ pip install -r requirements.txt
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate
-python test_datasets/run_demo_validation.py    # 21 scenarios
+python test_datasets/run_demo_validation.py    # 19 scenarios
 python -m pytest tests/ -v                     # 225 tests
 ```
 
@@ -274,8 +274,8 @@ python -m pytest tests/ -v                     # 225 tests
 | AI Agent | Amazon Bedrock Agents (Nova Micro) |
 | Governance Orchestration | AWS Step Functions Express (100K+ concurrent) |
 | Policy Engine | OPA (Rego-subset, embedded or external) |
-| State | Amazon DynamoDB (25+ tables) |
-| Evidence | Amazon S3 (Object Lock, 7-year WORM) |
+| State | Amazon DynamoDB (22 tables) |
+| Evidence | Amazon S3 (Object Lock, COMPLIANCE mode, configurable retention) |
 | Infrastructure | AWS CDK (Python, 6 modular constructs) |
 
 ---
