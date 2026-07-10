@@ -238,12 +238,18 @@ A prioritized view of what matters most. Use this to decide where to invest secu
 
 ## 13. Agent Output Security (Code and Content Quality)
 
-This domain addresses a gap exposed by the SWExploit paper (arXiv:2509.25894): AI agents can produce outputs that are functionally correct but contain hidden vulnerabilities. Traditional testing (does it pass tests?) is insufficient when an adversary can craft inputs that guide the agent toward vulnerable-but-correct outputs.
+This domain addresses a critical gap confirmed by two independent research teams: AI agents produce outputs that are functionally correct but contain hidden vulnerabilities. Traditional testing (does it pass tests?) is insufficient when an adversary crafts inputs that guide the agent toward vulnerable-but-correct outputs.
+
+**Research basis:**
+- **SWExploit** ([arXiv:2509.25894](https://arxiv.org/abs/2509.25894)): 91% ASR for correct-but-vulnerable patches via adversarial issue generation
+- **FCV-Attack** (ACL 2026, Peng et al.): Black-box single-query attack on 12 agent-model combinations (GPT-5 mini, Claude Sonnet 4, Qwen3-Coder, Kimi-K2 across SWE-Agent, OpenHands, Mini-SWE-Agent). ASR up to 56.3% (Claude Sonnet 4 + OpenHands on CWE-538). Even with clean trajectories, vulnerabilities persist through KV-cache contamination during initial encoding. Prompt-level defenses reduce but cannot eliminate the threat.
+
+**Key finding:** "Even when agents follow clean trajectories - retrieving correct files and producing correct reasoning - vulnerabilities persist in final patches. Contamination occurs during initial encoding, before any observable action is taken." Behavior-level monitoring is fundamentally insufficient for this attack class.
 
 | # | Control | Threat Mitigated | Reference |
 |---|---------|-----------------|-----------|
-| 13.1 | Security scanning of agent-generated code before merge | Functionally-correct-but-vulnerable patches | [SWExploit (arXiv:2509.25894)](https://arxiv.org/abs/2509.25894): 91% ASR |
-| 13.2 | Adversarial issue detection (misleading reproduction steps) | Issue-based manipulation of coding agents | [SWExploit](https://arxiv.org/abs/2509.25894): adversarial issue generation |
+| 13.1 | Security scanning of agent-generated code before merge | Functionally-correct-but-vulnerable patches (FCV) | [SWExploit](https://arxiv.org/abs/2509.25894): 91% ASR; FCV-Attack (ACL 2026): 56.3% ASR |
+| 13.2 | Adversarial issue detection (misleading reproduction steps) | Issue-based manipulation of coding agents | [SWExploit](https://arxiv.org/abs/2509.25894); FCV-Attack: CWE-targeted injection in issue descriptions |
 | 13.3 | Output semantic validation (does output match stated intent?) | Semantic divergence between request and result | Agent output integrity |
 | 13.4 | Vulnerability pattern scanning on all agent-produced artifacts | Known vulnerability patterns in generated code (SQLi, XSS, path traversal) | OWASP Secure Coding |
 | 13.5 | Diff-aware security review (focus on what changed, not whole file) | Vulnerability injection via minimal code changes | SWExploit: injection point analysis |
@@ -266,6 +272,7 @@ This domain addresses a gap exposed by the SWExploit paper (arXiv:2509.25894): A
 | Supply chain backdoor (data leakage) | >80% | [Malice in Agentland](https://arxiv.org/abs/2510.05159) |
 | Mobile agent exploitation (ads) | >80% | [Mobile LLM Agents](https://arxiv.org/abs/2510.27140) |
 | Indirect prompt injection | 73.2% baseline | [Securing AI Agents](https://arxiv.org/abs/2512.15081) |
+| Functionally-correct-but-vulnerable patches (FCV) | 56.3% (Claude Sonnet 4) | FCV-Attack (ACL 2026, Peng et al.) |
 
 ### Defense Effectiveness (Best Combinations)
 
