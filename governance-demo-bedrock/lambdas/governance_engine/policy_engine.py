@@ -1,4 +1,4 @@
-"""Policy Engine — loading, validation, and evaluation of governance policies.
+"""Policy Engine: loading, validation, and evaluation of governance policies.
 
 Loads policy definitions from S3, validates them against a JSON Schema,
 and stores them in-memory keyed by policy_id. Supports periodic reload
@@ -34,7 +34,7 @@ def _load_schema() -> Dict[str, Any]:
         with open(_SCHEMA_PATH, "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        logger.warning("Policy schema not found at %s — schema validation disabled", _SCHEMA_PATH)
+        logger.warning("Policy schema not found at %s, schema validation disabled", _SCHEMA_PATH)
         return {}
 
 
@@ -83,7 +83,7 @@ class PolicyEngine:
 
         Re-reads all policy files from the configured S3 bucket/prefix
         and replaces the in-memory cache.  Supports the 60-second
-        refresh requirement — callers can invoke this on a timer.
+        refresh requirement; callers can invoke this on a timer.
         """
         if self._s3_client is None:
             logger.warning("reload_policies called before load_policies; skipping.")
@@ -186,7 +186,7 @@ class PolicyEngine:
             containing the policy_id and validation failure details.
         """
         if not HAS_JSONSCHEMA:
-            logger.warning("jsonschema not available — skipping schema validation")
+            logger.warning("jsonschema not available, skipping schema validation")
             return True
         try:
             jsonschema.validate(instance=policy_dict, schema=self._schema)
@@ -262,7 +262,7 @@ class PolicyEngine:
         policy does not apply to this request.
 
         A condition field that is ``None`` (not set) in the policy is
-        treated as a wildcard — it matches any value in the request.
+        treated as a wildcard; it matches any value in the request.
         Only condition fields that are explicitly set must match.
         """
         conditions = policy.conditions
@@ -271,28 +271,28 @@ class PolicyEngine:
 
         matched: Dict[str, Any] = {}
 
-        # scope_level — exact match
+        # scope_level: exact match
         if conditions.scope_level is not None:
             req_scope = action_request.get("scope_level")
             if req_scope is None or int(req_scope) != conditions.scope_level:
                 return None
             matched["scope_level"] = conditions.scope_level
 
-        # action_group — exact match
+        # action_group: exact match
         if conditions.action_group is not None:
             req_ag = action_request.get("action_group")
             if req_ag is None or req_ag != conditions.action_group:
                 return None
             matched["action_group"] = conditions.action_group
 
-        # target_resource — exact match
+        # target_resource: exact match
         if conditions.target_resource is not None:
             req_tr = action_request.get("target_resource")
             if req_tr is None or req_tr != conditions.target_resource:
                 return None
             matched["target_resource"] = conditions.target_resource
 
-        # time_of_day — request time must fall within start/end window
+        # time_of_day: request time must fall within start/end window
         if conditions.time_of_day is not None:
             req_tod = action_request.get("time_of_day")
             if req_tod is None:

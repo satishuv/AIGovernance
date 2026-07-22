@@ -1,4 +1,4 @@
-"""Input Validation Heuristics — Threat Detector module.
+"""Input Validation Heuristics, Threat Detector module.
 
 Applies defense-in-depth pattern-based checks to agent inputs. Patterns
 are loaded from DynamoDB with a 60-second in-memory cache TTL. Matches

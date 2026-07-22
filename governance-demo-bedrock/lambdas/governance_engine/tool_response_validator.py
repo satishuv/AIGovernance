@@ -41,6 +41,13 @@ class ToolResponseValidation:
     blocked: bool = False
     block_reason: str = ""
     timestamp: str = ""
+    # Trust-boundary fields: a heuristic scan of echoed text cannot detect a
+    # forged response from a compromised tool. When an authoritative source is
+    # available, verify_against_source() populates these to record whether the
+    # echoed payload actually matches ground truth.
+    source_verified: bool = False
+    forgery_detected: bool = False
+    verification_method: str = "none"  # none | authoritative_refetch | structured
 
 
 # Instruction patterns that should never appear in tool response data
@@ -207,3 +214,94 @@ class ToolResponseValidator:
             }))
 
         return result
+
+    def verify_against_source(self, tool_name, response, authoritative_fetch,
+                              key_fields=None):
+        """Close the forgery gap: verify the echoed response against ground truth.
+
+        A pattern scan of echoed text (``validate``) cannot tell a genuine
+        response from one a compromised tool fabricated -- it inspects the same
+        forged bytes. When an authoritative source is available, this method
+        re-fetches ground truth via ``authoritative_fetch`` (a callable that
+        returns the canonical structured record, independent of the tool's
+        echoed payload) and compares. Divergence on any monitored field is
+        treated as forgery and the response is blocked.
+
+        This is the trust-boundary rule from the AgentCore-evaluator lesson:
+        never treat agent/tool-echoed content as ground truth.
+
+        Args:
+            tool_name: Name of the tool.
+            response: The echoed response string returned by the (untrusted) tool.
+            authoritative_fetch: Callable() -> dict returning the canonical
+                record from the authoritative system of record.
+            key_fields: Optional list of field names to compare; if omitted,
+                all fields present in the authoritative record are compared.
+
+        Returns:
+            A ToolResponseValidation. ``source_verified`` is True when ground
+            truth was consulted; ``forgery_detected``/``blocked`` are True when
+            the echoed payload diverges from it.
+        """
+        # First run the standard heuristic scan (defence in depth).
+        result = self.validate(tool_name, response)
+        result.verification_method = "authoritative_refetch"
+
+        try:
+            truth = authoritative_fetch()
+        except Exception as exc:
+            # Fail closed: if we cannot establish ground truth, do not certify.
+            result.source_verified = False
+            result.blocked = True
+            result.block_reason = (
+                f"Authoritative source unavailable ({type(exc).__name__}); "
+                "cannot verify tool response, failing closed.")
+            logger.warning(json.dumps({
+                "event": "tool_response_source_unavailable",
+                "tool_name": tool_name, "error": str(exc),
+                "timestamp": result.timestamp,
+            }))
+            return result
+
+        result.source_verified = True
+        fields = key_fields if key_fields else list(
+            truth.keys() if isinstance(truth, dict) else [])
+        mismatches = []
+        for f in fields:
+            expected = truth.get(f) if isinstance(truth, dict) else None
+            # Ground truth is authoritative: require the echoed text to actually
+            # contain the true value for each monitored field.
+            if expected is not None and str(expected) not in (response or ""):
+                mismatches.append(f)
+
+        if mismatches:
+            result.forgery_detected = True
+            result.blocked = True
+            result.block_reason = (
+                "Tool response diverges from authoritative source on field(s): "
+                + ", ".join(mismatches) + " (possible forgery).")
+            logger.error(json.dumps({
+                "event": "tool_response_forgery_detected",
+                "tool_name": tool_name, "mismatched_fields": mismatches,
+                "timestamp": result.timestamp,
+            }))
+        return result
+
+    @staticmethod
+    def require_structured_verdict(verdict_obj):
+        """Enforce a structured verdict rather than trusting free-text scanning.
+
+        Downstream tools/evaluators should return a typed verdict
+        ({"verdict": "allow"|"deny"|"escalate", ...}) instead of prose the
+        agent (or this validator) must parse. This helper validates the shape
+        and fails closed on anything malformed or non-allow, so a tool cannot
+        smuggle intent past the gate as narrative text.
+
+        Returns (accepted: bool, verdict: str, reason: str).
+        """
+        if not isinstance(verdict_obj, dict):
+            return False, "deny", "verdict is not a structured object; failing closed"
+        v = verdict_obj.get("verdict")
+        if v not in ("allow", "deny", "escalate"):
+            return False, "deny", f"unrecognized verdict {v!r}; failing closed"
+        return (v == "allow"), v, verdict_obj.get("reason", "")

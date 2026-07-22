@@ -1,5 +1,5 @@
 """
-Bug Condition Exploration Test — Property 1: Fault Condition
+Bug Condition Exploration Test, Property 1: Fault Condition
 
 Validates that all ReadPipelineStatus schema paths use POST method with
 requestBody (not GET with path parameters). This test is EXPECTED TO FAIL
@@ -34,7 +34,7 @@ def test_all_paths_use_post_with_request_body(path_entry):
         f"Path {path_key} uses '{list(path_obj.keys())}' instead of 'post'"
     )
     assert "get" not in path_obj, (
-        f"Path {path_key} still has a 'get' method — Bedrock doesn't support GET"
+        f"Path {path_key} still has a 'get' method, Bedrock doesn't support GET"
     )
 
     post_op = path_obj["post"]

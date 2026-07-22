@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Lambda entry point — refresh compliance mapping documents.
+    """Lambda entry point, refresh compliance mapping documents.
 
     Reads control mappings from the ControlMappingTable, generates
     ISO 42001 and NIST AI RMF compliance mapping documents in both

@@ -13,5 +13,5 @@
     "aws.amazon.com",
     "github.com"
   ],
-  "description": "Data exfiltration prevention configuration — output size limits per scope level, encoded block detection, and approved external endpoints"
+  "description": "Data exfiltration prevention configuration, output size limits per scope level, encoded block detection, and approved external endpoints"
 }

@@ -235,6 +235,32 @@ class ToolExecutionAuthManager:
             )
         checks_performed["chain_check"] = "pass"
 
+        # Step 6: Data-flow sequence reasoning (novel read-sensitive ->
+        # write-external composition, not just enumerated chains).
+        flow_safe, flow_reason = self._check_dataflow(
+            agent_id, tool_name, tool_auth_table
+        )
+        if not flow_safe:
+            logger.warning(json.dumps({
+                "event": "tool_auth_denied",
+                "reason": "dataflow_exfiltration_chain",
+                "agent_id": agent_id,
+                "tool_name": tool_name,
+                "flow_reason": flow_reason,
+                "timestamp": timestamp,
+            }))
+            checks_performed["dataflow_check"] = "fail"
+            return ToolAuthResult(
+                authorized=False,
+                tool_name=tool_name,
+                agent_id=agent_id,
+                denial_reason=flow_reason,
+                checks_performed=checks_performed,
+                rate_limit_remaining=rate_limit_remaining,
+                timestamp=timestamp,
+            )
+        checks_performed["dataflow_check"] = "pass"
+
         # All checks passed
         logger.info(json.dumps({
             "event": "tool_auth_allowed",
@@ -279,7 +305,12 @@ class ToolExecutionAuthManager:
             "agent_id": agent_id,
             "tool_name": tool_name,
             "timestamp": timestamp,
-            "ttl": ttl_epoch,
+            # Must match the table's configured TTL attribute name
+            # (time_to_live_attribute="ttl_expiry" in the CDK storage construct).
+            # Writing "ttl" here left RATE records permanently un-expired, which
+            # let the table grow unbounded and eventually exhaust read capacity
+            # for the _get_recent_tool_history scan.
+            "ttl_expiry": ttl_epoch,
         }
 
         try:
@@ -467,6 +498,80 @@ class ToolExecutionAuthManager:
                     }))
                     return False, chain_desc
 
+        return True, ""
+
+    # ------------------------------------------------------------------
+    # Data-flow (taint) sequence reasoning.
+    #
+    # Declared chains (above) block *enumerated* dangerous sequences. This
+    # method reasons about the *data flow* of a session instead, so it can
+    # flag a novel composition of individually-permitted calls that was never
+    # enumerated: the canonical case is "read sensitive data, then write to an
+    # external sink" (exfiltration), where neither call is prohibited alone and
+    # the pair need not appear in any chain definition. Each tool is tagged
+    # (from its RULE record, with sensible name-based defaults) as reading
+    # sensitive data and/or writing to an external sink; a session that has
+    # become "tainted" by a sensitive read and now attempts an external write
+    # is denied.
+    # ------------------------------------------------------------------
+
+    # Name-based fallback classification when a RULE record omits the tags.
+    _SENSITIVE_READ_HINTS = ("read", "get", "fetch", "list", "describe",
+                             "query", "download", "export", "dump", "retrieve",
+                             "secret", "credential", "token", "key", "password")
+    _EXTERNAL_WRITE_HINTS = ("send", "post", "upload", "publish", "transmit",
+                             "forward", "email", "webhook", "http", "external",
+                             "exfil", "share", "write", "put", "notify", "sms")
+
+    def _classify_tool(self, tool_name, rule):
+        """Return (reads_sensitive, writes_external) for a tool.
+
+        Prefers explicit flags on the RULE record; falls back to name hints.
+        """
+        rd = wr = None
+        if rule:
+            if "reads_sensitive" in rule:
+                rd = bool(rule["reads_sensitive"])
+            if "writes_external" in rule:
+                wr = bool(rule["writes_external"])
+        low = (tool_name or "").lower()
+        if rd is None:
+            rd = any(h in low for h in self._SENSITIVE_READ_HINTS)
+        if wr is None:
+            wr = any(h in low for h in self._EXTERNAL_WRITE_HINTS)
+        return rd, wr
+
+    def _check_dataflow(self, agent_id, tool_name, tool_auth_table):
+        """Deny a novel read-sensitive -> write-external composition.
+
+        Returns (safe, reason). safe=False means the session already read
+        sensitive data and the current call writes to an external sink, i.e. a
+        potential exfiltration chain that no single call would reveal.
+        """
+        _rd_now, wr_now = self._classify_tool(
+            tool_name, self._load_rule(tool_name, tool_auth_table))
+        if not wr_now:
+            return True, ""  # current call is not an external write; nothing to gate
+
+        # Did an earlier call this session read sensitive data?
+        recent = self._get_recent_tool_history(agent_id, tool_auth_table)
+        for prior in recent:
+            if prior == tool_name:
+                continue
+            prior_rd, _prior_wr = self._classify_tool(
+                prior, self._load_rule(prior, tool_auth_table))
+            if prior_rd:
+                logger.warning(json.dumps({
+                    "event": "dataflow_exfiltration_chain_detected",
+                    "agent_id": agent_id,
+                    "sensitive_read_tool": prior,
+                    "external_write_tool": tool_name,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }))
+                return False, (
+                    f"Data-flow violation: session read sensitive data via "
+                    f"'{prior}' and now attempts an external write via "
+                    f"'{tool_name}' (potential exfiltration chain).")
         return True, ""
 
     def _load_rule(

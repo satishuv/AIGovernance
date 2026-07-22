@@ -148,9 +148,9 @@ class GraduatedScopeReduction:
         """Execute scope reduction according to configured mode.
 
         Modes:
-            automatic — reduces scope immediately.
-            approval-gated — creates pending approval record.
-            notify-only — sends alert without reducing scope.
+            automatic, reduces scope immediately.
+            approval-gated, creates pending approval record.
+            notify-only, sends alert without reducing scope.
 
         Returns:
             ScopeReductionEvent with reduction details.
@@ -239,7 +239,7 @@ class GraduatedScopeReduction:
         try:
             sns_client.publish(
                 TopicArn=topic_arn,
-                Subject=f"AGCP — Scope Reduction ({mode})",
+                Subject=f"AGCP, Scope Reduction ({mode})",
                 Message=json.dumps(event.to_dict(), default=str),
             )
         except Exception as exc:

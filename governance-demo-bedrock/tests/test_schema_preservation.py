@@ -1,5 +1,5 @@
 """
-Preservation Property Tests — Property 2: Preservation
+Preservation Property Tests, Property 2: Preservation
 
 Validates that the three working action group schemas, Lambda routing,
 and parameter extraction remain unchanged. These tests MUST PASS on both

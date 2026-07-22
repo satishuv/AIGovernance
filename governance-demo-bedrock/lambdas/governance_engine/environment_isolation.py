@@ -4,7 +4,7 @@ Provides pure-logic utilities for validating deployment environments,
 detecting cross-environment violations, scoping policy evaluation by
 environment, and generating environment-partitioned S3 evidence prefixes.
 
-No DynamoDB dependency — this is a stateless logic module.
+No DynamoDB dependency, this is a stateless logic module.
 
 Requirements: 19.1, 19.2, 19.3, 19.4, 19.5, 19.6
 """

@@ -99,6 +99,45 @@ def safe_evaluate_policy(
 
 
 # ------------------------------------------------------------------
+# safe_evaluate_opa  (Req 18.1, 18.5, 18.6) -- fail-closed OPA wrapper
+# ------------------------------------------------------------------
+
+def safe_evaluate_opa(opa_engine: Any, opa_input: Dict[str, Any]) -> Any:
+    """Wrap OPAEngine.evaluate() with fail-safe deny on error.
+
+    If the OPA engine raises any exception, returns an OPADecision that
+    denies the action and logs a structured failure record. This closes
+    the gap where an unguarded OPA call could propagate as a function
+    error instead of degrading to a safe deny.
+
+    Args:
+        opa_engine: An OPAEngine instance.
+        opa_input: The evaluation input dict.
+
+    Returns:
+        An OPADecision -- either the real result or a fail-safe deny.
+    """
+    try:
+        return opa_engine.evaluate(opa_input)
+    except Exception as exc:
+        _log_failure_record(
+            component_name="OPAEngine",
+            failure_type=type(exc).__name__,
+            fallback_action_taken="deny",
+        )
+        # Import locally to avoid a hard import dependency at module load.
+        from opa_engine import OPADecision
+        return OPADecision(
+            allowed=False,
+            verdict="deny",
+            matched_rules=["fail-safe-deny"],
+            explanation=f"OPA evaluation failed ({type(exc).__name__}); "
+                        "failing closed to deny.",
+            evaluation_time_ms=0.0,
+        )
+
+
+# ------------------------------------------------------------------
 # safe_compute_risk  (Req 18.3, 18.5, 18.6)
 # ------------------------------------------------------------------
 

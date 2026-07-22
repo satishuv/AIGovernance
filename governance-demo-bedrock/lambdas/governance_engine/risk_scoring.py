@@ -1,4 +1,4 @@
-"""Risk Scoring Engine — computes risk scores for agent actions.
+"""Risk Scoring Engine, computes risk scores for agent actions.
 
 Loads risk factor weights and escalation thresholds from a DynamoDB
 configuration table and applies weighted factors (scope level, action
@@ -130,9 +130,9 @@ class RiskScoringEngine:
     Loads risk factor weights and the escalation threshold from a
     DynamoDB configuration table (table name from the
     ``RISK_CONFIG_TABLE_NAME`` environment variable).  Applies weighted
-    factors — scope level, action group, target resource, and action
-    history — to produce a ``RiskAssessment`` with a score clamped to
-    0–100.
+    factors, scope level, action group, target resource, and action
+    history, to produce a ``RiskAssessment`` with a score clamped to
+    0-100.
 
     Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
     """
@@ -311,12 +311,12 @@ class RiskScoringEngine:
         Args:
             action_request: Dict with keys such as ``action_group``,
                 ``target_resource``, and ``input_text``.
-            scope_level: The agent's current scope level (0–4).
+            scope_level: The agent's current scope level (0-4).
             action_history: Optional list of recent action dicts for
                 history-based risk adjustment.
 
         Returns:
-            A ``RiskAssessment`` with score clamped to 0–100, the
+            A ``RiskAssessment`` with score clamped to 0-100, the
             assigned risk category, applied factor weights, and an
             escalation flag.
         """
@@ -352,7 +352,7 @@ class RiskScoringEngine:
         )
         factors["target_resource_weight"] = tr_weight
 
-        # History factor — more recent actions increase risk
+        # History factor, more recent actions increase risk
         history_count = min(len(history), 10)
         history_score = history_count * self._history_factor_weight
         factors["history_factor"] = history_score
@@ -362,7 +362,7 @@ class RiskScoringEngine:
             base_weight + scope_weight + ag_weight + tr_weight + history_score
         )
 
-        # 4. Clamp to 0–100 (Req 3.1)
+        # 4. Clamp to 0-100 (Req 3.1)
         risk_score = max(0.0, min(100.0, raw_score))
 
         # 5. Check escalation threshold (Req 3.4)

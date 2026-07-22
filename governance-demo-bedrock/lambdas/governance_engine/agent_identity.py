@@ -38,7 +38,7 @@ class AgentIdentityManager:
         Args:
             agent_id: Unique identifier for the agent.
             display_name: Human-readable name for the agent.
-            environment: Deployment environment — must be one of 'dev', 'staging', 'prod'.
+            environment: Deployment environment, must be one of 'dev', 'staging', 'prod'.
 
         Returns:
             The created AgentIdentity record.

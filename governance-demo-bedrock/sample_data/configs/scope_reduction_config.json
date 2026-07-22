@@ -5,5 +5,5 @@
   "sustained_period_seconds": 1800,
   "cooldown_seconds": 7200,
   "high_risk_threshold": 70,
-  "description": "Graduated scope reduction configuration — controls how agent scope is reduced when sustained high-risk behavior is detected"
+  "description": "Graduated scope reduction configuration, controls how agent scope is reduced when sustained high-risk behavior is detected"
 }

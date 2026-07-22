@@ -25,7 +25,7 @@ from decision_history import DecisionHistory
 from environment_isolation import EnvironmentIsolation
 from evidence_pipeline import EvidencePipeline
 from exfiltration_detector import ExfiltrationDetector
-from fail_safe import safe_compute_risk, safe_evaluate_policy, safe_write_evidence
+from fail_safe import safe_compute_risk, safe_evaluate_opa, safe_evaluate_policy, safe_write_evidence
 from graduated_scope_reduction import GraduatedScopeReduction
 from input_sanitizer import InputSanitizer
 from kill_switch import KillSwitchManager
@@ -386,7 +386,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if opa_engine.rule_count > 0:
                 now_utc = datetime.now(timezone.utc)
                 opa_input = {**action_request, "hour": now_utc.hour, "day_of_week": now_utc.strftime("%A").lower()}
-                opa_decision = opa_engine.evaluate(opa_input)
+                opa_decision = safe_evaluate_opa(opa_engine, opa_input)
                 policy_result = PolicyEvaluationResult(
                     policy_id=opa_decision.matched_rules[0] if opa_decision.matched_rules else "default-deny",
                     outcome=opa_decision.verdict,

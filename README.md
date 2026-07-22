@@ -2,9 +2,9 @@
 
 ## The Problem
 
-AI agents read data from external sources - tool responses, documents, metadata fields - and that data can become instructions. Any of these sources can contain hidden commands that reprogram the agent. No security system in history was designed for software that can be hijacked by the data it processes.
+AI agents read data from external sources - tool responses, documents, metadata fields - and that data can become instructions. Any of these sources can contain hidden commands that reprogram the agent. Classical application security was not designed for software that can be hijacked by the data it processes.
 
-Traditional security validates inputs and sanitizes outputs. But an AI agent also CONSUMES tool responses, READS tool descriptions, and CHAINS actions through autonomous reasoning. These three surfaces have no protection in any existing framework, product, or standard.
+Traditional security validates inputs and sanitizes outputs. But an AI agent also CONSUMES tool responses, READS tool descriptions, and CHAINS actions through autonomous reasoning. Existing controls are fragmented across prompt filtering, authorization, output inspection, and observability; few provide a unified, infrastructure-enforced governance path that covers tool authorization, returned-data validation, sequential behavior, evidence generation, and graduated autonomy in one place. That gap is what this project targets.
 
 **This project is the enforcement layer that governs what an AI agent does between receiving a request and taking an action.**
 
@@ -20,20 +20,20 @@ Every time an AI agent attempts an action, this framework:
 4. **Validates** data returned from tools before the agent can process it
 5. **Records** an immutable, hash-chained evidence record of every decision
 
-All of this happens in under 200 milliseconds (budget enforced by circuit breaker). The agent cannot override it.
+The governance control path targets a sub-200 ms processing budget in the optimized Step Functions Express configuration; Lambda-oriented or cold-start paths may experience higher end-to-end latency (on the order of 1-2 s). The 200 ms figure is an advisory per-component budget (logged, not aborted); a circuit breaker trips at a separate hard 500 ms threshold. The agent cannot override the verdict, which is enforced at the IAM layer.
 
 ---
 
 ## Why This Exists
 
-| What exists today | What it does | What it cannot do |
+| What exists today | What it does | What it does not focus on |
 |-------------------|-------------|-------------------|
-| AWS Bedrock Guardrails | Filters input/output text | Cannot govern tool calls, action sequences, or return-path data |
-| OPA / Cedar | Evaluates access policies | Cannot detect prompt injection or sequential attack chains |
-| WAFs | Protect HTTP requests | Cannot understand that an AI action emerged from compromised context |
-| OWASP / NIST / ISO | Name the risks | Cannot enforce anything at runtime |
+| AWS Bedrock Guardrails | Filters input/output text | Governing tool calls, action sequences, or return-path data (it is a content filter, not an action-governance layer) |
+| OPA / Cedar | Evaluates access policies | Detecting prompt injection or reasoning over sequential attack chains |
+| WAFs | Protect HTTP requests | Understanding that an AI action emerged from compromised context |
+| OWASP / NIST / ISO | Name the risks | Enforcing anything at runtime (they are guidance, not controls) |
 
-This framework combines all of these into a single runtime enforcement engine for the complete attack surface of an autonomous AI agent.
+This framework composes these building blocks (it *uses* Bedrock Guardrails and an OPA-style engine internally) into a single runtime enforcement path covering the agent's action loop end to end.
 
 ---
 
@@ -143,7 +143,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 └─────────────────────┼────────────────────────────────────────────────────────┘
                       │
 ┌─────────────────────▼────────────────────────────────────────────────────────┐
-│  EVIDENCE PLANE (async, non-blocking -- adds 0ms to response time)           │
+│  EVIDENCE PLANE (async, non-blocking, adds 0ms to response time)             │
 │                                                                              │
 │  Every decision and every tool call produces:                                │
 │                                                                              │
@@ -223,25 +223,25 @@ Agent at Scope 3 requests "deploy to staging"
   100 >= 70 → ESCALATE (requires human approval)
 ```
 
-Deployments are mathematically impossible to auto-approve. This is by design.
+Under the default weights, a production deployment saturates the score and cannot be auto-approved; it always escalates to a human. This is by design (and configurable).
 
 ---
 
-## Three Novel Contributions
+## Three Under-Served Attack Surfaces
 
-These address attack surfaces that no existing standard, framework, or product covers:
+Most governance architectures do not provide a unified, enforceable control boundary across these three surfaces; this framework treats each as a first-class governed channel.
 
 **1. Tool Response Validation (the "Perception Gap")**
 
-Every framework validates what goes INTO tools. Nobody validates what comes BACK. This framework scans all tool responses for injection, anomalies, and sensitive data before the agent can reason over them.
+Most existing governance architectures do not provide a general, enforceable control boundary for validating tool responses *before* agent reasoning. This framework scans every tool response for injection, anomalies, and sensitive data before the agent can reason over it, and (where an authoritative source exists) can re-fetch ground truth to detect a forged response rather than trusting the echoed payload. The detectors are heuristic (regex + entropy), not semantic - see [limitations](#validation).
 
 **2. Sequential Chain Governance**
 
-Every access control system evaluates one action at a time. This framework evaluates whether a SEQUENCE of individually-safe actions produces harm when combined.
+Access-control systems typically evaluate one action at a time. This framework maintains per-session state and evaluates whether a *sequence* of individually-safe actions is harmful in combination - via both administrator-declared dangerous sequences and data-flow taint tracking that flags a read-sensitive-then-write-external composition even when it was never enumerated.
 
-**3. Tool Metadata Defense**
+**3. Enforcement-Time Tool Authorization**
 
-AI agents read tool descriptions to decide how to use them. Those descriptions can contain hidden adversarial instructions. This framework validates tool metadata against policy before the agent processes it.
+AI agents read tool descriptions to decide how to use them, and those descriptions can carry hidden adversarial instructions (tool poisoning). This framework enforces a registration, approval, and name/version allowlist so an agent can only invoke vetted tools, plus per-tool parameter validation. Note: this is approval-and-allowlist control, **not** adversarial scanning of tool-description text - that remains future work.
 
 ---
 
@@ -261,13 +261,17 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 ---
 
-## Validation
+All numbers below are produced by running real payloads through the deployed code; a reproducible harness is in [`paper/bench/`](governance-demo-bedrock/paper/bench/).
 
-- **Attack datasets**: 9,465 payloads across 20 benchmark files (~8,972 unique after deduplication) from sources including JailbreakBench, AdvBench, Deepset Injections, Lakera Gandalf, LMSYS Toxic Chat, AI Safety Institute AgentHarm, PKU BeaverTails, Anthropic HH-RLHF, and others
-- **Detection rate**: 93.4% on a 500-sample from 2,972 known attacks (live test on Isengard, July 2026). 100% on 4 curated injection benchmarks (493 payloads). The 6.6% gap represents subtle attacks that bypass input defense but may be caught by downstream layers (tool response validator, output guardrails).
-- **End-to-end validation**: 21 pre-demo smoke tests (runs in 30s against live Lambda), 2,000 governance scenarios (run via `run_2000_on_isengard.py`), and 225 automated unit/integration tests
-- **Research foundation**: Informed by 22 peer-reviewed papers (2024-2025) covering tool poisoning, sequential chaining, memory attacks, and supply chain threats
-- **Test suite**: 225 automated tests (unit + integration + security)
+- **Public benchmarks (full pipeline, live on Isengard)**: across 7 public attack benchmarks (1,663 payloads) the preventive pipeline blocks 79-100%. Per-block *stage attribution* shows no single layer suffices - a pattern sanitizer blocks ~2% of GCG adversarial suffixes while the managed guardrail blocks ~88%, and the relationship inverts on injection sets - which is the empirical case for defense-in-depth.
+- **Perception gap (InjecAgent, 2,108 cases)**: the tool-response validator blocks 100% of marker-carrying injections but 0% of semantically embedded ones. We report both honestly; the 0% quantifies the boundary of pattern-based (non-semantic) detection.
+- **End-to-end (full 2,000 scenarios, live, no sampling)**: 86.0% correct verdict (1,719/2,000, 0 errors). 100% on every structurally-enforced category (scope, privilege escalation, kill switch, escalation, permitted actions); the misses concentrate in categories needing semantic inference (exfiltration 5%, parameter injection 24%). Mix: 610 allow, 50 escalate, 1,340 deny across 14 categories.
+- **False-positive rate**: 0% on a benign set representative of the agent's real traffic (build/pipeline/ops queries). This is scope-dependent - the same strict detectors block much open-domain roleplay, which is appropriate for a locked-down agent but not for a general chatbot.
+- **Attack corpus**: 9,465 payloads across 20 datasets (~8,972 unique after deduplication) used during development.
+- **Unit/integration tests**: 239 automated tests (runs locally in ~33 seconds, no AWS required), including fail-closed, concurrency-lease, forgery-detection, and data-flow-chain tests.
+- **Research foundation**: informed by peer-reviewed work (2023-2026) on tool poisoning, sequential chaining, indirect injection, memory, and supply-chain threats.
+
+> Honest scope: these are strong validation artifacts for an individual open-source project, **not** a peer-reviewed scientific evaluation. There is not yet a head-to-head comparison against a published defense baseline (Llama Guard, CaMeL) on an identical payload set - the clearest next step, and disclosed as such.
 
 ---
 
@@ -284,7 +288,7 @@ npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate
 python test_datasets/run_demo_validation.py    # 21 scenarios
-python -m pytest tests/ -v                     # 225 tests
+python -m pytest tests/ -v                     # 239 tests
 ```
 
 ---

@@ -1,5 +1,5 @@
 """
-Seed Tables Lambda — bulk-loads DynamoDB tables during CDK deployment.
+Seed Tables Lambda, bulk-loads DynamoDB tables during CDK deployment.
 
 Accepts an event with a `seeds` array. Each entry contains:
   - table_name: the physical DynamoDB table name
@@ -40,7 +40,7 @@ def handler(event, context):
             errors.append("Seed entry missing 'table_name'")
             continue
         if not items:
-            logger.info("Skipping table %s — no items", table_name)
+            logger.info("Skipping table %s, no items", table_name)
             continue
 
         try:

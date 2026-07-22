@@ -143,7 +143,7 @@ This framework combines all of these into a single runtime enforcement engine fo
 └─────────────────────┼────────────────────────────────────────────────────────┘
                       │
 ┌─────────────────────▼────────────────────────────────────────────────────────┐
-│  EVIDENCE PLANE (async, non-blocking -- adds 0ms to response time)           │
+│  EVIDENCE PLANE (async, non-blocking, adds 0ms to response time)             │
 │                                                                              │
 │  Every decision and every tool call produces:                                │
 │                                                                              │

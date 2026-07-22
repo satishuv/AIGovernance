@@ -119,7 +119,7 @@ class PolicyEvaluationResult:
 
     Attributes:
         policy_id: Identifier of the matched policy.
-        outcome: Evaluation outcome — 'allow', 'deny', or 'escalate'.
+        outcome: Evaluation outcome: one of 'allow', 'deny', or 'escalate'.
         matching_conditions: Dict of conditions that matched the request.
         evaluation_timestamp: ISO 8601 timestamp of the evaluation.
     """
@@ -195,8 +195,8 @@ class GovernanceDecision:
         agent_id: Identifier of the agent whose action was evaluated.
         action_requested: Description of the action the agent requested.
         policy_result: Dict summary of the policy evaluation outcome.
-        risk_score: Numeric risk score (0–100) from the risk assessment.
-        verdict: Final decision — 'allow', 'deny', or 'escalate'.
+        risk_score: Numeric risk score (0-100) from the risk assessment.
+        verdict: Final decision: one of 'allow', 'deny', or 'escalate'.
         explanation: Human-readable explanation of the decision rationale.
         framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
         timestamp: ISO 8601 timestamp of the decision.
@@ -289,10 +289,10 @@ class AgentIdentity:
     Attributes:
         agent_id: Unique identifier for the agent.
         display_name: Human-readable name for the agent.
-        scope_level: Current autonomy level (0–4). Defaults to 1.
+        scope_level: Current autonomy level (0-4). Defaults to 1.
         creation_timestamp: ISO 8601 timestamp of agent creation.
-        status: Agent status — "active" or "suspended". Defaults to "active".
-        environment: Deployment environment — "dev", "staging", or "prod".
+        status: Agent status: "active" or "suspended". Defaults to "active".
+        environment: Deployment environment: "dev", "staging", or "prod".
     """
 
     agent_id: str
@@ -335,7 +335,7 @@ class AgentRegistryEntry:
         data_classes: List of data classes the agent is declared to access.
         tools: List of tools the agent is declared to use.
         approved_scope: Maximum approved scope level for the agent.
-        environment: Deployment environment — "dev", "staging", or "prod".
+        environment: Deployment environment: "dev", "staging", or "prod".
     """
 
     agent_id: str
@@ -465,14 +465,14 @@ class EvidenceRecord:
         agent_id: Identifier of the agent whose action was evaluated.
         action_requested: Description of the action the agent requested.
         policy_result: Summary of the policy evaluation outcome.
-        risk_score: Numeric risk score (0–100) from the risk assessment.
-        verdict: Final decision — 'allow', 'deny', or 'escalate'.
+        risk_score: Numeric risk score (0-100) from the risk assessment.
+        verdict: Final decision: one of 'allow', 'deny', or 'escalate'.
         timestamp: ISO 8601 timestamp of the evidence record.
         framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
-        environment: Deployment environment — "dev", "staging", or "prod".
+        environment: Deployment environment: "dev", "staging", or "prod".
         previous_hash: SHA-256 hash of the preceding evidence record for hash chain.
         record_hash: SHA-256 hash of this evidence record.
-        retention_class: Retention class — "standard" or "extended".
+        retention_class: Retention class: "standard" or "extended".
     """
 
     evidence_id: str
@@ -615,7 +615,7 @@ class ThreatPattern:
 
     Attributes:
         pattern_id: Unique identifier for the threat pattern.
-        category: Pattern category — "known_bad" or "suspicious".
+        category: Pattern category: "known_bad" or "suspicious".
         pattern: The pattern string to match against input.
         description: Human-readable description of the threat pattern.
         risk_weight: Numeric weight applied to risk score on match.
@@ -702,9 +702,9 @@ class PendingApproval:
         decision_id: Identifier of the governance decision that triggered escalation.
         agent_id: Identifier of the agent whose action requires approval.
         action_requested: Description of the action requiring approval.
-        risk_score: Numeric risk score (0–100) from the risk assessment.
+        risk_score: Numeric risk score (0-100) from the risk assessment.
         escalation_reason: Human-readable reason for escalation.
-        status: Approval status — "pending", "approved", "denied", or "timeout".
+        status: Approval status: "pending", "approved", "denied", or "timeout".
         approver_id: Identifier of the approver (empty if not yet resolved).
         approval_conditions: Conditions attached to the approval (empty if none).
         denial_reason: Reason for denial (empty if not denied).
@@ -769,7 +769,7 @@ class ChangeRecord:
 
     Attributes:
         record_id: Unique identifier for the change record.
-        change_type: Type of change — "scope_change" or "policy_change".
+        change_type: Type of change: "scope_change" or "policy_change".
         agent_id: Identifier of the agent affected (empty if not applicable).
         policy_id: Identifier of the policy affected (empty if not applicable).
         previous_value: Previous value before the change.
@@ -830,11 +830,11 @@ class DecisionHistoryEntry:
         timestamp: ISO 8601 timestamp of the decision.
         decision_id: Unique identifier of the governance decision.
         action_requested: Description of the action the agent requested.
-        verdict: Final decision — "allow", "deny", or "escalate".
-        risk_score: Numeric risk score (0–100) from the risk assessment.
+        verdict: Final decision: "allow", "deny", or "escalate".
+        risk_score: Numeric risk score (0-100) from the risk assessment.
         control_ids: List of framework control IDs associated with the decision.
         policy_id: Identifier of the matched policy.
-        environment: Deployment environment — "dev", "staging", or "prod".
+        environment: Deployment environment: "dev", "staging", or "prod".
     """
 
     agent_id: str
@@ -882,13 +882,13 @@ class ComplianceMappingEntry:
     Attributes:
         control_id: Identifier of the framework control (e.g., "A.2" for ISO 42001).
         control_name: Human-readable name of the control.
-        framework: Framework identifier — "iso_42001" or "nist_ai_rmf".
+        framework: Framework identifier: "iso_42001" or "nist_ai_rmf".
         function_name: NIST AI RMF function name (empty if not applicable).
         category: NIST AI RMF category (empty if not applicable).
         subcategory: NIST AI RMF subcategory (empty if not applicable).
         implementation_component: Name of the component implementing the control.
         evidence_generated: Description of evidence generated for the control.
-        compliance_status: Current compliance status — "implemented", "partial", or "planned".
+        compliance_status: Current compliance status: "implemented", "partial", or "planned".
     """
 
     control_id: str
@@ -938,8 +938,8 @@ class AggregateMetrics:
         start_date: ISO 8601 start date of the reporting period.
         end_date: ISO 8601 end date of the reporting period.
         total_decisions: Total number of governance decisions in the period.
-        denial_rate: Fraction of decisions that were denied (0.0–1.0).
-        escalation_rate: Fraction of decisions that were escalated (0.0–1.0).
+        denial_rate: Fraction of decisions that were denied (0.0-1.0).
+        escalation_rate: Fraction of decisions that were escalated (0.0-1.0).
         avg_risk_score: Average risk score across all decisions in the period.
         risk_score_distribution: Distribution of risk scores by bucket (keys: "low_0_25", "medium_26_50", "high_51_75", "critical_76_100").
         generated_at: ISO 8601 timestamp when the metrics were generated.
@@ -1139,7 +1139,7 @@ class ScopeReductionEvent:
         rolling_avg_risk_score: Rolling average risk score that triggered the reduction.
         threshold: Configured risk threshold that was exceeded.
         sustained_period_seconds: Duration in seconds the threshold was sustained.
-        reduction_mode: Mode of reduction — "automatic", "approval-gated", or "notify-only".
+        reduction_mode: Mode of reduction: "automatic", "approval-gated", or "notify-only".
         cooldown_remaining_seconds: Seconds remaining in cooldown before next reduction is allowed.
         timestamp: ISO 8601 timestamp of the reduction event.
     """
@@ -1194,7 +1194,7 @@ class MultiAgentConfig:
         policy_binding_ids: List of policy IDs bound to this agent.
         risk_profile: Dict of agent-specific risk profile settings (metric name to weight).
         evidence_partition: S3 key prefix for this agent's evidence records.
-        environment: Deployment environment — "dev", "staging", or "prod".
+        environment: Deployment environment: "dev", "staging", or "prod".
     """
 
     agent_id: str

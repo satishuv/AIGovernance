@@ -23,6 +23,7 @@ from risk_scoring import RiskScoringEngine
 from decision_engine import DecisionEngine
 from runtime_drift_detection import RuntimeDriftDetector
 from models import GovernanceDecision, PolicyEvaluationResult
+from fail_safe import safe_evaluate_opa, safe_evaluate_policy, safe_compute_risk
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -120,7 +121,7 @@ def handler(event, context):
             "hour": now_utc.hour,
             "day_of_week": now_utc.strftime("%A").lower(),
         }
-        opa_decision = opa_engine.evaluate(opa_input)
+        opa_decision = safe_evaluate_opa(opa_engine, opa_input)
         policy_result = PolicyEvaluationResult(
             policy_id=opa_decision.matched_rules[0] if opa_decision.matched_rules else "default-deny",
             outcome=opa_decision.verdict,
@@ -129,11 +130,11 @@ def handler(event, context):
         )
     else:
         policy_engine = _cached_policy_engine()
-        policy_result = policy_engine.evaluate(action_request)
+        policy_result = safe_evaluate_policy(policy_engine, action_request)
 
     # 3. Risk Scoring
     risk_engine = RiskScoringEngine()
-    risk_assessment = risk_engine.compute_risk(action_request, scope_level)
+    risk_assessment = safe_compute_risk(risk_engine, action_request, scope_level)
     risk_assessment.risk_score = min(100, risk_assessment.risk_score + risk_score_adjustment)
 
     # 4. Decision

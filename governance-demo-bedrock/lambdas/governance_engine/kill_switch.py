@@ -1,4 +1,4 @@
-"""Kill Switch — Emergency Shutdown module.
+"""Kill Switch, Emergency Shutdown module.
 
 Provides emergency shutdown capability that immediately revokes all agent
 permissions by setting scope levels to 0. Supports activation, deactivation
@@ -33,7 +33,7 @@ class KillSwitchManager:
         agent_registry_table,
         cloudwatch_client=None,
     ) -> Dict[str, Any]:
-        """Activate the kill switch — set all active agents to scope 0.
+        """Activate the kill switch, set all active agents to scope 0.
 
         Args:
             operator_id: Identity of the operator activating the switch.
@@ -125,7 +125,7 @@ class KillSwitchManager:
         """Deactivate the kill switch.
 
         Requires the operator to have the "operator" Governance_Role.
-        Does NOT restore scope levels — restoration requires separate
+        Does NOT restore scope levels, restoration requires separate
         human authorization per agent.
 
         Args:
@@ -212,7 +212,7 @@ class KillSwitchManager:
             )
             return {
                 "verdict": "deny",
-                "explanation": "Kill switch is active — all agent actions are denied.",
+                "explanation": "Kill switch is active, all agent actions are denied.",
                 "timestamp": now,
             }
         return {}

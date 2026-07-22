@@ -172,15 +172,25 @@ _ALL_DELIMITERS = (
     _CHATML_DELIMITERS + _LLAMA_DELIMITERS + _GENERIC_DELIMITERS + _SYSTEM_MARKERS
 )
 
-# Instruction override pattern components (word groups)
+# Instruction override pattern components (word groups). These cover general
+# instruction-override *techniques* (verb + target + object within a window),
+# not specific payloads, so they generalize beyond any single benchmark.
 _OVERRIDE_VERBS = {"ignore", "disregard", "forget", "override", "skip", "bypass",
-                   "circumvent", "disable", "deactivate", "suppress", "remove"}
+                   "circumvent", "disable", "deactivate", "suppress", "remove",
+                   "delete", "erase", "discard", "abandon", "drop", "clear",
+                   "reset", "wipe", "unlearn"}
 _OVERRIDE_TARGETS = {"previous", "above", "prior", "original", "earlier", "initial",
-                     "all", "any", "your", "safety", "ethical", "content"}
+                     "all", "any", "your", "safety", "ethical", "content",
+                     "previously", "preceding", "former", "past", "existing",
+                     "current", "the", "my", "these", "those", "everything"}
 _OVERRIDE_OBJECTS = {
-    "instructions", "rules", "context", "guidelines", "constraints",
-    "directives", "prompt", "system", "guardrails", "policies",
-    "filters", "restrictions", "limitations", "safeguards", "moderation",
+    "instructions", "instruction", "rules", "rule", "context", "guidelines",
+    "guideline", "constraints", "constraint", "directives", "directive",
+    "prompt", "prompts", "system", "guardrails", "policies", "policy",
+    "filters", "filter", "restrictions", "restriction", "limitations",
+    "limitation", "safeguards", "safeguard", "moderation", "tasks", "task",
+    "commands", "command", "conversations", "conversation", "techniques",
+    "technique", "programming", "training", "configuration", "settings",
 }
 
 # Jailbreak persona/roleplay patterns
@@ -195,6 +205,18 @@ _JAILBREAK_PATTERNS = [
     re.compile(r"(?:jailbreak|jailbroken|unlock|unleash|liberate)", re.IGNORECASE),
     re.compile(r"respond to every prompt .{0,30} without (?:refus|declin|reject)", re.IGNORECASE),
     re.compile(r"(?:from now on|henceforth|going forward).{0,40}(?:without|no).{0,20}(?:limit|restrict|filter|censor)", re.IGNORECASE),
+    # "now you are X" / role reassignment (mirror of the "you are now" pattern)
+    re.compile(r"now\s+(?:you\s+are|you're|pretend|imagine)\b", re.IGNORECASE),
+    re.compile(r"imagine\s+you(?:'re|\s+are)\s+(?:not|a|an|no longer)\b", re.IGNORECASE),
+    # System-prompt / instruction EXTRACTION (reveal, not override)
+    re.compile(r"(?:show|reveal|print|repeat|display|tell|give|output|dump|leak|expose)\s+(?:me\s+)?(?:all\s+)?(?:your|the)\s+(?:prompt|instructions?|system\s+prompt|rules?|guidelines?|password|secret|configuration)", re.IGNORECASE),
+    re.compile(r"what\s+(?:are|is|were)\s+(?:your|the)\s+(?:basic\s+|original\s+|initial\s+|system\s+)?(?:instructions?|rules?|prompt|guidelines?|directives?)", re.IGNORECASE),
+    re.compile(r"(?:print|reveal|repeat|say|show|leak)\s+(?:the\s+|my\s+)?password", re.IGNORECASE),
+    # Affirmation-pivot social engineering: "well done / that's enough / ok, now [new task]"
+    re.compile(r"(?:well\s+done|good\s+job|great|perfect|excellent|that('?s| is)\s+(?:enough|ok|okay|fine|correct)|thank\s+you|nicely\s+done)[\s.,!\"']{1,6}(?:now|next|then)\b", re.IGNORECASE),
+    re.compile(r"(?:now|then|next)\s+(?:new\s+|the\s+following\s+|another\s+)?(?:task|tasks|instruction|instructions|challenge|question|topic)\s+(?:follow|begin|start|come)", re.IGNORECASE),
+    re.compile(r"(?:let'?s\s+)?start\s+(?:over|again|fresh|anew)\s+with\s+a?\s*new\b", re.IGNORECASE),
+    re.compile(r"stop[\s.,!-]{1,4}(?:i\s+urgently|urgent|attention|new|now)\b", re.IGNORECASE),
 ]
 
 # Multilingual instruction override patterns
@@ -605,18 +627,23 @@ class InputSanitizer:
         # Apply leet-speak normalization for word-level matching
         normalized = self._apply_leet_decode(text.lower())
 
-        # Check override verb + target + object combinations
-        words = re.split(r"\s+", normalized)
+        # Tokenize and strip surrounding punctuation from each token so that a
+        # trailing period or quote ("instructions." / "instructions'") does not
+        # defeat set membership. This closes a general obfuscation gap where
+        # attackers append punctuation to override keywords.
+        raw_words = re.split(r"\s+", normalized)
+        words = [w.strip(".,;:!?\"'()[]{}<>*`~") for w in raw_words]
         word_set_sliding = " ".join(words)  # Rejoin for phrase matching
 
-        # Pattern 1: verb + target + object (within a sliding window)
+        # Pattern 1: verb + object (within a sliding window). A target word
+        # (previous/your/all/...) strengthens the match but is not required when
+        # the object itself is instruction-like, since "delete your instructions"
+        # and "ignore your techniques" are overrides regardless of target token.
         for i, word in enumerate(words):
             if word in _OVERRIDE_VERBS:
-                # Look ahead up to 5 words for target and object
                 window = words[i:i + 6]
-                found_target = any(w in _OVERRIDE_TARGETS for w in window)
                 found_object = any(w in _OVERRIDE_OBJECTS for w in window)
-                if found_target and found_object:
+                if found_object:
                     context = " ".join(words[max(0, i - 1):i + 6])
                     pattern_desc = f"override pattern: '{context[:80]}'"
                     if pattern_desc not in detected:

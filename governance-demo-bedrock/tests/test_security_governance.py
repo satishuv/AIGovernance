@@ -522,7 +522,7 @@ class TestOverreliancePrevention:
         mock_iam.assert_not_called()
 
     def test_kill_switch_has_no_bedrock_client(self):
-        """LLM09: Kill switch has no Bedrock client — governance never relies on model output."""
+        """LLM09: Kill switch has no Bedrock client, governance never relies on model output."""
         assert not hasattr(kill_switch, "bedrock_agent_runtime")
         assert not hasattr(kill_switch, "bedrock_client")
 
@@ -624,3 +624,226 @@ class TestCredentialLeakagePrevention:
         result_str = json.dumps(result)
         assert "Traceback" not in result_str
         assert ".py" not in result_str
+
+
+# ---------------------------------------------------------------------------
+# Peer-review hardening (2026-07-11):
+#   1. Fail-closed OPA evaluation (fail_safe.safe_evaluate_opa)
+#   2. Concurrency-safe permission-boundary swap (lease + verification)
+# ---------------------------------------------------------------------------
+
+class TestFailClosedOPA:
+    """A crashing OPA engine must degrade to DENY, never propagate an error."""
+
+    def test_opa_exception_fails_closed_to_deny(self):
+        import importlib.util as _ilu
+        fs_path = os.path.join(_LAMBDAS, "governance_engine", "fail_safe.py")
+        ge_dir = os.path.join(_LAMBDAS, "governance_engine")
+        if ge_dir not in sys.path:
+            sys.path.insert(0, ge_dir)
+        spec = _ilu.spec_from_file_location("fail_safe_prod", fs_path)
+        fs = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(fs)
+
+        class BadOPA:
+            def evaluate(self, _):
+                raise RuntimeError("opa boom")
+
+        decision = fs.safe_evaluate_opa(BadOPA(), {"action_group": "x"})
+        assert decision.verdict == "deny"
+        assert decision.allowed is False
+
+
+class TestBoundaryConcurrencySafety:
+    """The boundary swap must be serialized and verified before invoking."""
+
+    def test_verify_boundary_mismatch_returns_false(self):
+        """A boundary that does not match the expected scope fails verification."""
+        mock_iam = MagicMock()
+        mock_iam.get_role.return_value = {
+            "Role": {"PermissionsBoundary": {
+                "PermissionsBoundaryArn": "arn:aws:iam::123456789012:policy/Scope4Boundary"}}
+        }
+        # Expected scope 2, but role currently carries scope 4 -> mismatch.
+        with patch.object(scope_enforcer, "iam", mock_iam):
+            assert scope_enforcer.verify_boundary(2) is False
+            assert scope_enforcer.verify_boundary(4) is True
+
+    def test_lease_denied_when_held_by_another(self):
+        """If the lease cannot be acquired, acquisition returns False (fail closed)."""
+        mock_ddb = MagicMock()
+        mock_table = MagicMock()
+
+        class _CondFail(Exception):
+            pass
+        mock_table.put_item.side_effect = _CondFail("ConditionalCheckFailedException")
+        mock_ddb.Table.return_value = mock_table
+
+        # Shrink the wait so the test is fast.
+        with patch.object(scope_enforcer, "dynamodb", mock_ddb), \
+             patch.object(scope_enforcer, "LEASE_MAX_WAIT_SECONDS", 0), \
+             patch.object(scope_enforcer, "LEASE_POLL_SECONDS", 0):
+            acquired = scope_enforcer.acquire_boundary_lease(3, "holder-abc")
+        assert acquired is False
+
+
+# ---------------------------------------------------------------------------
+# Peer-review item #4 (forgery / authoritative re-fetch) and #5 (data-flow
+# sequence reasoning), added 2026-07-11.
+# ---------------------------------------------------------------------------
+
+class TestPerceptionGapForgery:
+    """The validator must detect a forged tool response via authoritative re-fetch."""
+
+    def _validator(self):
+        import importlib.util as _ilu
+        p = os.path.join(_LAMBDAS, "governance_engine", "tool_response_validator.py")
+        ge = os.path.join(_LAMBDAS, "governance_engine")
+        if ge not in sys.path:
+            sys.path.insert(0, ge)
+        spec = _ilu.spec_from_file_location("trv_prod", p)
+        m = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m.ToolResponseValidator()
+
+    def test_forged_response_detected_against_source(self):
+        v = self._validator()
+        # Tool echoes a build status of PASSED, but the authoritative source says FAILED.
+        forged = '{"build": "build-47", "status": "PASSED"}'
+        truth = {"status": "FAILED", "build": "build-47"}
+        r = v.verify_against_source("ReadPipelineStatus", forged,
+                                    lambda: truth, key_fields=["status"])
+        assert r.source_verified is True
+        assert r.forgery_detected is True
+        assert r.blocked is True
+
+    def test_genuine_response_passes_source_check(self):
+        v = self._validator()
+        genuine = '{"build": "build-47", "status": "FAILED"}'
+        truth = {"status": "FAILED"}
+        r = v.verify_against_source("ReadPipelineStatus", genuine,
+                                    lambda: truth, key_fields=["status"])
+        assert r.forgery_detected is False
+
+    def test_source_unavailable_fails_closed(self):
+        v = self._validator()
+        def boom():
+            raise RuntimeError("source down")
+        r = v.verify_against_source("ReadPipelineStatus", "{}", boom)
+        assert r.source_verified is False
+        assert r.blocked is True
+
+    def test_structured_verdict_required(self):
+        v = self._validator()
+        ok, verdict, _ = v.require_structured_verdict({"verdict": "allow"})
+        assert ok is True and verdict == "allow"
+        # Free-text / malformed must fail closed to deny.
+        ok2, verdict2, _ = v.require_structured_verdict("looks fine to me")
+        assert ok2 is False and verdict2 == "deny"
+
+
+class TestDataFlowSequenceReasoning:
+    """A novel read-sensitive -> write-external composition must be denied."""
+
+    def _mgr(self):
+        import importlib.util as _ilu
+        p = os.path.join(_LAMBDAS, "governance_engine", "tool_execution_auth.py")
+        ge = os.path.join(_LAMBDAS, "governance_engine")
+        if ge not in sys.path:
+            sys.path.insert(0, ge)
+        spec = _ilu.spec_from_file_location("tea_prod", p)
+        m = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m.ToolExecutionAuthManager()
+
+    def test_classify_by_name_hints(self):
+        mgr = self._mgr()
+        rd, wr = mgr._classify_tool("ReadSecretValue", None)
+        assert rd is True
+        _, wr2 = mgr._classify_tool("SendWebhookNotification", None)
+        assert wr2 is True
+
+    def test_exfiltration_chain_denied(self):
+        mgr = self._mgr()
+        from unittest.mock import MagicMock, patch
+        # Session history shows a prior sensitive read; current call is external write.
+        with patch.object(mgr, "_get_recent_tool_history", return_value=["ReadSecretValue"]), \
+             patch.object(mgr, "_load_rule", return_value=None):
+            safe, reason = mgr._check_dataflow("demo-agent", "SendWebhookNotification", MagicMock())
+        assert safe is False
+        assert "exfiltration" in reason.lower()
+
+    def test_read_only_sequence_allowed(self):
+        mgr = self._mgr()
+        from unittest.mock import MagicMock, patch
+        with patch.object(mgr, "_get_recent_tool_history", return_value=["ReadSecretValue"]), \
+             patch.object(mgr, "_load_rule", return_value=None):
+            # current call is another read, not an external write -> allowed
+            safe, _ = mgr._check_dataflow("demo-agent", "GetBuildStatus", MagicMock())
+        assert safe is True
+
+
+# ---------------------------------------------------------------------------
+# Review item #9: TOCTOU / approval-replay protection (2026-07-11).
+# ---------------------------------------------------------------------------
+
+class TestApprovalTOCTOU:
+    """An approval must bind to the exact request and be single-use."""
+
+    def _wf(self):
+        import importlib.util as _ilu
+        p = os.path.join(_LAMBDAS, "governance_engine", "approval_workflow.py")
+        ge = os.path.join(_LAMBDAS, "governance_engine")
+        if ge not in sys.path:
+            sys.path.insert(0, ge)
+        spec = _ilu.spec_from_file_location("aw_prod", p)
+        m = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_digest_binds_request_fields(self):
+        m = self._wf()
+        d1 = m.compute_request_digest("agent", "Deploy", {"env": "staging"}, "staging")
+        d2 = m.compute_request_digest("agent", "Deploy", {"env": "production"}, "production")
+        assert d1 != d2  # changing parameters/target changes the digest
+
+    def test_verify_rejects_tampered_request(self):
+        from unittest.mock import MagicMock
+        m = self._wf()
+        digest = m.compute_request_digest("agent", "Deploy", {"env": "staging"}, "staging",
+                                          "", "3600")
+        table = MagicMock()
+        table.get_item.return_value = {"Item": {
+            "approval_id": "a1", "status": "approved", "consumed": False,
+            "request_digest": digest, "timeout_seconds": "3600"}}
+        wf = m.ApprovalWorkflow(table)
+        # Same request -> ok
+        ok, _ = wf.verify_approved_request("a1", "agent", "Deploy", {"env": "staging"}, "staging")
+        assert ok is True
+        # Tampered target (staging -> production) reuses the approval -> rejected
+        table.get_item.return_value = {"Item": {
+            "approval_id": "a1", "status": "approved", "consumed": False,
+            "request_digest": digest, "timeout_seconds": "3600"}}
+        ok2, reason = wf.verify_approved_request("a1", "agent", "Deploy",
+                                                 {"env": "production"}, "production")
+        assert ok2 is False and "TOCTOU" in reason or "match" in reason.lower()
+
+    def test_verify_rejects_replay(self):
+        from unittest.mock import MagicMock
+        m = self._wf()
+        table = MagicMock()
+        table.get_item.return_value = {"Item": {
+            "approval_id": "a1", "status": "approved", "consumed": True,
+            "request_digest": "x", "timeout_seconds": "3600"}}
+        wf = m.ApprovalWorkflow(table)
+        ok, reason = wf.verify_approved_request("a1", "agent", "Deploy", {}, "staging")
+        assert ok is False and "consumed" in reason.lower()
+
+    def test_verify_fails_closed_on_missing(self):
+        from unittest.mock import MagicMock
+        m = self._wf()
+        table = MagicMock()
+        table.get_item.return_value = {}
+        wf = m.ApprovalWorkflow(table)
+        ok, _ = wf.verify_approved_request("nope", "agent", "Deploy", {}, "staging")
+        assert ok is False

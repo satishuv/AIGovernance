@@ -566,7 +566,7 @@ class MinimumValidationSuite:
         if not all_passed:
             self._validation_gate = False
             logger.warning(
-                "Validation suite failed — scope increases blocked",
+                "Validation suite failed, scope increases blocked",
                 extra={
                     "failed_tests": [
                         r.test_name for r in results if not r.passed

@@ -111,7 +111,7 @@ class MeasureManageEngine:
                     "exceeded": value > threshold,
                 }
 
-        # Trend analysis placeholder — comparison to previous period
+        # Trend analysis placeholder, comparison to previous period
         trend_analysis: Dict[str, str] = {
             "denial_rate_trend": "stable",
             "escalation_rate_trend": "stable",
@@ -148,7 +148,7 @@ class MeasureManageEngine:
         report_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
 
-        # Incident summaries — denied and escalated decisions
+        # Incident summaries, denied and escalated decisions
         decisions = self._scan_decisions_in_range(
             decision_history_table, start_date, end_date
         )
@@ -168,7 +168,7 @@ class MeasureManageEngine:
             change_log_table, start_date, end_date
         )
 
-        # Remediation actions — scope reductions and kill switch activations
+        # Remediation actions, scope reductions and kill switch activations
         remediation_actions: List[Dict[str, str]] = []
         for change in policy_change_summaries:
             if change.get("change_type") == "scope_change":
@@ -236,7 +236,7 @@ class MeasureManageEngine:
             try:
                 sns_client.publish(
                     TopicArn=topic_arn,
-                    Subject="AGCP Governance — MEASURE Threshold Alert",
+                    Subject="AGCP Governance, MEASURE Threshold Alert",
                     Message=json.dumps(alert, default=str),
                 )
             except Exception as exc:
@@ -367,7 +367,7 @@ class MeasureManageEngine:
         metrics = report.metrics
         m = metrics if isinstance(metrics, AggregateMetrics) else AggregateMetrics.from_dict(metrics)
         lines = [
-            f"# MEASURE Report — {report.period}",
+            f"# MEASURE Report, {report.period}",
             f"Generated: {report.generated_at}",
             "",
             "## Aggregate Metrics",
@@ -397,7 +397,7 @@ class MeasureManageEngine:
     def _manage_to_markdown(report: ManageReport) -> str:
         """Render a ManageReport as Markdown."""
         lines = [
-            f"# MANAGE Report — {report.period}",
+            f"# MANAGE Report, {report.period}",
             f"Generated: {report.generated_at}",
             "",
             f"## Incident Summaries ({len(report.incident_summaries)})",

@@ -128,7 +128,7 @@ class PrivilegeEscalationDetector:
         try:
             sns_client.publish(
                 TopicArn=topic_arn,
-                Subject="AGCP — Auto Scope Reduction",
+                Subject="AGCP, Auto Scope Reduction",
                 Message=json.dumps(record, default=str),
             )
         except Exception as exc:

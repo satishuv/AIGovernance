@@ -2,27 +2,27 @@
   "report_id": "phase3-compliance-validation-001",
   "report_type": "extended_compliance_validation",
   "generated_at": "2025-01-15T10:30:00Z",
-  "phase": "Phase 3 — Compliance + Metrics + Advanced Security",
+  "phase": "Phase 3, Compliance + Metrics + Advanced Security",
   "framework_coverage": {
     "iso_42001": {
       "controls_mapped": ["A.2", "A.3", "A.4", "A.5", "A.6", "A.7", "A.8", "A.9", "A.10"],
       "phase3_additions": [
-        "A.3 — Privilege_Escalation_Detector",
-        "A.6 — Graduated_Scope_Reduction",
-        "A.8 — Exfiltration_Detector",
-        "A.9 — CloudWatch_Metrics_Publisher",
-        "A.10 — Multi_Agent_Manager"
+        "A.3, Privilege_Escalation_Detector",
+        "A.6, Graduated_Scope_Reduction",
+        "A.8, Exfiltration_Detector",
+        "A.9, CloudWatch_Metrics_Publisher",
+        "A.10, Multi_Agent_Manager"
       ],
       "compliance_status": "implemented"
     },
     "nist_ai_rmf": {
       "functions_mapped": ["GOVERN", "MAP", "MEASURE", "MANAGE"],
       "phase3_additions": [
-        "MEASURE 1 — MeasureManage_Engine, CloudWatch_Metrics_Publisher",
-        "MANAGE 1 — MeasureManage_Engine, Graduated_Scope_Reduction",
-        "MANAGE 2 — Privilege_Escalation_Detector, Exfiltration_Detector",
-        "MANAGE 3 — CloudWatch_Metrics_Publisher, MeasureManage_Engine",
-        "MANAGE 4 — Multi_Agent_Manager, Extended_Validation_Suite"
+        "MEASURE 1, MeasureManage_Engine, CloudWatch_Metrics_Publisher",
+        "MANAGE 1, MeasureManage_Engine, Graduated_Scope_Reduction",
+        "MANAGE 2, Privilege_Escalation_Detector, Exfiltration_Detector",
+        "MANAGE 3, CloudWatch_Metrics_Publisher, MeasureManage_Engine",
+        "MANAGE 4, Multi_Agent_Manager, Extended_Validation_Suite"
       ],
       "compliance_status": "implemented"
     }

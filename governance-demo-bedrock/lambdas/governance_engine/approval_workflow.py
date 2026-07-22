@@ -8,6 +8,7 @@ and writing approval evidence to S3.
 Requirements: 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7
 """
 
+import hashlib
 import json
 import logging
 import uuid
@@ -17,6 +18,32 @@ from typing import Optional
 from models import GovernanceDecision, PendingApproval
 
 logger = logging.getLogger(__name__)
+
+
+def compute_request_digest(agent_id, action, parameters, target,
+                           policy_version="", expiry=""):
+    """Bind an approval to the exact request it authorizes (TOCTOU defense).
+
+    A human (or system) approves a *specific* request. Without binding, an
+    attacker could obtain approval for a benign request and then execute a
+    modified one under the same approval (time-of-check/time-of-use), or replay
+    a past approval. We hash the security-relevant fields into a digest; the
+    executor must present a request that reproduces the same digest, and the
+    approval is single-use and expiring.
+    """
+    canonical = json.dumps(
+        {
+            "agent_id": agent_id,
+            "action": action,
+            "parameters": parameters,
+            "target": target,
+            "policy_version": policy_version,
+            "expiry": expiry,
+        },
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class ApprovalWorkflow:
@@ -62,7 +89,21 @@ class ApprovalWorkflow:
             timeout_seconds=timeout_seconds,
         )
 
-        self._table.put_item(Item=approval.to_dict())
+        item = approval.to_dict()
+        # Bind this approval to the exact request (TOCTOU / replay defense).
+        # decision.action_requested carries the action context; include any
+        # structured request fields the decision exposes.
+        req = getattr(decision, "action_request", None) or {}
+        item["request_digest"] = compute_request_digest(
+            agent_id=decision.agent_id,
+            action=decision.action_requested,
+            parameters=req.get("parameters", req.get("tool_parameters", {})),
+            target=req.get("target_resource", ""),
+            policy_version=getattr(decision, "policy_version", ""),
+            expiry=str(timeout_seconds),
+        )
+        item["consumed"] = False
+        self._table.put_item(Item=item)
 
         logger.info(
             json.dumps(
@@ -73,12 +114,68 @@ class ApprovalWorkflow:
                     "agent_id": decision.agent_id,
                     "risk_score": decision.risk_score,
                     "timeout_seconds": timeout_seconds,
+                    "request_digest": item["request_digest"],
                     "timestamp": now,
                 }
             )
         )
 
         return approval_id
+
+    def verify_approved_request(self, approval_id, agent_id, action,
+                                parameters, target, policy_version=""):
+        """Verify at execution time that an approval authorizes THIS request.
+
+        Enforces the TOCTOU / replay guarantees: the approval must exist, be
+        status=approved, not previously consumed, and its stored request_digest
+        must match a freshly-computed digest of the request being executed. On
+        success the approval is atomically marked consumed (single-use).
+        Fails closed on any mismatch.
+
+        Returns (ok: bool, reason: str).
+        """
+        try:
+            resp = self._table.get_item(Key={"approval_id": approval_id})
+        except Exception as exc:
+            return False, f"approval lookup failed ({type(exc).__name__}); failing closed"
+        item = resp.get("Item")
+        if not item:
+            return False, "approval not found"
+        if item.get("status") != "approved":
+            return False, f"approval status is {item.get('status')!r}, not approved"
+        if item.get("consumed"):
+            return False, "approval already consumed (replay attempt)"
+
+        expected = item.get("request_digest", "")
+        actual = compute_request_digest(
+            agent_id=agent_id, action=action, parameters=parameters,
+            target=target, policy_version=policy_version,
+            expiry=str(item.get("timeout_seconds", "")),
+        )
+        if not expected or actual != expected:
+            logger.error(json.dumps({
+                "audit_event": "approval_request_digest_mismatch",
+                "approval_id": approval_id,
+                "expected": expected, "actual": actual,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return False, ("request does not match the approved request "
+                           "(TOCTOU/parameter tampering); failing closed")
+
+        # Atomically consume: single-use, guarded by a condition so a concurrent
+        # replay cannot double-consume.
+        try:
+            self._table.update_item(
+                Key={"approval_id": approval_id},
+                UpdateExpression="SET consumed = :t, resolved_at = :r",
+                ConditionExpression="consumed = :f",
+                ExpressionAttributeValues={
+                    ":t": True, ":f": False,
+                    ":r": datetime.now(timezone.utc).isoformat()},
+            )
+        except Exception:
+            return False, "approval consumed concurrently (replay attempt)"
+        return True, "approved request verified and consumed"
 
     def notify_approvers(
         self,

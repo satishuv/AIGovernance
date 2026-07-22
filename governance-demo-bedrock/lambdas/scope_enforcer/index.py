@@ -180,6 +180,114 @@ def swap_permission_boundary(scope_level):
 
 
 # ---------------------------------------------------------------------------
+# Concurrency safety for the boundary swap.
+#
+# The permission boundary is mutable state on a single shared execution role.
+# Without serialization, two concurrent requests at different scope levels can
+# interleave (a scope-4 swap can be in effect while a scope-2 request executes),
+# defeating the infrastructure-enforcement guarantee. We serialize the
+# swap -> invoke -> release critical section with a DynamoDB conditional-write
+# lease on the scope table, and we verify the boundary immediately before
+# invoking so a lost race fails closed rather than executing under the wrong
+# scope. LEASE_TTL_SECONDS bounds a crashed holder so the lease self-heals.
+# ---------------------------------------------------------------------------
+BOUNDARY_LEASE_KEY = "__boundary_lease__"
+LEASE_TTL_SECONDS = 30
+LEASE_MAX_WAIT_SECONDS = 25
+LEASE_POLL_SECONDS = 0.25
+
+
+def acquire_boundary_lease(scope_level, holder_id):
+    """Acquire the boundary lease, waiting up to LEASE_MAX_WAIT_SECONDS.
+
+    Uses a DynamoDB conditional put that succeeds only if no live lease exists
+    (either no item, or an expired one). Returns True on acquisition.
+    """
+    import time as _time
+    table = dynamodb.Table(SCOPE_TABLE_NAME)
+    deadline = _time.time() + LEASE_MAX_WAIT_SECONDS
+    while True:
+        now_epoch = int(_time.time())
+        expires_at = now_epoch + LEASE_TTL_SECONDS
+        try:
+            table.put_item(
+                Item={
+                    "agent_id": BOUNDARY_LEASE_KEY,
+                    "holder_id": holder_id,
+                    "scope_level": scope_level,
+                    "expires_at": expires_at,
+                    "acquired_at": datetime.now(timezone.utc).isoformat(),
+                },
+                # Acquire only if there is no lease, or the existing one expired.
+                ConditionExpression="attribute_not_exists(agent_id) OR expires_at < :now",
+                ExpressionAttributeValues={":now": now_epoch},
+            )
+            logger.info(json.dumps({
+                "event": "boundary_lease_acquired",
+                "holder_id": holder_id, "scope_level": scope_level,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return True
+        except Exception as exc:
+            # ConditionalCheckFailedException means someone else holds the lease.
+            name = type(exc).__name__
+            if "ConditionalCheckFailed" not in name and "ConditionalCheckFailedException" not in str(exc):
+                logger.error(json.dumps({"event": "boundary_lease_error", "error": str(exc)}))
+                return False
+            if _time.time() >= deadline:
+                logger.error(json.dumps({
+                    "event": "boundary_lease_timeout",
+                    "holder_id": holder_id, "scope_level": scope_level,
+                }))
+                return False
+            _time.sleep(LEASE_POLL_SECONDS)
+
+
+def release_boundary_lease(holder_id):
+    """Release the lease only if we still hold it (conditional delete)."""
+    table = dynamodb.Table(SCOPE_TABLE_NAME)
+    try:
+        table.delete_item(
+            Key={"agent_id": BOUNDARY_LEASE_KEY},
+            ConditionExpression="holder_id = :h",
+            ExpressionAttributeValues={":h": holder_id},
+        )
+        logger.info(json.dumps({
+            "event": "boundary_lease_released", "holder_id": holder_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
+    except Exception as exc:
+        # We no longer hold it (expired + reacquired by another holder). Safe.
+        logger.warning(json.dumps({"event": "boundary_lease_release_noop", "error": str(exc)}))
+
+
+def verify_boundary(scope_level):
+    """Confirm the live boundary matches the expected scope before invoking.
+
+    Returns True if the currently-attached permission boundary equals the ARN
+    for scope_level. A mismatch means a concurrent swap won a race; the caller
+    must fail closed rather than invoke under the wrong scope.
+    """
+    expected = SCOPE_BOUNDARY_ARNS.get(str(scope_level))
+    try:
+        role = iam.get_role(RoleName=ACTION_GROUP_LAMBDA_ROLE_NAME)
+        current = role.get("Role", {}).get("PermissionsBoundary", {}).get(
+            "PermissionsBoundaryArn")
+        ok = bool(expected) and current == expected
+        if not ok:
+            logger.error(json.dumps({
+                "event": "boundary_verification_failed",
+                "expected": expected, "current": current,
+                "scope_level": scope_level,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+        return ok
+    except Exception as exc:
+        logger.error(json.dumps({"event": "boundary_verification_error", "error": str(exc)}))
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Task 6.3 -- Requirements 9.1-9.5: Bedrock Agent invocation
 # ---------------------------------------------------------------------------
 def invoke_bedrock_agent(input_text, session_attributes):
@@ -454,18 +562,48 @@ def handler(event, context):
                 "request_id": request_id,
             }
 
-        # Step 5: Swap permission boundary — only on allow (Task 6.2 -- Req 10.6)
-        swap_permission_boundary(scope_level)
+        # Step 5: Swap permission boundary, only on allow (Task 6.2 -- Req 10.6).
+        # The swap and the agent invocation share one mutable boundary on a
+        # single role, so we serialize the whole swap -> verify -> invoke
+        # section under a distributed lease and verify the boundary immediately
+        # before invoking. A lost race fails closed (deny) rather than executing
+        # under the wrong scope.
+        lease_holder = str(uuid.uuid4())
+        if not acquire_boundary_lease(scope_level, lease_holder):
+            logger.error(json.dumps({
+                "event": "boundary_lease_denied", "agent_id": agent_id,
+                "scope_level": scope_level,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return {
+                "status": "denied",
+                "message": "Unable to obtain an exclusive scope lease; failing "
+                           "closed to protect the permission boundary.",
+                "decision_id": governance_decision.get("decision_id", "") if governance_decision else "",
+            }
+        try:
+            swap_permission_boundary(scope_level)
 
-        # Step 6: Build session attributes (Task 6.1 -- Requirement 8.6)
-        permitted_groups = get_permitted_action_groups(scope_level)
-        session_attributes = {
-            "scope_level": str(scope_level),
-            "permitted_action_groups": ",".join(permitted_groups),
-        }
+            # Verify the boundary is actually the expected one before invoking.
+            if not verify_boundary(scope_level):
+                return {
+                    "status": "denied",
+                    "message": "Permission boundary verification failed; failing "
+                               "closed rather than invoking under an unverified scope.",
+                    "decision_id": governance_decision.get("decision_id", "") if governance_decision else "",
+                }
 
-        # Step 7: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)
-        response_text = invoke_bedrock_agent(input_text, session_attributes)
+            # Step 6: Build session attributes (Task 6.1 -- Requirement 8.6)
+            permitted_groups = get_permitted_action_groups(scope_level)
+            session_attributes = {
+                "scope_level": str(scope_level),
+                "permitted_action_groups": ",".join(permitted_groups),
+            }
+
+            # Step 7: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)
+            response_text = invoke_bedrock_agent(input_text, session_attributes)
+        finally:
+            release_boundary_lease(lease_holder)
 
         # Step 8: Output guardrails -- validate agent response before returning
         canary_tokens = governance_decision.get("_canary_tokens", []) if governance_decision else []

@@ -49,6 +49,11 @@ class StorageConstruct(Construct):
             auto_delete_objects=True,
         )
 
+        # Immutable evidence bucket: COMPLIANCE-mode Object Lock makes objects
+        # WORM (undeletable until retention expires), so the stack must RETAIN
+        # the bucket on delete. A DESTROY policy is self-contradictory here --
+        # `cdk destroy` would fail because CloudFormation cannot delete a bucket
+        # whose objects are locked -- so we retain it as the production setting.
         self.immutable_evidence_bucket = s3.Bucket(
             self,
             "ImmutableEvidenceBucket",
@@ -56,7 +61,7 @@ class StorageConstruct(Construct):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             versioned=True,
             object_lock_enabled=True,
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.RETAIN,
             auto_delete_objects=False,
         )
 

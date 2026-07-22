@@ -1,4 +1,4 @@
-"""Context-Aware Decision Engine — combines policy evaluation and risk scoring.
+"""Context-Aware Decision Engine, combines policy evaluation and risk scoring.
 
 Produces a final GovernanceDecision by combining the PolicyEvaluationResult
 and RiskAssessment, applying escalation threshold logic, populating
