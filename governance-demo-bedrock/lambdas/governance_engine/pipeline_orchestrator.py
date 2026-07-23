@@ -349,10 +349,18 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             elif threat_result["classification"] == "suspicious":
                 risk_score_adjustment = threat_result.get("risk_score_adjustment", 0)
 
-        # Agent identity check
-        if identity_manager is not None:
-            if identity_manager.is_suspended(agent_id):
-                return _deny_response(reason="Agent is suspended", agent_id=agent_id, error_category="agent_suspended")
+        # Agent identity check + freshness/revocation validation (AARM R6).
+        # Consolidated gate: no verifiable identity, a revoked/suspended
+        # principal, or a stale/revoked token all deny; transient trusted-source
+        # errors are flagged onto the decision rather than silently trusted.
+        from identity_validation import validate_identity
+        identity_token = event.get("identity_token")
+        identity_result = validate_identity(agent_id, identity_manager, token=identity_token)
+        if identity_result.deny:
+            return _deny_response(
+                reason=identity_result.reason, agent_id=agent_id,
+                error_category="identity_unverified",
+            )
 
         # Agent registry check
         registry_entry = None
@@ -375,13 +383,19 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     agent_id=agent_id, error_category="cross_environment_violation",
                 )
 
-        # Data class access check
+        # Data class access check + sensitivity classification (AARM R2).
+        # Derive the data class; when classification is unavailable, fail safe to
+        # the HIGHEST sensitivity level rather than treating data as unclassified.
+        derived_data_class = _derive_data_class(action_group, input_text)
+        from data_sensitivity import classify_sensitivity, is_classification_available
+        action_request["data_class"] = derived_data_class
+        action_request["data_sensitivity"] = classify_sensitivity(derived_data_class)
+        action_request["classification_available"] = is_classification_available(derived_data_class)
         if agent_registry is not None and registry_entry is not None:
-            data_class = _derive_data_class(action_group, input_text)
-            if data_class:
-                if not agent_registry.check_data_class_access(agent_id, data_class):
+            if derived_data_class:
+                if not agent_registry.check_data_class_access(agent_id, derived_data_class):
                     return _deny_response(
-                        reason=f"Agent '{agent_id}' attempted to access data class '{data_class}' which is not declared in its registry entry. Declared: {registry_entry.data_classes}",
+                        reason=f"Agent '{agent_id}' attempted to access data class '{derived_data_class}' which is not declared in its registry entry. Declared: {registry_entry.data_classes}",
                         agent_id=agent_id, error_category="undeclared_data_class",
                     )
 
@@ -459,6 +473,25 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     risk_assessment.risk_score = min(100, risk_assessment.risk_score + 30)
                     if risk_assessment.risk_score >= risk_engine.escalation_threshold:
                         risk_assessment.escalation_flagged = True
+                # AARM R7: accumulate cumulative drift across the session (not
+                # just per-action). Slow drift that stays under the per-action
+                # bar still escalates once the session running-mean crosses the
+                # calibrated threshold.
+                if stated_intent:
+                    from intent_alignment import CumulativeDriftTracker
+                    cdrift = CumulativeDriftTracker(runtime_drift_table).record_distance(
+                        session_id or agent_id, alignment.distance)
+                    if cdrift.drift_exceeded and risk_assessment is not None:
+                        risk_assessment.risk_score = min(100, risk_assessment.risk_score + 25)
+                        if risk_assessment.risk_score >= risk_engine.escalation_threshold:
+                            risk_assessment.escalation_flagged = True
+                        logger.info(json.dumps({
+                            "event": "cumulative_drift_exceeded",
+                            "agent_id": agent_id, "session_id": session_id,
+                            "mean_distance": cdrift.mean_distance,
+                            "action_count": cdrift.action_count,
+                            "timestamp": _iso_now(),
+                        }))
             except Exception:
                 context_sufficient = True
 
@@ -489,6 +522,20 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 modification_applied=modification_applied,
                 context_sufficient=context_sufficient,
             )
+
+        # DEFER dependent-action cascade bound (AARM R4). A deferred action
+        # cascades into the session's suspended set; if the cascade exceeds the
+        # configured limit, convert DEFER -> DENY so unresolved defers cannot
+        # accumulate unbounded.
+        if decision.verdict == "defer" and runtime_drift_table is not None and session_id:
+            try:
+                from defer_cascade import DeferCascadeTracker
+                cascade = DeferCascadeTracker(runtime_drift_table).register_defer(session_id)
+                if cascade.verdict == "deny":
+                    decision.verdict = "deny"
+                    decision.explanation = cascade.reason
+            except Exception:
+                pass
 
         decision_engine.log_decision(decision)
 

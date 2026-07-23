@@ -122,3 +122,91 @@ class TestT10EnvironmentManipulation:
     def test_dev_to_external_is_blocked(self):
         from environment_isolation import EnvironmentIsolation
         assert EnvironmentIsolation().check_cross_environment("dev", "external") is False
+
+
+# =============================================================================
+# AARM R2/R4/R6/R7 completeness (built to close conformance gaps)
+# =============================================================================
+
+class _MemTable:
+    def __init__(self):
+        self.d = {}
+    def get_item(self, Key=None):
+        k = (Key["agent_id"], Key["record_type"])
+        return {"Item": self.d[k]} if k in self.d else {}
+    def put_item(self, Item=None, **kw):
+        self.d[(Item["agent_id"], Item["record_type"])] = Item
+
+
+class TestR2SensitivityDefault:
+    def test_unavailable_classification_defaults_to_highest(self):
+        from data_sensitivity import classify_sensitivity, DEFAULT_SENSITIVITY, sensitivity_rank, SENSITIVITY_LEVELS
+        assert classify_sensitivity("") == DEFAULT_SENSITIVITY
+        # The default must be the highest-ranked level.
+        assert sensitivity_rank(DEFAULT_SENSITIVITY) == len(SENSITIVITY_LEVELS) - 1
+
+    def test_known_class_maps_below_default(self):
+        from data_sensitivity import classify_sensitivity, sensitivity_rank
+        assert sensitivity_rank(classify_sensitivity("build_results")) < sensitivity_rank("restricted")
+
+
+class TestR4DeferCascade:
+    def test_cascade_denies_when_limit_exceeded(self):
+        from defer_cascade import DeferCascadeTracker
+        t = DeferCascadeTracker(_MemTable(), limit=3)
+        verdicts = [t.register_defer("sess").verdict for _ in range(5)]
+        assert verdicts == ["defer", "defer", "defer", "deny", "deny"]
+
+    def test_resolve_decrements_depth(self):
+        from defer_cascade import DeferCascadeTracker
+        tbl = _MemTable()
+        t = DeferCascadeTracker(tbl, limit=5)
+        t.register_defer("sess"); t.register_defer("sess")
+        assert t.resolve_defer("sess") == 1
+
+
+class TestR6IdentityValidation:
+    def test_no_identity_denies(self):
+        from identity_validation import validate_identity
+        assert validate_identity("").deny is True
+
+    def test_revoked_token_denies(self):
+        from identity_validation import validate_identity
+        assert validate_identity("agent-1", token={"status": "revoked"}).deny is True
+
+    def test_expired_token_denies(self):
+        from identity_validation import validate_identity
+        r = validate_identity("agent-1", token={"status": "active", "expires_at": "2000-01-01T00:00:00+00:00"})
+        assert r.deny is True
+
+    def test_suspended_identity_denies(self):
+        from identity_validation import validate_identity
+        class _IM:
+            def is_suspended(self, aid): return True
+        assert validate_identity("agent-1", identity_manager=_IM()).deny is True
+
+    def test_valid_identity_verified(self):
+        from identity_validation import validate_identity
+        r = validate_identity("agent-1", token={"status": "active", "expires_at": "2099-01-01T00:00:00+00:00"})
+        assert r.verified is True and r.deny is False
+
+
+class TestR7CumulativeDrift:
+    def test_slow_drift_accumulates_and_flags(self):
+        from intent_alignment import CumulativeDriftTracker
+        t = CumulativeDriftTracker(_MemTable(), threshold=0.5)
+        results = [t.record_distance("sess", 0.8) for _ in range(3)]
+        assert results[-1].action_count == 3
+        assert results[-1].mean_distance >= 0.5
+        assert results[-1].drift_exceeded is True
+
+    def test_low_distance_does_not_flag(self):
+        from intent_alignment import CumulativeDriftTracker
+        t = CumulativeDriftTracker(_MemTable(), threshold=0.75)
+        results = [t.record_distance("sess", 0.1) for _ in range(4)]
+        assert results[-1].drift_exceeded is False
+
+    def test_documented_aggregation_is_running_mean(self):
+        from intent_alignment import CumulativeDriftTracker
+        r = CumulativeDriftTracker(_MemTable()).record_distance("sess", 0.3)
+        assert r.aggregation == "running_mean"

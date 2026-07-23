@@ -197,3 +197,84 @@ class IntentStore:
             return item.get("intent_text", "") if item else ""
         except Exception:
             return ""
+
+
+# AARM R7: cumulative drift across an action sequence. Per-action distance
+# alone misses slow drift; we accumulate distance over the session and flag
+# when the running mean crosses an empirically-calibrated threshold.
+CUMULATIVE_DRIFT_MEAN_THRESHOLD = float(
+    os.environ.get("CUMULATIVE_DRIFT_MEAN_THRESHOLD", str(DRIFT_ALERT_MEAN_DISTANCE))
+)
+
+
+@dataclass
+class CumulativeDriftResult:
+    """Result of cumulative-drift accumulation over a session (AARM R7).
+
+    Attributes:
+        action_count: Number of actions observed in the session so far.
+        mean_distance: Running mean of per-action distances from stated intent.
+        cumulative_distance: Sum of per-action distances (aggregation method).
+        drift_exceeded: True when mean_distance >= the calibrated threshold.
+        aggregation: The documented aggregation method used ("running_mean").
+    """
+    action_count: int
+    mean_distance: float
+    cumulative_distance: float
+    drift_exceeded: bool
+    aggregation: str = "running_mean"
+
+
+class CumulativeDriftTracker:
+    """Accumulates per-action intent distance across a session (AARM R7).
+
+    Stores running state in the drift table under record_type
+    "cumulative_drift#<session_id>": action_count and cumulative_distance. The
+    documented aggregation is a running mean; drift is flagged when the mean
+    over the session reaches the calibrated threshold, capturing slow drift
+    that no single per-action distance would trigger.
+    """
+
+    def __init__(self, drift_table: Any = None, threshold: float = None) -> None:
+        self._table = drift_table
+        self._threshold = CUMULATIVE_DRIFT_MEAN_THRESHOLD if threshold is None else threshold
+
+    @staticmethod
+    def _sk(session_id: str) -> str:
+        return f"cumulative_drift#{session_id}"
+
+    def record_distance(self, session_id: str, distance: float) -> CumulativeDriftResult:
+        """Add one action's distance and return the aggregated drift state."""
+        count, cumulative = 0, 0.0
+        if self._table is not None and session_id:
+            try:
+                resp = self._table.get_item(Key={"agent_id": self._sk(session_id), "record_type": "state"})
+                item = resp.get("Item") or {}
+                count = int(item.get("action_count", 0))
+                cumulative = float(item.get("cumulative_distance", 0.0))
+            except Exception:
+                count, cumulative = 0, 0.0
+
+        count += 1
+        cumulative += max(0.0, min(1.0, distance))
+        mean = cumulative / count if count else 0.0
+
+        if self._table is not None and session_id:
+            try:
+                from decimal import Decimal
+                self._table.put_item(Item={
+                    "agent_id": self._sk(session_id),
+                    "record_type": "state",
+                    "action_count": count,
+                    "cumulative_distance": Decimal(str(round(cumulative, 6))),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                pass
+
+        return CumulativeDriftResult(
+            action_count=count,
+            mean_distance=round(mean, 6),
+            cumulative_distance=round(cumulative, 6),
+            drift_exceeded=(count >= 2 and mean >= self._threshold),
+        )
