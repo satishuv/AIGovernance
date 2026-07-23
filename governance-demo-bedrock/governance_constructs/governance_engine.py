@@ -68,6 +68,7 @@ class GovernanceEngineConstruct(Construct):
                 "OPA_ENDPOINT": "",
                 "BEDROCK_GUARDRAIL_ID": "xilmtxfq02om",
                 "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
+                "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
             },
         )
 
@@ -97,6 +98,9 @@ class GovernanceEngineConstruct(Construct):
         storage.runtime_drift_table.grant_read_write_data(self.governance_engine_lambda)
         storage.agent_health_table.grant_read_write_data(self.governance_engine_lambda)
         storage.tool_auth_table.grant_read_write_data(self.governance_engine_lambda)
+
+        # AARM R5/R6: allow the engine to sign evidence receipts.
+        storage.evidence_signing_key.grant(self.governance_engine_lambda, "kms:Sign")
 
         self.governance_engine_lambda.add_to_role_policy(
             iam.PolicyStatement(
@@ -293,6 +297,7 @@ class GovernanceEngineConstruct(Construct):
                 "DECISION_HISTORY_TABLE_NAME": storage.decision_history_table.table_name,
                 "RUNTIME_DRIFT_TABLE_NAME": storage.runtime_drift_table.table_name,
                 "CONTROL_TRACE_TABLE_NAME": storage.control_trace_table.table_name,
+                "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
             },
         )
         storage.evidence_bucket.grant_read_write(self.post_decision_lambda)
@@ -301,6 +306,8 @@ class GovernanceEngineConstruct(Construct):
         storage.decision_history_table.grant_read_write_data(self.post_decision_lambda)
         storage.runtime_drift_table.grant_read_write_data(self.post_decision_lambda)
         storage.control_trace_table.grant_read_write_data(self.post_decision_lambda)
+        # AARM R5/R6: allow post-decision evidence writes to sign receipts.
+        storage.evidence_signing_key.grant(self.post_decision_lambda, "kms:Sign")
 
         # --- Step Functions State Machine ---
 

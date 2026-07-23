@@ -124,9 +124,10 @@ class ContinuousMonitoringManager:
         if verdict == "deny":
             denial_count += 1
 
-        # Update escalation count
+        # Update escalation count. AARM DEFER is a suspended decision like
+        # STEP_UP (escalate), so it counts toward escalations for health.
         escalation_count = current_state.escalation_count_24h
-        if verdict == "escalate":
+        if verdict in ("escalate", "defer"):
             escalation_count += 1
 
         # Update exponential moving average of risk

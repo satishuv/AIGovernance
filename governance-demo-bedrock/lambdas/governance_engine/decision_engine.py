@@ -62,6 +62,8 @@ class DecisionEngine:
         risk_assessment: RiskAssessment,
         action_request: Dict[str, Any],
         agent_id: str,
+        modification_applied: bool = False,
+        context_sufficient: bool = True,
     ) -> GovernanceDecision:
         """Produce a GovernanceDecision from policy and risk inputs.
 
@@ -70,6 +72,13 @@ class DecisionEngine:
             risk_assessment: The computed risk assessment.
             action_request: Dict describing the agent's requested action.
             agent_id: Identifier of the agent whose action is evaluated.
+            modification_applied: True when input sanitization transformed the
+                request (not a hard block). On an otherwise-allow path this
+                yields the AARM MODIFY verdict (execute the transformed action).
+            context_sufficient: False when required context (e.g. stated intent
+                per R3, or accumulated context per R2) is ambiguous or missing.
+                On an otherwise-allow path this yields the AARM DEFER verdict
+                (suspend pending more context; timeout -> deny).
 
         Returns:
             A fully populated GovernanceDecision.
@@ -77,9 +86,11 @@ class DecisionEngine:
         risk_score = risk_assessment.risk_score
         action_requested = action_request.get("action_group", "unknown")
 
-        # --- Determine verdict (Reqs 4.2-4.5) ---
+        # --- Determine verdict (Reqs 4.2-4.5; AARM R4 five decisions) ---
         verdict, explanation = self._resolve_verdict(
-            policy_result, risk_score, action_requested
+            policy_result, risk_score, action_requested,
+            modification_applied=modification_applied,
+            context_sufficient=context_sufficient,
         )
 
         # --- Framework mapping (Req 4.8) ---
@@ -108,8 +119,19 @@ class DecisionEngine:
         policy_result: PolicyEvaluationResult,
         risk_score: float,
         action_requested: str,
+        modification_applied: bool = False,
+        context_sufficient: bool = True,
     ) -> tuple:
         """Apply the decision matrix and return (verdict, explanation).
+
+        AARM R4 requires five decisions. Policy DENY and ESCALATE (STEP_UP)
+        take precedence and are unchanged. On the ALLOW path, high risk still
+        escalates; otherwise the verdict refines to:
+          - DEFER  when context is insufficient/ambiguous (R2/R3), highest
+            precedence on the allow path so an unresolved request never
+            executes on stale context;
+          - MODIFY when input sanitization transformed the request;
+          - ALLOW  otherwise.
 
         Returns:
             A tuple of (verdict_str, explanation_str).
@@ -140,6 +162,22 @@ class DecisionEngine:
                 f"({risk_score:.1f}) meets or exceeds the escalation "
                 f"threshold ({self._escalation_threshold:.1f}). "
                 f"Escalating for human review."
+            )
+        elif outcome == "allow" and not context_sufficient:
+            verdict = "defer"
+            explanation = (
+                f"Action '{action_requested}' allowed by policy "
+                f"'{policy_result.policy_id}', but required context (stated "
+                f"intent / accumulated session context) is ambiguous or "
+                f"insufficient. Deferring pending additional context; "
+                f"unresolved defers time out to deny."
+            )
+        elif outcome == "allow" and modification_applied:
+            verdict = "modify"
+            explanation = (
+                f"Action '{action_requested}' allowed by policy "
+                f"'{policy_result.policy_id}', with input sanitization applied. "
+                f"Executing the transformed (sanitized) version of the request."
             )
         else:
             # outcome == "allow" and risk_score < threshold

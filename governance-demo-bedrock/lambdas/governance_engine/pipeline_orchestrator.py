@@ -4,9 +4,11 @@ Runs the 20-step governance pipeline: threat detection, identity checks,
 policy evaluation, risk scoring, decision, evidence, and post-decision hooks.
 """
 
+import hashlib
 import json
 import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -40,6 +42,10 @@ from runtime_drift_detection import RuntimeDriftDetector
 from threat_detector import ThreatDetector
 from tool_execution_auth import ToolExecutionAuthManager
 from tool_model_registry import ToolModelRegistry
+from verdicts import to_aarm as _to_aarm
+from intent_alignment import IntentStore, assess_alignment
+from telemetry_export import export_decision
+from side_channel_defense import ProbeDetector, normalize_deny_timing
 
 logger = logging.getLogger()
 
@@ -95,7 +101,23 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Request-start monotonic time, set per invocation in run_pipeline. Used to
+# apply the AARM T9 deny-timing floor so denials do not leak the stage of denial
+# via response latency. One request per Lambda container at a time makes a module
+# global safe here.
+_REQUEST_START_MONOTONIC = None
+
+
 def _deny_response(reason: str, agent_id: str = "", error_category: str = "governance_denial") -> Dict[str, Any]:
+    # AARM T9 timing-oracle defense: hold denials to a minimum time floor so the
+    # early-exit stage (kill switch, sanitizer, threat, policy, ...) is not
+    # distinguishable by latency. Skipped when no start time is set (e.g. unit
+    # tests calling _deny_response directly).
+    if _REQUEST_START_MONOTONIC is not None:
+        try:
+            normalize_deny_timing(_REQUEST_START_MONOTONIC)
+        except Exception:
+            pass
     decision = GovernanceDecision(
         decision_id=str(uuid.uuid4()),
         agent_id=agent_id,
@@ -138,6 +160,11 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     from index import DecimalEncoder
 
+    # AARM T9: mark request start so denials can be held to a timing floor,
+    # removing the stage-of-denial latency oracle.
+    global _REQUEST_START_MONOTONIC
+    _REQUEST_START_MONOTONIC = time.monotonic()
+
     simulation_mode = event.get("simulation_mode", False)
     agent_id = event.get("agent_id", "")
     action_request = {
@@ -151,6 +178,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     action_group = action_request["action_group"]
     target_resource = action_request["target_resource"]
     input_text = action_request["input_text"]
+    session_id = event.get("session_id", "") or event.get("sessionId", "")
 
     tracker = LatencyTracker()
 
@@ -283,6 +311,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Input sanitization
         input_sanitizer = InputSanitizer()
+        modification_applied = False
         if input_text:
             sanitization = input_sanitizer.sanitize(input_text)
             if sanitization.blocked:
@@ -290,6 +319,11 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     reason=f"Input blocked by advanced sanitization: {sanitization.block_reason}",
                     agent_id=agent_id, error_category="input_sanitization_blocked",
                 )
+            # AARM R4 MODIFY: a non-blocking transform occurred (sanitized text
+            # differs from the original). Surfaced as the MODIFY verdict so the
+            # transformed request executes explicitly rather than silently.
+            if sanitization.sanitized_text != input_text:
+                modification_applied = True
             input_text = sanitization.sanitized_text
 
         # Bedrock Guardrails
@@ -406,9 +440,55 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if adjusted >= risk_engine.escalation_threshold:
                 risk_assessment.escalation_flagged = True
 
+        # Intent alignment (AARM R3) + drift accumulation (AARM R7).
+        # Capture the stated intent on the first request of a session, then
+        # score the current action's alignment. Ambiguous alignment yields
+        # insufficient context (-> DEFER); strong divergence biases to escalate.
+        # Never fails the pipeline: any error leaves context_sufficient=True.
+        context_sufficient = True
+        if runtime_drift_table is not None and input_text:
+            try:
+                intent_store = IntentStore(runtime_drift_table)
+                intent_store.capture_intent(agent_id, session_id, input_text)
+                stated_intent = intent_store.get_intent(agent_id, session_id)
+                action_descriptor = f"{action_group} {target_resource} {input_text}".strip()
+                alignment = assess_alignment(stated_intent, action_descriptor)
+                context_sufficient = alignment.context_sufficient
+                if alignment.divergent and risk_assessment is not None:
+                    # Strong divergence from stated intent escalates for review.
+                    risk_assessment.risk_score = min(100, risk_assessment.risk_score + 30)
+                    if risk_assessment.risk_score >= risk_engine.escalation_threshold:
+                        risk_assessment.escalation_flagged = True
+            except Exception:
+                context_sufficient = True
+
+        # Side-channel oracle-probing detection (AARM T9). A burst of
+        # near-identical requests within a session is the signature of bit-by-bit
+        # side-channel extraction; flag it to escalate rather than answer the
+        # oracle. Never fails the pipeline.
+        if runtime_drift_table is not None and input_text and session_id:
+            try:
+                probe = ProbeDetector(runtime_drift_table).record_and_check(session_id, input_text)
+                if probe.is_probing and risk_assessment is not None:
+                    risk_assessment.risk_score = min(100, risk_assessment.risk_score + 40)
+                    if risk_assessment.risk_score >= risk_engine.escalation_threshold:
+                        risk_assessment.escalation_flagged = True
+                    logger.info(json.dumps({
+                        "event": "side_channel_probe_detected",
+                        "agent_id": agent_id, "session_id": session_id,
+                        "similar_count": probe.similar_count,
+                        "timestamp": _iso_now(),
+                    }))
+            except Exception:
+                pass
+
         # Decision
         with tracker.track("decision_engine"):
-            decision = decision_engine.decide(policy_result, risk_assessment, action_request, agent_id)
+            decision = decision_engine.decide(
+                policy_result, risk_assessment, action_request, agent_id,
+                modification_applied=modification_applied,
+                context_sufficient=context_sufficient,
+            )
 
         decision_engine.log_decision(decision)
 
@@ -421,9 +501,25 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if evidence_bucket:
                     try:
                         ev_s3 = boto3.client("s3")
+                        # AARM R5/R6: sign the receipt when a signing key is
+                        # configured. KMS client init is cheap and skipped-signing
+                        # is safe when EVIDENCE_SIGNING_KEY_ID is unset.
+                        ev_kms = boto3.client("kms") if os.environ.get("EVIDENCE_SIGNING_KEY_ID") else None
+                        policy_version_hash = ""
+                        try:
+                            policy_version_hash = hashlib.sha256(
+                                json.dumps(policy_result.to_dict(), sort_keys=True, default=str).encode("utf-8")
+                            ).hexdigest()
+                        except Exception:
+                            policy_version_hash = ""
                         evidence_record = evidence_pipeline.write_evidence(
                             decision=decision, s3_client=ev_s3, bucket=evidence_bucket,
                             environment=agent_environment or "dev", agent_id=agent_id,
+                            kms_client=ev_kms,
+                            session_id=session_id,
+                            agent_role=agent_environment or "",
+                            scope_level=scope_level,
+                            policy_version_hash=policy_version_hash,
                         )
                     except Exception as ev_exc:
                         logger.error(json.dumps({
@@ -449,10 +545,13 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         "error": str(ct_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
                     }))
 
-            # Approval workflow for escalated decisions
-            if decision.verdict == "escalate" and approval_workflow is not None:
+            # Approval workflow for escalated (STEP_UP) and deferred decisions.
+            # DEFER suspends pending more context with a shorter timeout; both
+            # reuse the pending-approval record + auto-timeout-to-deny path.
+            if decision.verdict in ("escalate", "defer") and approval_workflow is not None:
                 try:
-                    approval_id = approval_workflow.create_pending_approval(decision, timeout_seconds=3600)
+                    _timeout = 300 if decision.verdict == "defer" else 3600
+                    approval_id = approval_workflow.create_pending_approval(decision, timeout_seconds=_timeout)
                     approval_record = approval_workflow._get_approval(approval_id)
                     if approval_record is not None:
                         try:
@@ -485,6 +584,10 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except Exception:
                 pass
 
+            # AARM R8: OpenTelemetry export (OTLP-JSON) for SIEM/observability.
+            # Non-blocking; DEFER/STEP_UP/MODIFY all exported with AARM decision names.
+            export_decision(decision.to_dict())
+
             # Continuous monitoring + drift recording
             if AGENT_HEALTH_TABLE_NAME:
                 try:
@@ -501,7 +604,9 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 except Exception:
                     pass
 
-            if tool_auth_table is not None and decision.verdict == "allow":
+            # allow and modify both execute the action (modify runs the
+            # sanitized/transformed version), so both record the tool call.
+            if tool_auth_table is not None and decision.verdict in ("allow", "modify"):
                 try:
                     tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
                     if tool_name:
@@ -566,7 +671,9 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             response_body["_canary_tokens"] = canary_tokens
         if simulation_mode:
             response_body["simulation"] = True
-            response_body["would_execute"] = decision.verdict == "allow"
+            # allow and modify both execute (modify runs the transformed action).
+            response_body["would_execute"] = decision.verdict in ("allow", "modify")
+            response_body["aarm_decision"] = _to_aarm(decision.verdict)
             response_body["side_effects_skipped"] = [
                 "evidence_write", "control_trace", "approval_workflow",
                 "decision_history", "cloudwatch_metrics", "health_update",
@@ -582,6 +689,10 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
             if decision.verdict == "escalate":
                 response_body["remediation"] = "Request human approval via the approval API, or reduce risk by using a lower scope level"
+            elif decision.verdict == "defer":
+                response_body["remediation"] = "Provide the missing session context (stated intent / disambiguation); unresolved defers time out to deny"
+            elif decision.verdict == "modify":
+                response_body["remediation"] = "The request will execute in sanitized/transformed form; no action needed"
             elif decision.verdict == "deny":
                 response_body["remediation"] = f"Action requires appropriate scope and policy. Current scope: {scope_level}"
         return json.loads(json.dumps(response_body, cls=DecimalEncoder))

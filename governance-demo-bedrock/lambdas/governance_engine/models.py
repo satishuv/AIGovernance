@@ -196,7 +196,7 @@ class GovernanceDecision:
         action_requested: Description of the action the agent requested.
         policy_result: Dict summary of the policy evaluation outcome.
         risk_score: Numeric risk score (0-100) from the risk assessment.
-        verdict: Final decision: one of 'allow', 'deny', or 'escalate'.
+        verdict: Final decision: one of 'allow', 'deny', 'escalate', 'modify', or 'defer' (AARM R4).
         explanation: Human-readable explanation of the decision rationale.
         framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
         timestamp: ISO 8601 timestamp of the decision.
@@ -466,13 +466,24 @@ class EvidenceRecord:
         action_requested: Description of the action the agent requested.
         policy_result: Summary of the policy evaluation outcome.
         risk_score: Numeric risk score (0-100) from the risk assessment.
-        verdict: Final decision: one of 'allow', 'deny', or 'escalate'.
+        verdict: Final decision: one of 'allow', 'deny', 'escalate', 'modify', or 'defer' (AARM R4).
         timestamp: ISO 8601 timestamp of the evidence record.
         framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
         environment: Deployment environment: "dev", "staging", or "prod".
         previous_hash: SHA-256 hash of the preceding evidence record for hash chain.
         record_hash: SHA-256 hash of this evidence record.
         retention_class: Retention class: "standard" or "extended".
+        session_id: Session the decision belongs to (AARM R6 identity binding).
+        agent_role: Role/privilege scope of the agent (AARM R6).
+        scope_level: Numeric scope level at decision time (AARM R6).
+        policy_version_hash: Hash/version of the policy used (AARM R5 receipt schema).
+        delegation_chain: Ordered principals in the delegation chain (AARM R5).
+        deferral_reason: For DEFER receipts, why the action was deferred (AARM R5).
+        resolution_method: How a deferred/escalated action was resolved (AARM R5).
+        resolution_timestamp: When the deferred/escalated action was resolved (AARM R5).
+        signature: Offline-verifiable signature over record_hash (AARM R5/R6).
+        signing_key_id: KMS key id used to sign (AARM R5/R6).
+        signing_algorithm: Signing algorithm, e.g. ECDSA_SHA_256 (AARM R5/R6).
     """
 
     evidence_id: str
@@ -488,6 +499,19 @@ class EvidenceRecord:
     previous_hash: str = ""
     record_hash: str = ""
     retention_class: str = "standard"
+    # AARM R6 identity binding / R5 receipt schema (part of the signed content).
+    session_id: str = ""
+    agent_role: str = ""
+    scope_level: int = 0
+    policy_version_hash: str = ""
+    delegation_chain: List[str] = field(default_factory=list)
+    deferral_reason: str = ""
+    resolution_method: str = ""
+    resolution_timestamp: str = ""
+    # AARM R5/R6 signature (computed over record_hash; excluded from the hash).
+    signature: str = ""
+    signing_key_id: str = ""
+    signing_algorithm: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -504,6 +528,17 @@ class EvidenceRecord:
             "previous_hash": self.previous_hash,
             "record_hash": self.record_hash,
             "retention_class": self.retention_class,
+            "session_id": self.session_id,
+            "agent_role": self.agent_role,
+            "scope_level": self.scope_level,
+            "policy_version_hash": self.policy_version_hash,
+            "delegation_chain": list(self.delegation_chain),
+            "deferral_reason": self.deferral_reason,
+            "resolution_method": self.resolution_method,
+            "resolution_timestamp": self.resolution_timestamp,
+            "signature": self.signature,
+            "signing_key_id": self.signing_key_id,
+            "signing_algorithm": self.signing_algorithm,
         }
 
     @classmethod
@@ -522,6 +557,17 @@ class EvidenceRecord:
             previous_hash=data.get("previous_hash", ""),
             record_hash=data.get("record_hash", ""),
             retention_class=data.get("retention_class", "standard"),
+            session_id=data.get("session_id", ""),
+            agent_role=data.get("agent_role", ""),
+            scope_level=data.get("scope_level", 0),
+            policy_version_hash=data.get("policy_version_hash", ""),
+            delegation_chain=data.get("delegation_chain", []),
+            deferral_reason=data.get("deferral_reason", ""),
+            resolution_method=data.get("resolution_method", ""),
+            resolution_timestamp=data.get("resolution_timestamp", ""),
+            signature=data.get("signature", ""),
+            signing_key_id=data.get("signing_key_id", ""),
+            signing_algorithm=data.get("signing_algorithm", ""),
         )
 
 

@@ -302,6 +302,8 @@ class ToolResponseValidator:
         if not isinstance(verdict_obj, dict):
             return False, "deny", "verdict is not a structured object; failing closed"
         v = verdict_obj.get("verdict")
-        if v not in ("allow", "deny", "escalate"):
+        # Five-verdict AARM R4 set (action_group is a separate Lambda bundle,
+        # so this mirrors verdicts.VALID_VERDICTS inline rather than importing).
+        if v not in ("allow", "deny", "escalate", "modify", "defer"):
             return False, "deny", f"unrecognized verdict {v!r}; failing closed"
         return (v == "allow"), v, verdict_obj.get("reason", "")

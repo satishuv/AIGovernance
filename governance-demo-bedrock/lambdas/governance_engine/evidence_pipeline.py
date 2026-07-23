@@ -7,9 +7,11 @@ assignment. Generates Control_Trace objects for framework mapping.
 Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 15.2, 15.3, 15.4
 """
 
+import base64
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -22,6 +24,15 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 INITIAL_BACKOFF_SECONDS = 0.5
 
+# Fields excluded from the SHA-256 record hash: the hash cannot cover itself,
+# and the signature is computed over the hash so it cannot be an input to it.
+_HASH_EXCLUDED_FIELDS = ("record_hash", "signature", "signing_key_id", "signing_algorithm")
+
+# AARM R5/R6: KMS asymmetric signing of the record hash. Key id from env; when
+# unset (e.g. local tests) signing is skipped and the hash chain still applies.
+EVIDENCE_SIGNING_KEY_ID = os.environ.get("EVIDENCE_SIGNING_KEY_ID", "")
+SIGNING_ALGORITHM = "ECDSA_SHA_256"
+
 
 class EvidencePipeline:
     """Manages evidence record creation, hashing, and S3 storage."""
@@ -33,6 +44,11 @@ class EvidencePipeline:
         bucket: str,
         environment: str,
         agent_id: str,
+        kms_client=None,
+        session_id: str = "",
+        agent_role: str = "",
+        scope_level: int = 0,
+        policy_version_hash: str = "",
     ) -> Optional[EvidenceRecord]:
         """Create and store an evidence record from a governance decision.
 
@@ -42,6 +58,14 @@ class EvidencePipeline:
             bucket: S3 bucket name for evidence storage.
             environment: Deployment environment (dev/staging/prod).
             agent_id: The agent's unique identifier.
+            kms_client: Optional boto3 KMS client for AARM R5/R6 signing. When
+                provided and a signing key is configured, the record hash is
+                signed (offline-verifiable, non-repudiable). Signing failures
+                are logged and do not block evidence writing.
+            session_id: Session id (AARM R6 identity binding).
+            agent_role: Agent role/privilege scope (AARM R6).
+            scope_level: Scope level at decision time (AARM R6).
+            policy_version_hash: Version/hash of the policy used (AARM R5).
 
         Returns:
             The created EvidenceRecord, or None if all retries fail.
@@ -76,13 +100,24 @@ class EvidencePipeline:
             previous_hash=previous_hash,
             record_hash="",
             retention_class=retention_class,
+            session_id=session_id,
+            agent_role=agent_role,
+            scope_level=scope_level,
+            policy_version_hash=policy_version_hash,
         )
 
-        # Compute hash (excluding record_hash field itself)
+        # Compute hash over all content fields except the hash and signature
+        # fields (the hash cannot cover itself; the signature is derived from it).
         record_dict = record.to_dict()
-        record_dict.pop("record_hash", None)
+        for f in _HASH_EXCLUDED_FIELDS:
+            record_dict.pop(f, None)
         record.record_hash = self._compute_hash(record_dict)
-        record_dict["record_hash"] = record.record_hash
+
+        # AARM R5/R6: sign the record hash with a KMS asymmetric key so the
+        # receipt is offline-verifiable and cryptographically bound to origin.
+        self._sign_record(record, kms_client)
+
+        record_dict = record.to_dict()
 
         # Build S3 key
         s3_key = (
@@ -165,6 +200,37 @@ class EvidencePipeline:
         """
         canonical = json.dumps(record_dict, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _sign_record(record: EvidenceRecord, kms_client) -> None:
+        """Sign the record hash with a KMS asymmetric key (AARM R5/R6).
+
+        Signs the SHA-256 digest (MessageType=DIGEST) so the receipt carries an
+        offline-verifiable, non-repudiable signature bound to the signing key.
+        No-op when no KMS client or signing key is configured (e.g. local
+        tests); the hash chain still provides tamper-evidence in that case.
+        Signing failures are logged and never block evidence writing.
+        """
+        if kms_client is None or not EVIDENCE_SIGNING_KEY_ID:
+            return
+        try:
+            digest = bytes.fromhex(record.record_hash)
+            resp = kms_client.sign(
+                KeyId=EVIDENCE_SIGNING_KEY_ID,
+                Message=digest,
+                MessageType="DIGEST",
+                SigningAlgorithm=SIGNING_ALGORITHM,
+            )
+            record.signature = base64.b64encode(resp["Signature"]).decode("ascii")
+            record.signing_key_id = EVIDENCE_SIGNING_KEY_ID
+            record.signing_algorithm = SIGNING_ALGORITHM
+        except Exception as exc:
+            logger.error(json.dumps({
+                "audit_event": "evidence_signing_failed",
+                "evidence_id": record.evidence_id,
+                "error": str(exc),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
 
     @staticmethod
     def _get_previous_hash(

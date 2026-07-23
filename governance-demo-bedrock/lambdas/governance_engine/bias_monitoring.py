@@ -217,7 +217,8 @@ class BiasMonitor:
         agent_escalation_rates: Dict[str, float] = {}
         for agent, verdicts in groups.items():
             if len(verdicts) >= 5:
-                esc_rate = sum(1 for v in verdicts if v == "escalate") / len(verdicts)
+                # DEFER (suspended pending context) counts with STEP_UP/escalate.
+                esc_rate = sum(1 for v in verdicts if v in ("escalate", "defer")) / len(verdicts)
                 agent_escalation_rates[agent] = esc_rate
 
         if len(agent_escalation_rates) < 2:

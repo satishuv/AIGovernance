@@ -292,16 +292,18 @@ class ToolResponseValidator:
         """Enforce a structured verdict rather than trusting free-text scanning.
 
         Downstream tools/evaluators should return a typed verdict
-        ({"verdict": "allow"|"deny"|"escalate", ...}) instead of prose the
-        agent (or this validator) must parse. This helper validates the shape
-        and fails closed on anything malformed or non-allow, so a tool cannot
-        smuggle intent past the gate as narrative text.
+        ({"verdict": "allow"|"deny"|"escalate"|"modify"|"defer", ...}) instead
+        of prose the agent (or this validator) must parse. This helper
+        validates the shape and fails closed on anything malformed or
+        non-allow, so a tool cannot smuggle intent past the gate as narrative
+        text.
 
         Returns (accepted: bool, verdict: str, reason: str).
         """
+        from verdicts import ALLOW, is_valid
         if not isinstance(verdict_obj, dict):
             return False, "deny", "verdict is not a structured object; failing closed"
         v = verdict_obj.get("verdict")
-        if v not in ("allow", "deny", "escalate"):
+        if not is_valid(v):
             return False, "deny", f"unrecognized verdict {v!r}; failing closed"
-        return (v == "allow"), v, verdict_obj.get("reason", "")
+        return (v == ALLOW), v, verdict_obj.get("reason", "")

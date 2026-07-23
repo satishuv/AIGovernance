@@ -67,12 +67,48 @@ class AgentMemoryManager:
         self._table = table
         self._local_cache: Dict[str, List[MemoryEntry]] = {}
 
+    @staticmethod
+    def _is_poisoned(content: str) -> str:
+        """Return a reason string if content looks like a memory-poisoning
+        payload (injected instructions to be replayed in a future session),
+        or "" if clean. Reuses the input sanitizer's instruction-override and
+        delimiter detection so stored memory cannot smuggle instructions.
+        """
+        try:
+            from input_sanitizer import InputSanitizer
+            result = InputSanitizer().sanitize(content or "")
+            if result.blocked:
+                return result.block_reason or "instruction-injection pattern in memory content"
+        except Exception:
+            # Never fail-open: if the sanitizer is unavailable, do a minimal
+            # inline check for the most common override phrasing.
+            import re as _re
+            if _re.search(r"ignore .{0,20}(previous|prior|above) .{0,20}instruction", (content or "").lower()):
+                return "instruction-override phrase in memory content"
+        return ""
+
     def store_memory(self, agent_id: str, memory_type: str, content: str,
                      metadata: Dict[str, Any] = None) -> MemoryEntry:
         """Store a new memory entry for an agent.
 
-        Memory is governed: content is validated before storage.
+        Memory is governed (AARM T5 memory poisoning): content is validated
+        before storage and rejected if it carries injected instructions, so a
+        poisoned memory cannot be replayed to hijack a future session.
+
+        Raises:
+            ValueError: if the content is detected as a poisoning payload.
         """
+        poison_reason = self._is_poisoned(content)
+        if poison_reason:
+            logger.warning(json.dumps({
+                "audit_event": "memory_poisoning_blocked",
+                "agent_id": agent_id,
+                "memory_type": memory_type,
+                "reason": poison_reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            raise ValueError(f"Memory poisoning blocked: {poison_reason}")
+
         now = datetime.now(timezone.utc)
         memory_id = hashlib.sha256(
             f"{agent_id}:{memory_type}:{content}:{now.isoformat()}".encode()

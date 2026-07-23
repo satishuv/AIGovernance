@@ -7,6 +7,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_sns as sns,
+    aws_kms as kms,
 )
 from constructs import Construct
 
@@ -77,6 +78,20 @@ class StorageConstruct(Construct):
                     }
                 },
             },
+        )
+
+        # --- Evidence signing key (AARM R5/R6) ---
+        # Asymmetric ECC key for offline-verifiable, non-repudiable signatures
+        # over evidence receipts. Public key is exportable via kms:GetPublicKey
+        # for offline verification; the private key never leaves KMS. RETAIN so
+        # historical receipts stay verifiable even if the stack is torn down.
+        self.evidence_signing_key = kms.Key(
+            self,
+            "EvidenceSigningKey",
+            description="AARM R5/R6 evidence receipt signing key (ECDSA P-256)",
+            key_spec=kms.KeySpec.ECC_NIST_P256,
+            key_usage=kms.KeyUsage.SIGN_VERIFY,
+            removal_policy=RemovalPolicy.RETAIN,
         )
 
         # --- DynamoDB Tables ---

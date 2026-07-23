@@ -41,7 +41,7 @@ from validation_suite import MinimumValidationSuite
 _st = st.text(alphabet=st.characters(whitelist_categories=("L","N","P","Z")), min_size=1, max_size=30)
 _si = st.text(alphabet=st.characters(whitelist_categories=("L","N")), min_size=1, max_size=20)
 _ts = st.just("2024-01-15T12:00:00+00:00")
-_oc = st.sampled_from(["allow","deny","escalate"])
+_oc = st.sampled_from(["allow","deny","escalate","modify","defer"])
 _ev = st.sampled_from(["dev","staging","prod"])
 _ca = st.sampled_from(["model","tool_connector","data_source"])
 
@@ -612,6 +612,85 @@ class TestEvidenceIntegrity:
         assert not EvidenceIntegrity().verify_hash_chain(s3,"b","prod","a1","2024-01-01","2024-01-02")[1]["chain_valid"]
     def test_retention(self):
         assert EvidenceIntegrity.get_retention_config("standard")==365 and EvidenceIntegrity.get_retention_config("extended")==2555
+
+
+class _LocalKmsFake:
+    """Fake KMS client backed by a real local ECDSA P-256 key.
+
+    Implements sign()/verify() with the same shapes the pipeline and integrity
+    modules call, so the signing round-trip is exercised end to end.
+    """
+    def __init__(self):
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        self._priv = ec.generate_private_key(ec.SECP256R1())
+        self.public_key_pem = self._priv.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+
+    def sign(self, KeyId=None, Message=None, MessageType=None, SigningAlgorithm=None):
+        from cryptography.hazmat.primitives.asymmetric import ec, utils as au
+        from cryptography.hazmat.primitives import hashes
+        sig = self._priv.sign(Message, ec.ECDSA(au.Prehashed(hashes.SHA256())))
+        return {"Signature": sig}
+
+
+class TestEvidenceSigning:
+    """AARM R5/R6: offline-verifiable signed receipts."""
+
+    def _decision(self):
+        return GovernanceDecision(
+            decision_id="dsign1", agent_id="agent-sign",
+            action_requested="ReadPipelineStatus", risk_score=10.0,
+            verdict="allow", timestamp="2026-07-22T00:00:00+00:00",
+        )
+
+    def _write_signed(self, monkeypatch):
+        import evidence_pipeline as ep
+        monkeypatch.setattr(ep, "EVIDENCE_SIGNING_KEY_ID", "alias/test-key", raising=False)
+        kms = _LocalKmsFake()
+        captured = {}
+        s3 = MagicMock()
+        s3.list_objects_v2.return_value = {"Contents": []}
+        def _put(Bucket=None, Key=None, Body=None, **kw):
+            captured["body"] = json.loads(Body)
+        s3.put_object.side_effect = _put
+        rec = ep.EvidencePipeline().write_evidence(
+            decision=self._decision(), s3_client=s3, bucket="b",
+            environment="prod", agent_id="agent-sign",
+            kms_client=kms, session_id="sess-1", agent_role="prod", scope_level=1,
+        )
+        return rec, captured["body"], kms
+
+    def test_receipt_is_signed(self, monkeypatch):
+        rec, body, _ = self._write_signed(monkeypatch)
+        assert rec.signature and body["signature"]
+        assert rec.signing_algorithm == "ECDSA_SHA_256"
+        assert body["session_id"] == "sess-1"
+
+    def test_signature_verifies_offline(self, monkeypatch):
+        _, body, kms = self._write_signed(monkeypatch)
+        assert EvidenceIntegrity.verify_signature(body, public_key_pem=kms.public_key_pem) is True
+
+    def test_tampered_field_fails_signature(self, monkeypatch):
+        _, body, kms = self._write_signed(monkeypatch)
+        body["verdict"] = "deny"  # tamper with a signed field
+        assert EvidenceIntegrity.verify_signature(body, public_key_pem=kms.public_key_pem) is False
+
+    def test_tampered_identity_fails_signature(self, monkeypatch):
+        _, body, kms = self._write_signed(monkeypatch)
+        body["agent_id"] = "someone-else"
+        assert EvidenceIntegrity.verify_signature(body, public_key_pem=kms.public_key_pem) is False
+
+    def test_hash_still_valid_after_signing(self, monkeypatch):
+        # Signing must not invalidate the SHA-256 record hash.
+        _, body, _ = self._write_signed(monkeypatch)
+        assert EvidenceIntegrity.recompute_hash(body) == body["record_hash"]
+
+    def test_unsigned_record_not_verifiable(self):
+        body = {"record_hash": "abc", "signature": ""}
+        assert EvidenceIntegrity.verify_signature(body, public_key_pem=b"x") is False
 
 
 class TestPhase1cIntegration:

@@ -562,7 +562,50 @@ def handler(event, context):
                 "request_id": request_id,
             }
 
-        # Step 5: Swap permission boundary, only on allow (Task 6.2 -- Req 10.6).
+        # Step 4c: Handle defer verdict (AARM R4 DEFER). The action is suspended
+        # pending additional context (e.g. stated intent / disambiguation). Like
+        # escalate it does not execute; unresolved defers time out to deny in the
+        # governance engine's pending-approval path.
+        if verdict == "defer":
+            explanation = governance_decision.get("explanation", "Action deferred pending additional context.")
+            request_id = create_pending_approval(agent_id, input_text, governance_decision)
+            logger.info(json.dumps({
+                "event": "governance_deferred",
+                "agent_id": agent_id,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "request_id": request_id,
+                "explanation": explanation,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return {
+                "status": "deferred",
+                "message": explanation,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "request_id": request_id,
+            }
+
+        # Fail-closed guard: only allow and modify proceed to execution. Any
+        # unrecognized verdict is denied rather than executed (defense in depth
+        # against a malformed/spoofed governance response).
+        if verdict not in ("allow", "modify"):
+            logger.error(json.dumps({
+                "event": "governance_unknown_verdict",
+                "agent_id": agent_id,
+                "verdict": verdict,
+                "decision_id": governance_decision.get("decision_id", ""),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return {
+                "status": "denied",
+                "error": "unknown_verdict",
+                "message": f"Unrecognized governance verdict '{verdict}'; failing closed to deny.",
+                "decision_id": governance_decision.get("decision_id", ""),
+            }
+
+        # Step 5: Swap permission boundary, on allow or modify (Task 6.2 -- Req 10.6).
+        # MODIFY executes the sanitized/transformed request the governance engine
+        # already produced, so it proceeds through the same boundary-swap path as
+        # allow.
         # The swap and the agent invocation share one mutable boundary on a
         # single role, so we serialize the whole swap -> verify -> invoke
         # section under a distributed lease and verify the boundary immediately

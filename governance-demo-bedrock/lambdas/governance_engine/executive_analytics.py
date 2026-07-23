@@ -146,7 +146,8 @@ class ExecutiveAnalytics:
             return GovernancePosture(report_date=datetime.now(timezone.utc).isoformat())
 
         denials = sum(1 for d in self._decisions if d.get("verdict") == "deny")
-        escalations = sum(1 for d in self._decisions if d.get("verdict") == "escalate")
+        # DEFER (suspended pending context) is grouped with STEP_UP/escalate.
+        escalations = sum(1 for d in self._decisions if d.get("verdict") in ("escalate", "defer"))
         risk_scores = [float(d.get("risk_score", 0)) for d in self._decisions]
         agents = set(d.get("agent_id", "") for d in self._decisions)
 
@@ -179,7 +180,7 @@ class ExecutiveAnalytics:
             agent_data[agent]["decisions"] += 1
             if d.get("verdict") == "deny":
                 agent_data[agent]["denials"] += 1
-            if d.get("verdict") == "escalate":
+            if d.get("verdict") in ("escalate", "defer"):
                 agent_data[agent]["escalations"] += 1
             agent_data[agent]["scores"].append(float(d.get("risk_score", 0)))
 

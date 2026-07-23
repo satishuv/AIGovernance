@@ -50,7 +50,7 @@ from policy_lifecycle import PolicyLifecycle
 _tx = st.text(alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")), min_size=1, max_size=40)
 _sid = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=20)
 _ts = st.just("2024-01-15T12:00:00+00:00")
-_oc = st.sampled_from(["allow", "deny", "escalate"])
+_oc = st.sampled_from(["allow", "deny", "escalate", "modify", "defer"])
 _ev = st.sampled_from(["dev", "staging", "prod"])
 _ct = st.sampled_from(["model", "tool_connector", "data_source"])
 

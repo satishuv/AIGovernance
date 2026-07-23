@@ -7,6 +7,7 @@ violations are logged and optionally published to an operator SNS topic.
 Requirements: 15.1, 15.2, 15.3, 15.5, 15.6
 """
 
+import base64
 import hashlib
 import json
 import logging
@@ -16,6 +17,10 @@ from typing import Any, Dict, List
 logger = logging.getLogger(__name__)
 
 RETENTION_DAYS = {"standard": 365, "extended": 2555}
+
+# Must match evidence_pipeline._HASH_EXCLUDED_FIELDS: fields not covered by the
+# SHA-256 record hash (the hash itself and the signature derived from it).
+_HASH_EXCLUDED_FIELDS = ("record_hash", "signature", "signing_key_id", "signing_algorithm")
 
 
 class EvidenceIntegrity:
@@ -51,8 +56,9 @@ class EvidenceIntegrity:
 
         stored_hash = body.get("record_hash", "")
 
-        # Recompute hash excluding the record_hash field
-        verify_dict = {k: v for k, v in body.items() if k != "record_hash"}
+        # Recompute hash excluding the hash and signature fields (must mirror
+        # evidence_pipeline._compute_hash exclusions).
+        verify_dict = {k: v for k, v in body.items() if k not in _HASH_EXCLUDED_FIELDS}
         canonical = json.dumps(verify_dict, sort_keys=True, default=str)
         computed_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -74,6 +80,99 @@ class EvidenceIntegrity:
             f"Evidence integrity violation for {evidence_id}: "
             f"stored_hash={stored_hash}, computed_hash={computed_hash}"
         )
+        return False
+
+    @staticmethod
+    def recompute_hash(record_body: Dict[str, Any]) -> str:
+        """Recompute the SHA-256 record hash from a stored record body.
+
+        Applies the same field exclusions as the pipeline, so callers can
+        verify the digest that the signature is expected to cover.
+        """
+        verify_dict = {k: v for k, v in record_body.items() if k not in _HASH_EXCLUDED_FIELDS}
+        canonical = json.dumps(verify_dict, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def verify_signature(record_body: Dict[str, Any], public_key_pem: bytes = None, kms_client=None) -> bool:
+        """Verify a record's AARM R5/R6 signature.
+
+        Two modes:
+          - Offline (preferred, no AWS call): pass ``public_key_pem`` (fetched
+            once via kms:GetPublicKey and cached/distributed). Requires the
+            ``cryptography`` package.
+          - Online: pass a boto3 ``kms_client`` and the signature is checked
+            via kms:Verify.
+
+        Returns True only if the record has a signature that validates against
+        the recomputed hash. An unsigned record returns False (no signature to
+        verify); callers that permit unsigned records should check separately.
+
+        Tampering with any signed field changes the recomputed hash, so the
+        signature (made over the original hash) no longer validates.
+        """
+        signature_b64 = record_body.get("signature", "")
+        algorithm = record_body.get("signing_algorithm", "ECDSA_SHA_256")
+        if not signature_b64:
+            return False
+
+        digest = bytes.fromhex(EvidenceIntegrity.recompute_hash(record_body))
+        signature = base64.b64decode(signature_b64)
+
+        # Online verification via KMS.
+        if kms_client is not None:
+            try:
+                resp = kms_client.verify(
+                    KeyId=record_body.get("signing_key_id", ""),
+                    Message=digest,
+                    MessageType="DIGEST",
+                    Signature=signature,
+                    SigningAlgorithm=algorithm,
+                )
+                return bool(resp.get("SignatureValid", False))
+            except Exception as exc:
+                logger.error(json.dumps({
+                    "audit_event": "evidence_signature_verify_failed",
+                    "mode": "kms",
+                    "error": str(exc),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }))
+                return False
+
+        # Offline verification with the public key (no AWS call).
+        if public_key_pem is not None:
+            try:
+                from cryptography.hazmat.primitives.serialization import load_pem_public_key
+                from cryptography.hazmat.primitives.asymmetric import ec, utils as asym_utils
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.exceptions import InvalidSignature
+
+                pub = load_pem_public_key(public_key_pem)
+                try:
+                    pub.verify(
+                        signature,
+                        digest,
+                        ec.ECDSA(asym_utils.Prehashed(hashes.SHA256())),
+                    )
+                    return True
+                except InvalidSignature:
+                    return False
+            except ImportError:
+                logger.warning(json.dumps({
+                    "audit_event": "evidence_signature_verify_skipped",
+                    "reason": "cryptography package not available for offline verify",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }))
+                return False
+            except Exception as exc:
+                logger.error(json.dumps({
+                    "audit_event": "evidence_signature_verify_failed",
+                    "mode": "offline",
+                    "error": str(exc),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }))
+                return False
+
         return False
 
     def verify_hash_chain(

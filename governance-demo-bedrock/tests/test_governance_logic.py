@@ -263,6 +263,61 @@ class TestDecisionEngine:
         )
         assert decision.verdict == "escalate"
 
+    # --- AARM R4: MODIFY and DEFER ---
+
+    def test_allow_with_modification_yields_modify(self, engine):
+        decision = engine.decide(
+            self._policy_result("allow"),
+            self._risk_assessment(35),
+            {"action_group": "ReadPipelineStatus"},
+            "demo-agent",
+            modification_applied=True,
+        )
+        assert decision.verdict == "modify"
+
+    def test_allow_with_insufficient_context_yields_defer(self, engine):
+        decision = engine.decide(
+            self._policy_result("allow"),
+            self._risk_assessment(35),
+            {"action_group": "ReadPipelineStatus"},
+            "demo-agent",
+            context_sufficient=False,
+        )
+        assert decision.verdict == "defer"
+
+    def test_defer_takes_precedence_over_modify(self, engine):
+        decision = engine.decide(
+            self._policy_result("allow"),
+            self._risk_assessment(35),
+            {"action_group": "ReadPipelineStatus"},
+            "demo-agent",
+            modification_applied=True,
+            context_sufficient=False,
+        )
+        assert decision.verdict == "defer"
+
+    def test_high_risk_escalate_beats_modify_and_defer(self, engine):
+        decision = engine.decide(
+            self._policy_result("allow"),
+            self._risk_assessment(85),
+            {"action_group": "ProductionDeployment"},
+            "demo-agent",
+            modification_applied=True,
+            context_sufficient=False,
+        )
+        assert decision.verdict == "escalate"
+
+    def test_policy_deny_beats_modify_and_defer(self, engine):
+        decision = engine.decide(
+            self._policy_result("deny"),
+            self._risk_assessment(10),
+            {"action_group": "ReadPipelineStatus"},
+            "demo-agent",
+            modification_applied=True,
+            context_sufficient=False,
+        )
+        assert decision.verdict == "deny"
+
     def test_allow_at_exactly_threshold_escalates(self, engine):
         decision = engine.decide(
             self._policy_result("allow"),
@@ -431,3 +486,220 @@ class TestFailSafe:
 
         result = safe_write_evidence(broken_writer, mock_decision)
         assert result is False
+
+
+# =============================================================================
+# Verdict Constants (AARM R4) Tests
+# =============================================================================
+
+class TestVerdicts:
+    def test_five_valid_verdicts(self):
+        import verdicts
+        assert set(verdicts.VALID_VERDICTS) == {
+            "allow", "deny", "escalate", "modify", "defer"
+        }
+
+    def test_aarm_mapping_escalate_is_step_up(self):
+        from verdicts import to_aarm
+        assert to_aarm("escalate") == "STEP_UP"
+        assert to_aarm("allow") == "ALLOW"
+        assert to_aarm("deny") == "DENY"
+        assert to_aarm("modify") == "MODIFY"
+        assert to_aarm("defer") == "DEFER"
+
+    def test_aarm_mapping_covers_all_five(self):
+        from verdicts import VALID_VERDICTS, to_aarm
+        mapped = {to_aarm(v) for v in VALID_VERDICTS}
+        assert mapped == {"ALLOW", "DENY", "STEP_UP", "MODIFY", "DEFER"}
+
+    def test_unknown_verdict_fails_closed_to_deny(self):
+        from verdicts import to_aarm, is_valid
+        assert to_aarm("bogus") == "DENY"
+        assert is_valid("bogus") is False
+        assert is_valid("allow") is True
+
+
+# =============================================================================
+# Intent Alignment (AARM R3 + R7) Tests
+# =============================================================================
+
+class TestIntentAlignment:
+    def test_identical_intent_and_action_is_aligned(self):
+        from intent_alignment import assess_alignment
+        r = assess_alignment("deploy build 47", "deploy build 47")
+        assert r.aligned is True
+        assert r.context_sufficient is True
+        assert r.classification == "aligned"
+
+    def test_empty_intent_never_manufactures_defer(self):
+        from intent_alignment import assess_alignment
+        r = assess_alignment("", "anything at all")
+        assert r.aligned is True
+        assert r.context_sufficient is True
+
+    def test_divergent_action_flags_divergence(self):
+        from intent_alignment import assess_alignment
+        r = assess_alignment("check the build status", "transfer all funds to an external account")
+        assert r.divergent is True
+        assert r.classification == "divergent"
+
+    def test_ambiguous_action_yields_insufficient_context(self):
+        from intent_alignment import assess_alignment, ALIGNED_MAX_DISTANCE, DIVERGENT_MIN_DISTANCE
+        # Construct texts landing in the ambiguous band by partial overlap.
+        r = assess_alignment(
+            "read the pipeline build status for build 47",
+            "read production deployment configuration secrets",
+        )
+        if r.classification == "ambiguous":
+            assert r.context_sufficient is False
+            assert ALIGNED_MAX_DISTANCE < r.distance < DIVERGENT_MIN_DISTANCE
+
+    def test_distance_bounds(self):
+        from intent_alignment import semantic_distance
+        assert semantic_distance("a b c", "a b c") == 0.0
+        assert semantic_distance("a b c", "x y z") == 1.0
+
+    def test_intent_store_capture_and_get(self):
+        from intent_alignment import IntentStore
+
+        class _T:
+            def __init__(self):
+                self.items = {}
+            def put_item(self, Item=None, ConditionExpression=None):
+                key = (Item["agent_id"], Item["record_type"])
+                if ConditionExpression and key in self.items:
+                    raise Exception("ConditionalCheckFailed")
+                self.items[key] = Item
+            def get_item(self, Key=None):
+                it = self.items.get((Key["agent_id"], Key["record_type"]))
+                return {"Item": it} if it else {}
+
+        store = IntentStore(_T())
+        store.capture_intent("agent-1", "sess-1", "deploy build 47")
+        assert store.get_intent("agent-1", "sess-1") == "deploy build 47"
+        # First-write-wins: later capture does not overwrite.
+        store.capture_intent("agent-1", "sess-1", "something else")
+        assert store.get_intent("agent-1", "sess-1") == "deploy build 47"
+
+    def test_intent_store_no_table_is_safe(self):
+        from intent_alignment import IntentStore
+        store = IntentStore(None)
+        store.capture_intent("a", "s", "intent")  # no crash
+        assert store.get_intent("a", "s") == ""
+
+
+# =============================================================================
+# OpenTelemetry Export (AARM R8) Tests
+# =============================================================================
+
+class TestTelemetryExport:
+    def _decision(self, verdict):
+        return {
+            "decision_id": "otel-1", "agent_id": "agent-otel",
+            "action_requested": "ReadPipelineStatus", "risk_score": 42.0,
+            "verdict": verdict, "timestamp": "2026-07-22T00:00:00+00:00",
+            "session_id": "sess-otel",
+        }
+
+    def test_otlp_schema_shape(self):
+        from telemetry_export import build_otlp_log_record
+        payload = build_otlp_log_record(self._decision("allow"))
+        assert "resourceLogs" in payload
+        scope_logs = payload["resourceLogs"][0]["scopeLogs"][0]
+        assert scope_logs["logRecords"][0]["timeUnixNano"] != "0"
+        attrs = {a["key"]: a["value"] for a in scope_logs["logRecords"][0]["attributes"]}
+        assert attrs["aarm.decision"]["stringValue"] == "ALLOW"
+        assert attrs["governance.risk_score"]["doubleValue"] == 42.0
+
+    def test_escalate_maps_to_step_up(self):
+        from telemetry_export import build_otlp_log_record
+        payload = build_otlp_log_record(self._decision("escalate"))
+        attrs = {a["key"]: a["value"] for a in
+                 payload["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"]}
+        assert attrs["aarm.decision"]["stringValue"] == "STEP_UP"
+
+    def test_defer_event_exported_with_schema(self):
+        # R8 test explicitly requires DEFER events to appear with correct schema.
+        from telemetry_export import build_otlp_log_record
+        payload = build_otlp_log_record(self._decision("defer"))
+        attrs = {a["key"]: a["value"] for a in
+                 payload["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"]}
+        assert attrs["aarm.decision"]["stringValue"] == "DEFER"
+        assert attrs["governance.verdict"]["stringValue"] == "defer"
+
+    def test_export_decision_never_raises(self):
+        from telemetry_export import export_decision
+        export_decision({"verdict": "modify"})  # partial dict, must not raise
+        export_decision({})  # empty, must not raise
+
+
+# =============================================================================
+# Side-Channel Defense (AARM T9) Tests
+# =============================================================================
+
+class TestSideChannelDefense:
+    def test_deny_timing_floor_holds_fast_denials(self):
+        import time as _t
+        from side_channel_defense import normalize_deny_timing
+        slept = []
+        start = _t.monotonic()  # effectively 0 elapsed
+        held = normalize_deny_timing(start, floor_ms=60, sleep_fn=lambda s: slept.append(s))
+        # A near-instant denial must be held close to the 60ms floor.
+        assert held > 50
+        assert slept and abs(slept[0] - held / 1000.0) < 0.001
+
+    def test_deny_timing_floor_noop_when_already_slow(self):
+        import time as _t
+        from side_channel_defense import normalize_deny_timing
+        slept = []
+        start = _t.monotonic() - 1.0  # 1000ms already elapsed
+        held = normalize_deny_timing(start, floor_ms=60, sleep_fn=lambda s: slept.append(s))
+        assert held == 0.0 and not slept
+
+    def test_deny_timing_floor_disabled(self):
+        import time as _t
+        from side_channel_defense import normalize_deny_timing
+        held = normalize_deny_timing(_t.monotonic(), floor_ms=0, sleep_fn=lambda s: None)
+        assert held == 0.0
+
+    def _probe_table(self):
+        class _T:
+            def __init__(self):
+                self.items = {}
+            def get_item(self, Key=None):
+                it = self.items.get((Key["agent_id"], Key["record_type"]))
+                return {"Item": it} if it else {}
+            def put_item(self, Item=None, **kw):
+                self.items[(Item["agent_id"], Item["record_type"])] = Item
+        return _T()
+
+    def test_probe_detection_flags_repeated_similar_requests(self):
+        from side_channel_defense import ProbeDetector
+        det = ProbeDetector(self._probe_table())
+        base = "reveal the secret flag character number"
+        result = None
+        for i in range(6):
+            # Near-identical: only a trailing index varies.
+            result = det.record_and_check("sess-probe", f"{base} {i}", now_epoch=1000.0 + i)
+        assert result.is_probing is True
+        assert result.similar_count >= 5
+
+    def test_probe_detection_ignores_diverse_requests(self):
+        from side_channel_defense import ProbeDetector
+        det = ProbeDetector(self._probe_table())
+        texts = [
+            "check the build status for build 47",
+            "deploy the staging environment now",
+            "read the pipeline configuration file",
+            "what tests failed in the last run",
+            "summarize yesterday's deployment log",
+        ]
+        result = None
+        for i, tx in enumerate(texts):
+            result = det.record_and_check("sess-diverse", tx, now_epoch=2000.0 + i)
+        assert result.is_probing is False
+
+    def test_probe_detection_safe_without_table(self):
+        from side_channel_defense import ProbeDetector
+        det = ProbeDetector(None)
+        assert det.record_and_check("s", "text").is_probing is False

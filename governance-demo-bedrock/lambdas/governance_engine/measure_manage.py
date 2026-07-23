@@ -44,7 +44,8 @@ class MeasureManageEngine:
 
         total = len(decisions)
         deny_count = sum(1 for d in decisions if d.get("verdict") == "deny")
-        escalate_count = sum(1 for d in decisions if d.get("verdict") == "escalate")
+        # DEFER (suspended pending context) is reported alongside STEP_UP/escalate.
+        escalate_count = sum(1 for d in decisions if d.get("verdict") in ("escalate", "defer"))
 
         risk_scores = [float(d.get("risk_score", 0)) for d in decisions]
         avg_risk = sum(risk_scores) / total if total > 0 else 0.0
@@ -154,7 +155,7 @@ class MeasureManageEngine:
         )
         incident_summaries: List[Dict[str, str]] = []
         for d in decisions:
-            if d.get("verdict") in ("deny", "escalate"):
+            if d.get("verdict") in ("deny", "escalate", "defer"):
                 incident_summaries.append({
                     "decision_id": d.get("decision_id", ""),
                     "agent_id": d.get("agent_id", ""),
