@@ -648,6 +648,10 @@ class TestEvidenceSigning:
 
     def _write_signed(self, monkeypatch):
         import evidence_pipeline as ep
+        import crypto_signing as cs
+        # Signing now lives in the shared crypto_signing module; patch the key
+        # id at its source of truth (and the ep alias for good measure).
+        monkeypatch.setattr(cs, "EVIDENCE_SIGNING_KEY_ID", "alias/test-key", raising=False)
         monkeypatch.setattr(ep, "EVIDENCE_SIGNING_KEY_ID", "alias/test-key", raising=False)
         kms = _LocalKmsFake()
         captured = {}

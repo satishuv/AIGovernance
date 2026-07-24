@@ -18,20 +18,17 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from models import ControlTrace, EvidenceRecord, GovernanceDecision
+from crypto_signing import (
+    EVIDENCE_SIGNING_KEY_ID,
+    HASH_EXCLUDED_FIELDS as _HASH_EXCLUDED_FIELDS,
+    SIGNING_ALGORITHM,
+    sign_digest,
+)
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 INITIAL_BACKOFF_SECONDS = 0.5
-
-# Fields excluded from the SHA-256 record hash: the hash cannot cover itself,
-# and the signature is computed over the hash so it cannot be an input to it.
-_HASH_EXCLUDED_FIELDS = ("record_hash", "signature", "signing_key_id", "signing_algorithm")
-
-# AARM R5/R6: KMS asymmetric signing of the record hash. Key id from env; when
-# unset (e.g. local tests) signing is skipped and the hash chain still applies.
-EVIDENCE_SIGNING_KEY_ID = os.environ.get("EVIDENCE_SIGNING_KEY_ID", "")
-SIGNING_ALGORITHM = "ECDSA_SHA_256"
 
 
 class EvidencePipeline:
@@ -203,34 +200,17 @@ class EvidencePipeline:
 
     @staticmethod
     def _sign_record(record: EvidenceRecord, kms_client) -> None:
-        """Sign the record hash with a KMS asymmetric key (AARM R5/R6).
+        """Sign the record hash with the shared KMS signer (AARM R5/R6).
 
-        Signs the SHA-256 digest (MessageType=DIGEST) so the receipt carries an
-        offline-verifiable, non-repudiable signature bound to the signing key.
-        No-op when no KMS client or signing key is configured (e.g. local
-        tests); the hash chain still provides tamper-evidence in that case.
-        Signing failures are logged and never block evidence writing.
+        Delegates to crypto_signing.sign_digest so evidence and decision traces
+        use one identical signer. No-op / logged-failure semantics preserved:
+        signing never blocks evidence writing.
         """
-        if kms_client is None or not EVIDENCE_SIGNING_KEY_ID:
-            return
-        try:
-            digest = bytes.fromhex(record.record_hash)
-            resp = kms_client.sign(
-                KeyId=EVIDENCE_SIGNING_KEY_ID,
-                Message=digest,
-                MessageType="DIGEST",
-                SigningAlgorithm=SIGNING_ALGORITHM,
-            )
-            record.signature = base64.b64encode(resp["Signature"]).decode("ascii")
-            record.signing_key_id = EVIDENCE_SIGNING_KEY_ID
-            record.signing_algorithm = SIGNING_ALGORITHM
-        except Exception as exc:
-            logger.error(json.dumps({
-                "audit_event": "evidence_signing_failed",
-                "evidence_id": record.evidence_id,
-                "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }))
+        sig, kid, alg = sign_digest(record.record_hash, kms_client)
+        if sig:
+            record.signature = sig
+            record.signing_key_id = kid
+            record.signing_algorithm = alg
 
     @staticmethod
     def _get_previous_hash(

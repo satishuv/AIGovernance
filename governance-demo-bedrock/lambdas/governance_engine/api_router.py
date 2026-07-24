@@ -31,6 +31,7 @@ DECISION_HISTORY_TABLE_NAME = os.environ.get("DECISION_HISTORY_TABLE_NAME", "")
 AGENT_REGISTRY_TABLE_NAME = os.environ.get("AGENT_REGISTRY_TABLE_NAME", "")
 IMMUTABLE_EVIDENCE_BUCKET_NAME = os.environ.get("IMMUTABLE_EVIDENCE_BUCKET_NAME", "")
 EVIDENCE_BUCKET_NAME = os.environ.get("EVIDENCE_BUCKET_NAME", "")
+DECISION_TRACE_TABLE_NAME = os.environ.get("DECISION_TRACE_TABLE_NAME", "")
 
 
 def _api_response(status_code: int, body: Any) -> Dict[str, Any]:
@@ -63,6 +64,9 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
 
         if "/approvals/" in resource:
             return _handle_approvals(dynamodb, resource, http_method, path_params, body)
+
+        if "/decisions/" in resource and resource.endswith("/trace") and http_method == "GET":
+            return _handle_decision_trace(dynamodb, path_params)
 
         if "/decisions/" in resource and http_method == "GET":
             return _handle_decisions(dynamodb, path_params, query_params)
@@ -202,6 +206,38 @@ def _handle_decisions(dynamodb, path_params, query_params):
         "last_evaluated_key": next_key,
     }
     return _api_response(200, result)
+
+
+def _handle_decision_trace(dynamodb, path_params):
+    """GET /decisions/{decision_id}/trace -- signed, stage-by-stage rationale.
+
+    Returns the stored decision trace and re-verifies its signature so an
+    auditor sees whether the "why" is cryptographically intact.
+    """
+    if not DECISION_TRACE_TABLE_NAME:
+        return _api_response(503, {"error": "Decision trace table not configured"})
+
+    from decision_trace import DecisionTraceManager
+
+    decision_id = path_params.get("decision_id", "")
+    if not decision_id:
+        return _api_response(400, {"error": "decision_id required"})
+
+    trace = DecisionTraceManager.get_trace(decision_id, dynamodb.Table(DECISION_TRACE_TABLE_NAME))
+    if trace is None:
+        return _api_response(404, {"error": f"No decision trace for {decision_id}"})
+
+    # Re-verify signature online via KMS (auditor sees integrity status).
+    signature_verifiable = False
+    try:
+        if trace.get("signature"):
+            kms = boto3.client("kms")
+            signature_verifiable = DecisionTraceManager.verify_trace(trace, kms_client=kms)
+    except Exception:
+        signature_verifiable = False
+
+    trace["signature_verifiable"] = signature_verifiable
+    return _api_response(200, trace)
 
 
 def _handle_reports(dynamodb, resource, path_params):

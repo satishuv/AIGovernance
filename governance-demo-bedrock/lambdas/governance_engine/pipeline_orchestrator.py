@@ -46,6 +46,7 @@ from verdicts import to_aarm as _to_aarm
 from intent_alignment import IntentStore, assess_alignment
 from telemetry_export import export_decision
 from side_channel_defense import ProbeDetector, normalize_deny_timing
+from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BLOCK
 
 logger = logging.getLogger()
 
@@ -68,6 +69,7 @@ MULTI_AGENT_CONFIG_TABLE_NAME = os.environ.get("MULTI_AGENT_CONFIG_TABLE_NAME", 
 RUNTIME_DRIFT_TABLE_NAME = os.environ.get("RUNTIME_DRIFT_TABLE_NAME", "")
 AGENT_HEALTH_TABLE_NAME = os.environ.get("AGENT_HEALTH_TABLE_NAME", "")
 TOOL_AUTH_TABLE_NAME = os.environ.get("TOOL_AUTH_TABLE_NAME", "")
+DECISION_TRACE_TABLE_NAME = os.environ.get("DECISION_TRACE_TABLE_NAME", "")
 
 _ACTION_GROUP_DATA_CLASS_MAP: Dict[str, str] = {
     "ReadPipelineStatus": "pipeline_status",
@@ -107,8 +109,51 @@ def _iso_now() -> str:
 # global safe here.
 _REQUEST_START_MONOTONIC = None
 
+# Per-request decision-trace builder, set in run_pipeline. _deny_response records
+# the decisive blocking stage here so every deny path is captured in one place.
+# One request per Lambda container makes a module global safe.
+_TRACE_BUILDER = None
+# Set per request so _deny_response knows the agent/session/simulation context
+# needed to persist a signed trace on early-deny paths (which return before the
+# side-effects block).
+_TRACE_CONTEXT = {"agent_id": "", "session_id": "", "action": "", "simulation": False}
+
+# Maps an error_category (passed to _deny_response) to a human stage name for the
+# auditor trace. Covers the pipeline's blocking stages.
+_ERROR_CATEGORY_STAGE = {
+    "infrastructure_unavailable": "governance_init",
+    "kill_switch_active": "kill_switch",
+    "behavioral_invariant_violation": "behavioral_invariants",
+    "self_modification": "privilege_escalation",
+    "policy_modification": "privilege_escalation",
+    "cross_agent_violation": "multi_agent_rules",
+    "runtime_drift_critical": "runtime_drift",
+    "input_sanitization_blocked": "input_sanitizer",
+    "content_safety_blocked": "bedrock_guardrails",
+    "threat_detected": "threat_detector",
+    "agent_suspended": "agent_identity",
+    "agent_not_registered": "agent_registry",
+    "cross_environment_violation": "environment_isolation",
+    "undeclared_data_class": "data_class_access",
+    "unapproved_tool_model": "tool_model_registry",
+    "tool_auth_denied": "tool_execution_auth",
+    "exfiltration_blocked": "exfiltration_detector",
+    "unknown_verdict": "verdict_guard",
+    "pipeline_failure": "pipeline",
+}
+
 
 def _deny_response(reason: str, agent_id: str = "", error_category: str = "governance_denial") -> Dict[str, Any]:
+    # Record the decisive blocking stage in the auditor trace (single choke point
+    # for all deny paths).
+    if _TRACE_BUILDER is not None:
+        try:
+            _TRACE_BUILDER.add(
+                stage=_ERROR_CATEGORY_STAGE.get(error_category, error_category),
+                result=RESULT_BLOCK, detail=reason, decisive=True,
+            )
+        except Exception:
+            pass
     # AARM T9 timing-oracle defense: hold denials to a minimum time floor so the
     # early-exit stage (kill switch, sanitizer, threat, policy, ...) is not
     # distinguishable by latency. Skipped when no start time is set (e.g. unit
@@ -126,6 +171,22 @@ def _deny_response(reason: str, agent_id: str = "", error_category: str = "gover
         explanation=reason,
         timestamp=_iso_now(),
     )
+    # Persist a signed auditor trace for this deny (early-return paths never reach
+    # the side-effects block). Best-effort: never blocks or alters the denial.
+    if _TRACE_BUILDER is not None and DECISION_TRACE_TABLE_NAME and not _TRACE_CONTEXT.get("simulation"):
+        try:
+            trace = _TRACE_BUILDER.build(
+                decision_id=decision.decision_id,
+                agent_id=agent_id or _TRACE_CONTEXT.get("agent_id", ""),
+                action_requested=_TRACE_CONTEXT.get("action", "") or "unknown",
+                verdict="deny", session_id=_TRACE_CONTEXT.get("session_id", ""),
+            )
+            _kms = boto3.client("kms") if os.environ.get("EVIDENCE_SIGNING_KEY_ID") else None
+            DecisionTraceManager.sign_and_store(
+                trace, boto3.resource("dynamodb").Table(DECISION_TRACE_TABLE_NAME), _kms,
+            )
+        except Exception:
+            pass
     result = decision.to_dict()
     result["error_category"] = error_category
     return result
@@ -162,11 +223,19 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # AARM T9: mark request start so denials can be held to a timing floor,
     # removing the stage-of-denial latency oracle.
-    global _REQUEST_START_MONOTONIC
+    global _REQUEST_START_MONOTONIC, _TRACE_BUILDER, _TRACE_CONTEXT
     _REQUEST_START_MONOTONIC = time.monotonic()
+    # Auditor decision trace: accumulate stage reasoning across the pipeline.
+    _TRACE_BUILDER = DecisionTraceBuilder()
 
     simulation_mode = event.get("simulation_mode", False)
     agent_id = event.get("agent_id", "")
+    _TRACE_CONTEXT = {
+        "agent_id": agent_id,
+        "session_id": event.get("session_id", "") or event.get("sessionId", ""),
+        "action": event.get("action_group", ""),
+        "simulation": bool(simulation_mode),
+    }
     action_request = {
         "agent_id": agent_id,
         "action_group": event.get("action_group", ""),
@@ -454,6 +523,21 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if adjusted >= risk_engine.escalation_threshold:
                 risk_assessment.escalation_flagged = True
 
+        # Record policy + risk reasoning for the auditor trace.
+        try:
+            _TRACE_BUILDER.add(
+                stage="policy_evaluation", result="pass",
+                detail=f"policy outcome '{policy_result.outcome}' (policy {policy_result.policy_id})",
+                extra={"policy_id": policy_result.policy_id, "outcome": policy_result.outcome},
+            )
+            _TRACE_BUILDER.add(
+                stage="risk_scoring", result="pass",
+                detail=f"risk score {risk_assessment.risk_score:.1f} / threshold {risk_engine.escalation_threshold:.0f}",
+                extra={"risk_factors": dict(getattr(risk_assessment, "factors_applied", {}) or {})},
+            )
+        except Exception:
+            pass
+
         # Intent alignment (AARM R3) + drift accumulation (AARM R7).
         # Capture the stated intent on the first request of a session, then
         # score the current action's alignment. Ambiguous alignment yields
@@ -539,8 +623,42 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         decision_engine.log_decision(decision)
 
+        # Record the final decision stage in the auditor trace. If no earlier
+        # stage was marked decisive (e.g. a clean allow), the decision engine is.
+        try:
+            already_decisive = any(s.get("decisive") for s in _TRACE_BUILDER.stages)
+            _TRACE_BUILDER.add(
+                stage="decision_engine", result="pass",
+                detail=decision.explanation, decisive=not already_decisive,
+            )
+        except Exception:
+            pass
+
         # --- Side effects (skipped in simulation mode) ---
         if not simulation_mode:
+            # Auditor decision trace (AARM auditability): assemble the per-stage
+            # rationale, sign it, and store it. Best-effort like evidence write:
+            # a trace failure must never change the verdict.
+            if DECISION_TRACE_TABLE_NAME:
+                try:
+                    trace_builder = _TRACE_BUILDER
+                    trace = trace_builder.build(
+                        decision_id=decision.decision_id, agent_id=agent_id,
+                        action_requested=decision.action_requested, verdict=decision.verdict,
+                        session_id=session_id,
+                        risk_factors=dict(getattr(risk_assessment, "factors_applied", {}) or {}),
+                        policy_id=getattr(policy_result, "policy_id", ""),
+                    )
+                    trace_kms = boto3.client("kms") if os.environ.get("EVIDENCE_SIGNING_KEY_ID") else None
+                    DecisionTraceManager.sign_and_store(
+                        trace, dynamodb.Table(DECISION_TRACE_TABLE_NAME), trace_kms,
+                    )
+                except Exception as tr_exc:
+                    logger.error(json.dumps({
+                        "event": "decision_trace_pipeline_failed",
+                        "error": str(tr_exc), "decision_id": decision.decision_id,
+                        "timestamp": _iso_now(),
+                    }))
             # Evidence write
             evidence_record = None
             evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME

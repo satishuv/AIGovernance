@@ -103,6 +103,68 @@ Agent output       -->  [ Output Guardrails ]              -->  End user
 - Kill switch activation triggers CloudWatch alarm + SNS notification
 - IAM restricts kill switch write to authorized operators only
 
+## Application Security of Our Own Surface (Plane 3)
+
+The threats above govern agent *actions* (Plane 1). This section covers classic
+application security of the control plane's own attack surface: the CDK stack,
+Lambda handlers (scope enforcer entry, api_router, action-group endpoints), their
+authorization, input handling, dependencies, and secrets. Recent incidents
+(ChatGPT AgentForger CSRF, LiteLLM/Ollama exposed endpoints, the OpenAI sandbox
+escape) are Plane-3 failures: no amount of Plane-1 action-governance fixes a
+request-forgery or an unauthenticated endpoint in the surface that fronts it.
+
+Scope boundary: this covers OUR surface only. App-sec of a customer's model
+platform (e.g. ChatGPT Agent Builder) is that vendor's responsibility; we do not
+claim to secure it.
+
+### 8. Request Forgery / Unauthenticated Invocation (AgentForger class)
+**Threat:** An attacker forges a request to a governance or action endpoint, or
+auto-executes an instruction via a crafted link/parameter, standing up or
+driving an agent without genuine operator intent.
+**Mitigations:**
+- Approval / STEP_UP is governance-enforced and NOT agent- or request-configurable: an agent cannot set its own connectors to "never ask" or disable its approval requirement (the decisive AgentForger step).
+- Agent registry: unregistered/forged agents are denied (`agent_not_registered`), so a stood-up rogue agent cannot act through the control plane.
+- Scope-enforcer entry authenticates the caller and fails closed on unknown verdicts; approvals are cryptographically bound to the exact request (TOCTOU/replay defense) and single-use.
+**Residual:** CSRF/authz of any web UI that fronts the API is the deploying
+customer's responsibility; we document the requirement (authenticated,
+CSRF-protected front door) rather than provide the UI.
+
+### 9. Dependency / Supply-Chain Vulnerabilities
+**Threat:** A CVE in a runtime dependency (cf. LiteLLM CVE-2024-6587,
+CVE-2026-40217/35029) or a compromised package grants code execution.
+**Mitigations:**
+- `bandit` static scan in CI (high-severity gate).
+- `pip-audit` dependency-CVE scan in CI (added with this section).
+- `detect-secrets` scan in CI to block committed credentials.
+- Flat, minimal Lambda dependency surface (boto3 + stdlib).
+
+### 10. Secrets Handling
+**Threat:** Credentials leaked via source, logs, or environment.
+**Mitigations:**
+- No secrets in source (enforced by `.gitignore` + `detect-secrets` CI scan).
+- KMS asymmetric key for evidence signing: the private key never leaves KMS.
+- Structured logging avoids emitting secret material; deploy logs (which carry
+  request tokens) are gitignored.
+
+### 11. AI-Accelerated Vulnerability Discovery (collapsing exploit window)
+**Threat:** Frontier AI models find exploitable logic bugs, design flaws, and
+misconfigurations in our own code faster than they can be patched, shrinking the
+window between discovery and exploitation (cf. CrowdStrike Project QuiltWorks,
+April 2026).
+**Mitigations (in-repo, lightweight tier):**
+- `bandit` (static), `pip-audit` (dependency CVEs), `detect-secrets` in CI.
+- Minimal Lambda dependency surface.
+**External tool class (consume, do not build):** enterprise frontier-model SAST
++ exploit-path prioritization services (e.g. Project QuiltWorks, and the broader
+"frontier-AI vulnerability discovery" category) are the heavy tier for scanning
+OUR surface. They are a service we would be a *customer* of, not a capability
+this framework provides. Running one against this repo is the Plane-3 escalation
+path beyond the CI scanners above.
+**Compensating control (Plane 1):** when the exploit window collapses and a bug
+is unpatched, runtime action governance still denies or escalates the malicious
+*action* that tries to reach it. We do not discover the vulnerability; we govern
+the action. This is a compensating control, not a substitute for remediation.
+
 ## Fail-Safe Guarantees
 
 | Component Failure | Result | Rationale |

@@ -610,6 +610,90 @@ class ControlTrace:
 
 
 @dataclass
+class DecisionTrace:
+    """Auditor-facing, signed rationale for one governance decision.
+
+    Consolidates the per-stage reasoning the pipeline computes (which checks ran,
+    what each concluded, which was decisive) into a single tamper-evident record
+    so an auditor can answer "why did the engine decide this?". Scope is the
+    GOVERNANCE reasoning; it does not include the agent's own (unverifiable)
+    chain-of-thought.
+
+    Attributes:
+        decision_id: Identifier of the governance decision this trace explains.
+        agent_id: Identifier of the agent whose action was evaluated.
+        session_id: Session the decision belongs to (empty if none).
+        action_requested: The action the agent requested.
+        verdict: Final internal verdict (allow/deny/escalate/modify/defer).
+        aarm_decision: AARM R4 decision name (escalate maps to STEP_UP).
+        decisive_stage: Name of the stage that produced the verdict.
+        stages: Ordered list of stage dicts {stage, result, detail, decisive, timestamp}.
+        risk_factors: Applied risk factor weights (from RiskAssessment.factors_applied).
+        policy_id: Identifier of the matched policy.
+        timestamp: ISO 8601 timestamp of the trace.
+        trace_hash: SHA-256 over the trace (excluding hash+signature fields).
+        signature: Offline-verifiable KMS signature over trace_hash.
+        signing_key_id: KMS key id used to sign.
+        signing_algorithm: Signing algorithm (ECDSA_SHA_256).
+    """
+
+    decision_id: str
+    agent_id: str
+    action_requested: str
+    verdict: str
+    timestamp: str
+    session_id: str = ""
+    aarm_decision: str = ""
+    decisive_stage: str = ""
+    stages: List[Dict[str, Any]] = field(default_factory=list)
+    risk_factors: Dict[str, Any] = field(default_factory=dict)
+    policy_id: str = ""
+    trace_hash: str = ""
+    signature: str = ""
+    signing_key_id: str = ""
+    signing_algorithm: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "decision_id": self.decision_id,
+            "agent_id": self.agent_id,
+            "action_requested": self.action_requested,
+            "verdict": self.verdict,
+            "timestamp": self.timestamp,
+            "session_id": self.session_id,
+            "aarm_decision": self.aarm_decision,
+            "decisive_stage": self.decisive_stage,
+            "stages": [dict(s) for s in self.stages],
+            "risk_factors": dict(self.risk_factors),
+            "policy_id": self.policy_id,
+            "trace_hash": self.trace_hash,
+            "signature": self.signature,
+            "signing_key_id": self.signing_key_id,
+            "signing_algorithm": self.signing_algorithm,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DecisionTrace":
+        return cls(
+            decision_id=data["decision_id"],
+            agent_id=data["agent_id"],
+            action_requested=data["action_requested"],
+            verdict=data["verdict"],
+            timestamp=data["timestamp"],
+            session_id=data.get("session_id", ""),
+            aarm_decision=data.get("aarm_decision", ""),
+            decisive_stage=data.get("decisive_stage", ""),
+            stages=data.get("stages", []),
+            risk_factors=data.get("risk_factors", {}),
+            policy_id=data.get("policy_id", ""),
+            trace_hash=data.get("trace_hash", ""),
+            signature=data.get("signature", ""),
+            signing_key_id=data.get("signing_key_id", ""),
+            signing_algorithm=data.get("signing_algorithm", ""),
+        )
+
+
+@dataclass
 class PolicyVersion:
     """Version metadata for a policy definition in the lifecycle.
 

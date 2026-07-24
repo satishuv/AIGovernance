@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 RETENTION_DAYS = {"standard": 365, "extended": 2555}
 
-# Must match evidence_pipeline._HASH_EXCLUDED_FIELDS: fields not covered by the
-# SHA-256 record hash (the hash itself and the signature derived from it).
-_HASH_EXCLUDED_FIELDS = ("record_hash", "signature", "signing_key_id", "signing_algorithm")
+# Single source of truth shared with evidence_pipeline and decision_trace, so
+# hash recomputation on verify matches how the hash was computed on write, for
+# both evidence records (record_hash) and decision traces (trace_hash).
+from crypto_signing import HASH_EXCLUDED_FIELDS as _HASH_EXCLUDED_FIELDS
 
 
 class EvidenceIntegrity:

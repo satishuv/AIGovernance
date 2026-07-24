@@ -144,6 +144,17 @@ class StorageConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # Auditor decision-trace store: signed, per-decision "why" rationale.
+        self.decision_trace_table = dynamodb.Table(
+            self,
+            "DecisionTraceTable",
+            partition_key=dynamodb.Attribute(
+                name="decision_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         self.agent_registry_table = dynamodb.Table(
             self,
             "AgentRegistryTable",
