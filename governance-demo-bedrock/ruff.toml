@@ -1,0 +1,10 @@
+# Pin the lint rule set so CI is reproducible across ruff releases.
+# ruff installs unpinned in CI; without this, a new ruff version can enable
+# additional default rules and break lint on unchanged code. We enforce the
+# historical default set (pyflakes + a focused subset of pycodestyle) which
+# catches real errors (undefined names, unused imports, syntax) without
+# stylistic churn like line-length or import-ordering.
+line-length = 120
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
