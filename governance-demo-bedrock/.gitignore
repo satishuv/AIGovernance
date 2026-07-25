@@ -22,3 +22,6 @@ Thumbs.db
 # Generated outputs
 deploy.log
 evidence_packages/
+network_resources.json
+scp_ids.txt
+rcp_id.txt
