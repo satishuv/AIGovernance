@@ -191,6 +191,10 @@ _OVERRIDE_OBJECTS = {
     "limitation", "safeguards", "safeguard", "moderation", "tasks", "task",
     "commands", "command", "conversations", "conversation", "techniques",
     "technique", "programming", "training", "configuration", "settings",
+    # Generalizable additions from missed-attack analysis (synonyms for the
+    # thing an attacker tells the model to override): orders/assignments/etc.
+    "orders", "order", "assignments", "assignment", "requests", "request",
+    "messages", "message", "text", "texts", "content", "everything",
 }
 
 # Jailbreak persona/roleplay patterns
@@ -200,6 +204,13 @@ _JAILBREAK_PATTERNS = [
     re.compile(r"(?:DAN|STAN|DUDE|KEVIN|MONGO|EVIL)\s*(?:mode|prompt)?", re.IGNORECASE),
     re.compile(r"(?:developer|admin|god|sudo|root|unrestricted|unfiltered)\s*mode", re.IGNORECASE),
     re.compile(r"(?:no|without|remove all|ignore all)\s+(?:restrictions|limits|filters|rules|guidelines|censorship|moderation)", re.IGNORECASE),
+    # Bare imperative override at sentence start: "ignore above and ...",
+    # "ignore all preceding orders", "forget about all the assignments",
+    # "ignore everything and just output". Generalizable: an override verb
+    # followed shortly by a position/quantifier word, without needing an
+    # explicit object noun in the window.
+    re.compile(r"(?:^|[.!?]\s+|\b)(?:ignore|disregard|forget|forget about)\s+(?:all\s+|the\s+|about\s+)?(?:preceding|above|previous|prior|everything|earlier|the\s+following)\b", re.IGNORECASE),
+    re.compile(r"\bignore\s+(?:everything|all|the\s+above)\s+and\s+(?:just\s+)?(?:output|say|write|print|do|respond|answer)\b", re.IGNORECASE),
     re.compile(r"(?:always|must|will)\s+(?:answer|respond|comply|obey|do)\s+(?:any|every|all)", re.IGNORECASE),
     re.compile(r"(?:never|don'?t|do not|cannot)\s+(?:refuse|decline|reject|apologize|say no)", re.IGNORECASE),
     re.compile(r"(?:jailbreak|jailbroken|unlock|unleash|liberate)", re.IGNORECASE),

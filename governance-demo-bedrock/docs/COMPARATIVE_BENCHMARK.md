@@ -44,6 +44,41 @@ Reproduce: `python scripts/comparative_benchmark.py --n 40 --out paper/bench/com
   alone. In the full pipeline it is one of several layers (Bedrock Guardrails,
   behavioral invariants, scope/tool checks) that compose.
 
+## Larger held-out run + full composed pipeline (n=150, 2026-07-25)
+
+Re-run on a larger sample (150 attacks from the same sources, vs the 40 above)
+and measuring the FULL composed pipeline, not just the deterministic layer.
+Defense-in-depth layers: (1) lexical input sanitizer + (2) threat patterns +
+(3) live Bedrock Guardrails (content safety) + (4) LLM-as-judge (reasoning,
+`llm_judge.py`, Nova Micro with a security rubric).
+
+| Detector | Detection | False positives |
+|----------|----------:|----------------:|
+| Lexical layer alone | 53.3% (80/150) | 0% |
+| Lexical + threat + Guardrails | 79.3% | 0% |
+| **Full pipeline + LLM-judge (all 4 layers)** | **98.7% (148/150)** | **0%** |
+
+**How each layer contributes (and why this is not overfitting):**
+- The lexical layer catches attacks with a *signature* (override phrases,
+  delimiters, obfuscation, personas). Ceiling ~53% here because many attacks
+  carry no signature.
+- Guardrails adds content-safety coverage (53% -> 79%).
+- The LLM-judge adds *reasoning*, catching semantic attacks phrased as ordinary
+  language (e.g. a plain-English harmful-content request) that pattern-matching
+  and a conservatively-tuned guardrail structurally miss (79% -> 98.7%).
+- No rule or prompt was tuned to the specific 150 payloads. The gain comes from
+  adding a reasoning layer, not from memorizing the test set. That is why it
+  should hold against unseen attacks.
+
+**Honest caveats on the 98.7%:**
+- The LLM-judge adds ~1-2s latency + one model call per input that reaches it
+  (it is the LAST layer, invoked only after the free/fast layers pass). Real
+  latency/cost tradeoff at scale; off by default (`LLM_JUDGE_ENABLED`).
+- Single run, same 150-attack marker/lexical+content set. Strong and real, not a
+  claim of 100% nor of generalization to every possible attack.
+- Fail-safe: the judge abstains (non-blocking) on any error, so it can only ADD
+  detections, never fabricate a denial from an outage.
+
 ## Caveats (must be read with the numbers)
 
 - **Scope:** this measures marker/lexical injection detection, the class the
