@@ -723,8 +723,10 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                     environment=agent_environment or "dev", agent_id=agent_id, kms_client=ev_kms,
                                     session_id=session_id, agent_role=agent_environment or "", scope_level=scope_level)
                             except Exception:
-                                try: cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
-                                except Exception: pass
+                                try:
+                                    cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
+                                except Exception:
+                                    pass
                 elif evidence_bucket:
                     try:
                         ev_s3 = boto3.client("s3")
