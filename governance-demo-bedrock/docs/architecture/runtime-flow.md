@@ -1,6 +1,17 @@
 # Runtime Flow: 20-Step Governance Pipeline
 
-The complete sequence from user request to governed response. Every step runs in <200ms total for ALLOW, <50ms for DENY (short-circuits early).
+The complete sequence from user request to governed response.
+
+**Measured latency (single-Lambda mode, warm, us-east-1, 2026-07-24):** ALLOW
+~3.5s server-side (billed Duration) p50, of which ~2.0s is tracked governance
+work; DENY short-circuits early (~0.8s client round-trip). Cold start adds only
+~90ms (Init Duration), so cold start is NOT the dominant cost. The dominant
+costs are synchronous evidence write to the WORM bucket (~1.4s, includes KMS
+signing) and S3 policy load (~0.5s). See the latency breakdown below and
+[Latency and performance](#latency-and-performance) for the honest picture and
+the paths to reduce it (Step Functions Express mode, async evidence, policy
+caching). Earlier docs cited a ~200ms target; that was an unbenchmarked design
+goal, not a measured figure, and is corrected here.
 
 ---
 
@@ -154,16 +165,58 @@ Kill Switch (DynamoDB direct)
 EventBridge --> [PostDecision Lambda]   <-- ASYNC (non-blocking)
 ```
 
-- Parallel: Input defense and authorization run simultaneously (halves latency)
-- Async: Evidence writing does not block the response
+- Parallel: Input defense and authorization run simultaneously
+- Async: Evidence writing does not block the response (the ~1.4s evidence write
+  that dominates single-Lambda mode moves off the hot path here)
 - Scale: 100,000+ concurrent executions
-- Latency: ~200ms for ALLOW, <50ms for DENY (short-circuits early)
+- Latency: **design target ~200ms for ALLOW; NOT yet benchmarked in this mode.**
+  Only single-Lambda mode has been measured (see below). The parallel +
+  async-evidence design should be materially faster than single-Lambda's ~3.5s,
+  but that figure is a target until measured, not a verified result.
 
 ### Single Lambda (Development)
 
 All 20 steps run sequentially in one Governance Engine Lambda invocation. Same checks, simpler to debug. Switch via `GOVERNANCE_MODE=lambda` on Scope Enforcer.
 
 ---
+
+## Latency and performance
+
+Honest, measured numbers (deployed on Isengard, single-Lambda mode, warm,
+us-east-1, 2026-07-24). These replace an earlier unbenchmarked "~200ms" design
+target that was off by roughly 10-17x.
+
+| Metric | Measured |
+|--------|----------|
+| ALLOW, server-side billed Duration, p50 | ~3.5s |
+| ALLOW, tracked governance work, p50 | ~2.0s |
+| DENY (injection), client round-trip | ~0.8s |
+| Cold start (Init Duration) | ~90ms |
+
+**Where the ALLOW time goes** (tracked spans, p50):
+
+| Stage | Time |
+|-------|------|
+| Evidence write to WORM bucket (incl. KMS signing) | ~1.4s |
+| Policy evaluation (S3 policy load) | ~0.5s |
+| Decision engine | ~0.14s |
+| Risk scoring | <0.01s |
+
+**Key finding:** cold start is negligible (~90ms), so provisioned concurrency is
+NOT the fix. The dominant costs are the synchronous evidence write and the S3
+policy load on the hot path. Honest paths to reduce ALLOW latency, in order of
+impact:
+
+1. **Move evidence write off the hot path.** Step Functions mode already fires
+   evidence asynchronously via EventBridge; single-Lambda mode currently writes
+   inline. Making the single-Lambda evidence write async would remove ~1.4s.
+2. **Cache policies in memory** instead of loading from S3 per request (~0.5s).
+3. **Use Step Functions Express mode** for the parallel path (design target
+   ~200ms, not yet benchmarked).
+
+Until those land, single-Lambda mode is honestly suited to lower-throughput or
+non-latency-critical governed workloads (e.g. CI/CD gating, batch review), not
+sub-second interactive agent loops.
 
 ## Per-Tool-Call Security (Inside Agent Execution)
 
@@ -177,20 +230,27 @@ Even after the governance pipeline approves a session, the Action Group Lambda e
 | Tool response validation | Scan data FROM tools for injection, anomalies | ~3ms |
 | Output sanitization | Strip ARNs, credentials, JWTs, internal resource names | ~5ms |
 
-Total per-tool overhead: ~15ms. No external Lambda calls. Inline checks only.
+Total per-tool overhead: ~15ms (engineering estimate; these are pure in-process
+regex/dict checks with no external calls, so the estimate is plausible, but the
+per-check millisecond values here are not individually benchmarked). No external
+Lambda calls. Inline checks only.
 
 ---
 
 ## Short-Circuit Behavior
 
-The pipeline is designed to fail fast:
+The pipeline is designed to fail fast: DENY paths short-circuit early and skip
+the expensive evidence write, so they are much faster than ALLOW. Measured DENY
+(injection, single-Lambda, warm) is ~0.8s client round-trip. The relative
+ordering below is by design; the per-row millisecond values are engineering
+estimates of the *internal* short-circuit point, not individually benchmarked.
 
-| Condition | Short-circuits at | Total latency |
-|-----------|-------------------|---------------|
-| Kill switch active (scope 0) | Step 1 | <5ms |
-| Agent not registered | Step 2 | <10ms |
-| Input injection detected | Steps 4-11 | <30ms |
-| Tool not in allowlist | Step 12 | <40ms |
-| Policy DENY | Step 13 | <50ms |
-| Behavioral invariant violated | Step 16 | <60ms |
-| Full ALLOW path | Step 18 | ~200ms |
+| Condition | Short-circuits at | Relative cost (est.) |
+|-----------|-------------------|----------------------|
+| Kill switch active (scope 0) | Step 1 | fastest (DynamoDB read only) |
+| Agent not registered | Step 2 | very fast |
+| Input injection detected | Steps 4-11 | fast (no policy/evidence) |
+| Tool not in allowlist | Step 12 | fast |
+| Policy DENY | Step 13 | fast (skips evidence write) |
+| Behavioral invariant violated | Step 16 | fast |
+| Full ALLOW path | Step 18 | **~3.5s measured (single-Lambda, warm); evidence write dominates** |

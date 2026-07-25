@@ -115,7 +115,11 @@ EventBridge --> [PostDecision Lambda]   <-- ASYNC (non-blocking)
 - Parallel: Input defense and authorization run simultaneously
 - Async: Evidence writing does not block the response
 - Scale: 100,000+ concurrent executions
-- Latency: ~200ms for ALLOW, <50ms for DENY (short-circuits early)
+- Latency (Step Functions mode): **design target ~200ms for ALLOW, not yet
+  benchmarked.** Measured single-Lambda mode is ~3.5s for ALLOW (warm), dominated
+  by the synchronous evidence write, not cold start. See
+  [runtime-flow.md](architecture/runtime-flow.md#latency-and-performance) for the
+  measured breakdown and honest reduction paths.
 
 ### Single Lambda (Development)
 

@@ -184,4 +184,4 @@ the action. This is a compensating control, not a substitute for remediation.
 | DynamoDB eventually-consistent reads on scope table | Low | Scope changes propagate within milliseconds; risk window is negligible |
 | `cloudwatch:PutMetricData` uses `Resource: "*"` | Low | Restricted to namespace `AGCP/Governance` via IAM condition; AWS limitation |
 | Model-level hallucination affecting action selection | Medium | Governance validates the ACTION, not the model's reasoning; wrong action still gets governed |
-| Latency overhead (1.2-2s per decision in Lambda mode) | Low | Step Functions mode reduces to ~200ms; acceptable for governed workloads |
+| Latency overhead (measured ~3.5s ALLOW / ~0.8s DENY, single-Lambda warm) | Medium | Dominated by synchronous evidence write (~1.4s) + S3 policy load (~0.5s), not cold start (~90ms). Acceptable for non-latency-critical governed workloads (CI/CD gating, batch); reduction paths (async evidence, policy cache, Step Functions mode) documented in runtime-flow.md. Step Functions target ~200ms not yet benchmarked. |

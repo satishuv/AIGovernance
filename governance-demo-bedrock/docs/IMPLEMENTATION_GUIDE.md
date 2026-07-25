@@ -41,9 +41,16 @@ This guide provides step-by-step instructions for deploying the AIGovernance fra
 - Lambda mode retained for development/testing (lower cost, simpler debugging)
 - Feature flag (`GOVERNANCE_MODE`) allows runtime switching without redeployment
 
-**Consequences:**
-- Lambda mode: ~200ms end-to-end, suitable for < 1000 requests/day
-- Step Functions mode: ~120ms critical path (parallel), async evidence, suitable for production scale
+**Consequences (latency):**
+- Lambda mode: **measured ~3.5s for ALLOW (warm, single-Lambda), ~0.8s for DENY.**
+  Dominated by the synchronous evidence write (~1.4s) and S3 policy load (~0.5s),
+  NOT cold start (~90ms). Suitable for lower-throughput / non-latency-critical
+  governed workloads (CI/CD gating, batch review). Earlier "~200ms" was an
+  unbenchmarked target and is corrected here. See
+  [runtime-flow.md](architecture/runtime-flow.md#latency-and-performance).
+- Step Functions mode: parallel path with async evidence; **design target
+  ~120-200ms, not yet benchmarked.** Should be materially faster than Lambda mode
+  because evidence write leaves the hot path, but that is a target until measured.
 - Teams choose mode based on throughput requirements
 
 ---
