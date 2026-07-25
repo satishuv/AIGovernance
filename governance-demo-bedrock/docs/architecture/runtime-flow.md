@@ -207,10 +207,19 @@ NOT the fix. The dominant costs are the synchronous evidence write and the S3
 policy load on the hot path. Honest paths to reduce ALLOW latency, in order of
 impact:
 
-1. **Move evidence write off the hot path.** Step Functions mode already fires
-   evidence asynchronously via EventBridge; single-Lambda mode currently writes
-   inline. Making the single-Lambda evidence write async would remove ~1.4s.
-2. **Cache policies in memory** instead of loading from S3 per request (~0.5s).
+1. **Move evidence write off the hot path (~1.4s).** This is best done via Step
+   Functions mode, which already fires evidence asynchronously through
+   EventBridge, a DURABLE queue. Note: naive "fire-and-forget" in single-Lambda
+   mode is NOT safe, Lambda freezes the environment after the response returns,
+   so a backgrounded write can silently never complete, and silently losing
+   audit evidence is worse than being slow. The durable-queue approach (Step
+   Functions / EventBridge) is the correct fix; single-Lambda keeps the evidence
+   write synchronous on purpose.
+2. **Cache policies in memory (~0.5s). DONE:** the OPA engine is now cached per
+   warm container with a 60s TTL (`_get_cached_opa_engine` in
+   pipeline_orchestrator.py), removing the per-request S3 policy load while still
+   honoring the 60s policy-refresh requirement. First (cold) request still pays
+   the load.
 3. **Use Step Functions Express mode** for the parallel path (design target
    ~200ms, not yet benchmarked).
 

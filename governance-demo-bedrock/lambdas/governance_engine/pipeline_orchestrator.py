@@ -103,6 +103,32 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Warm-container OPA policy cache. Loading policies from S3 on every invocation
+# costs ~0.5s (measured); policies change rarely, so cache per container with a
+# short TTL. Honors the 60s policy-refresh requirement: a warm container picks
+# up policy changes within TTL_SECONDS. Safe (no correctness risk): on any load
+# error we fall back to a fresh engine, and OPA evaluation itself is fail-closed.
+_OPA_CACHE = {"engine": None, "loaded_monotonic": 0.0}
+_OPA_CACHE_TTL_SECONDS = 60.0
+
+
+def _get_cached_opa_engine() -> "OPAEngine":
+    now = time.monotonic()
+    cached = _OPA_CACHE["engine"]
+    if cached is not None and (now - _OPA_CACHE["loaded_monotonic"]) < _OPA_CACHE_TTL_SECONDS:
+        return cached
+    engine = OPAEngine()
+    try:
+        engine.load_policies_from_s3(boto3.client("s3"), POLICY_BUCKET_NAME, POLICY_PREFIX)
+        _OPA_CACHE["engine"] = engine
+        _OPA_CACHE["loaded_monotonic"] = now
+    except Exception:
+        # Do not cache a failed load; return the (empty) engine so the caller's
+        # fail-closed path (safe_evaluate_opa / default-deny) still applies.
+        pass
+    return engine
+
+
 # Request-start monotonic time, set per invocation in run_pipeline. Used to
 # apply the AARM T9 deny-timing floor so denials do not leak the stage of denial
 # via response latency. One request per Lambda container at a time makes a module
@@ -497,8 +523,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             action_request["environment_filter"] = env_policy_filter
 
         with tracker.track("policy_evaluation"):
-            opa_engine = OPAEngine()
-            opa_engine.load_policies_from_s3(boto3.client("s3"), POLICY_BUCKET_NAME, POLICY_PREFIX)
+            opa_engine = _get_cached_opa_engine()
 
             if opa_engine.rule_count > 0:
                 now_utc = datetime.now(timezone.utc)
