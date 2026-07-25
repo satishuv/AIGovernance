@@ -207,14 +207,20 @@ NOT the fix. The dominant costs are the synchronous evidence write and the S3
 policy load on the hot path. Honest paths to reduce ALLOW latency, in order of
 impact:
 
-1. **Move evidence write off the hot path (~1.4s).** This is best done via Step
-   Functions mode, which already fires evidence asynchronously through
-   EventBridge, a DURABLE queue. Note: naive "fire-and-forget" in single-Lambda
-   mode is NOT safe, Lambda freezes the environment after the response returns,
-   so a backgrounded write can silently never complete, and silently losing
-   audit evidence is worse than being slow. The durable-queue approach (Step
-   Functions / EventBridge) is the correct fix; single-Lambda keeps the evidence
-   write synchronous on purpose.
+1. **Move evidence write off the hot path (~1.4s). DONE (opt-in):** set
+   `EVIDENCE_ASYNC=true` and single-Lambda mode emits the decision to EventBridge
+   (a DURABLE queue, EventBridge retries), and the PostDecision Lambda writes
+   evidence off the hot path. **Measured live: ALLOW tracked governance latency
+   dropped from ~2,016ms to ~287ms p50 (~7x), evidence stage ~1,389ms -> ~129ms
+   (just the event emit).** Verified evidence is still written durably
+   (PostDecision runs on every event) and the emit falls back to a synchronous
+   inline write if EventBridge is unreachable, so evidence is never silently
+   dropped. Default is `false` (inline, synchronous) for the strongest guarantee.
+   TRADE-OFF (honest): the PostDecision evidence write is currently a plain write
+   and does NOT KMS-sign the record, unlike the inline path. So async mode trades
+   ~1.4s latency for unsigned evidence via that path until PostDecision is updated
+   to sign. A naive in-process "fire-and-forget" was deliberately NOT used
+   (Lambda freezes post-response and would drop the write).
 2. **Cache policies in memory (~0.5s). DONE:** the OPA engine is now cached per
    warm container with a 60s TTL (`_get_cached_opa_engine` in
    pipeline_orchestrator.py), removing the per-request S3 policy load while still

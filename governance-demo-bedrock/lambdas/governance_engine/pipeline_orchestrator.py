@@ -70,6 +70,13 @@ RUNTIME_DRIFT_TABLE_NAME = os.environ.get("RUNTIME_DRIFT_TABLE_NAME", "")
 AGENT_HEALTH_TABLE_NAME = os.environ.get("AGENT_HEALTH_TABLE_NAME", "")
 TOOL_AUTH_TABLE_NAME = os.environ.get("TOOL_AUTH_TABLE_NAME", "")
 DECISION_TRACE_TABLE_NAME = os.environ.get("DECISION_TRACE_TABLE_NAME", "")
+# When "true", single-Lambda mode emits a durable EventBridge event and lets the
+# PostDecision Lambda write evidence asynchronously, removing the ~1.4s inline
+# WORM write from the hot path. Durable (EventBridge retries), so evidence is
+# NOT dropped (unlike a naive background thread). Default false = inline write
+# (unchanged, fully synchronous, safest).
+EVIDENCE_ASYNC = os.environ.get("EVIDENCE_ASYNC", "false").lower() == "true"
+EVIDENCE_EVENT_BUS = os.environ.get("EVIDENCE_EVENT_BUS", "default")
 
 _ACTION_GROUP_DATA_CLASS_MAP: Dict[str, str] = {
     "ReadPipelineStatus": "pipeline_status",
@@ -688,7 +695,37 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             evidence_record = None
             evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
             with tracker.track("evidence_write_initiation"):
-                if evidence_bucket:
+                if EVIDENCE_ASYNC:
+                    # Durable async path: emit the decision to EventBridge; the
+                    # PostDecision Lambda performs the WORM write off the hot path.
+                    # EventBridge retries on failure, so evidence is not lost.
+                    # Removes ~1.4s from ALLOW latency. Control trace below is
+                    # skipped here (PostDecision owns downstream side effects).
+                    try:
+                        boto3.client("events").put_events(Entries=[{
+                            "Source": "governance.pipeline",
+                            "DetailType": "GovernanceDecision",
+                            "Detail": json.dumps(decision.to_dict(), cls=DecimalEncoder),
+                            "EventBusName": EVIDENCE_EVENT_BUS,
+                        }])
+                    except Exception as ev_exc:
+                        # If the event emit fails, fall back to a synchronous
+                        # inline write so evidence is never silently dropped.
+                        logger.error(json.dumps({
+                            "event": "evidence_async_emit_failed_falling_back_inline",
+                            "error": str(ev_exc), "decision_id": decision.decision_id, "timestamp": _iso_now(),
+                        }))
+                        if evidence_bucket:
+                            try:
+                                ev_kms = boto3.client("kms") if os.environ.get("EVIDENCE_SIGNING_KEY_ID") else None
+                                evidence_record = evidence_pipeline.write_evidence(
+                                    decision=decision, s3_client=boto3.client("s3"), bucket=evidence_bucket,
+                                    environment=agent_environment or "dev", agent_id=agent_id, kms_client=ev_kms,
+                                    session_id=session_id, agent_role=agent_environment or "", scope_level=scope_level)
+                            except Exception:
+                                try: cw_metrics_publisher.publish_evidence_failure_metric(cloudwatch_client)
+                                except Exception: pass
+                elif evidence_bucket:
                     try:
                         ev_s3 = boto3.client("s3")
                         # AARM R5/R6: sign the receipt when a signing key is

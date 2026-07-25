@@ -104,6 +104,14 @@ class GovernanceEngineConstruct(Construct):
         storage.evidence_signing_key.grant(self.governance_engine_lambda, "kms:Sign")
         # Auditor decision traces: write signed traces + serve GET /trace.
         storage.decision_trace_table.grant_read_write_data(self.governance_engine_lambda)
+        # Optional async-evidence mode: emit decision events to EventBridge so the
+        # PostDecision Lambda writes evidence off the hot path (EVIDENCE_ASYNC=true).
+        self.governance_engine_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{stack.region}:{stack.account}:event-bus/default"],
+            )
+        )
 
         self.governance_engine_lambda.add_to_role_policy(
             iam.PolicyStatement(
