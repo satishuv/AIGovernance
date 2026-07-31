@@ -227,4 +227,4 @@ Update policy in S3. Takes effect in **60 seconds**. Zero deployment.
 **[Author]**
 [Affiliation]
 
-satishuv@amazon.com
+Available on request.

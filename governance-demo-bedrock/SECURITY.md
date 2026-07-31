@@ -6,7 +6,7 @@ If you discover a security vulnerability in this project, please report it respo
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email: satishuv@amazon.com
+Instead, use the GitHub private security advisory feature for this repository (Security > Advisories > New draft security advisory).
 
 Include:
 - Description of the vulnerability
