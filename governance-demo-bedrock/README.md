@@ -67,8 +67,8 @@ Request
   +-- Tool execution authorization
   +-- OPA policy evaluation
   +-- Risk scoring (0-100, 5 weighted factors)
-  +-- Intent alignment + cumulative drift (AARM R7)
-  +-- Side-channel probe detection (AARM T9)
+  +-- Intent alignment + cumulative drift
+  +-- Side-channel probe detection
   +-- Information-flow taint tracking (cross-session, provenance-based)
   +-- Decision engine (ALLOW / DENY / ESCALATE / MODIFY / DEFER)
   +-- Signed auditor trace (KMS ECDSA, stage-by-stage "why")
@@ -195,7 +195,7 @@ All imports in `lambdas/governance_engine/` must be flat: `from models import Go
 | Document | What it covers |
 |----------|---------------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full pipeline flow, execution modes, security model |
-| [docs/AARM_CONFORMANCE.md](docs/AARM_CONFORMANCE.md) | R1-R9 requirement mapping and test evidence |
+| [docs/GOVERNANCE_SPEC_CONFORMANCE.md](docs/GOVERNANCE_SPEC_CONFORMANCE.md) | Requirement mapping and test evidence |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Threat actors, attack surfaces, fail-safe table |
 | [docs/CONTROL_CATALOG.md](docs/CONTROL_CATALOG.md) | 93 implemented controls across 20 domains |
 | [docs/OPERATIONAL_RUNBOOK.md](docs/OPERATIONAL_RUNBOOK.md) | Alarm response procedures |
@@ -208,4 +208,4 @@ All imports in `lambdas/governance_engine/` must be flat: `from models import Go
 
 ## Author
 
-Author, [Affiliation]
+Available on request.

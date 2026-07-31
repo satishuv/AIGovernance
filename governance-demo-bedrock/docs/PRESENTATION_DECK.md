@@ -1,6 +1,6 @@
 # Live Security Depth: Guardrails, Automated Reasoning, and HIPAA PII
 
-**Presenter:** Author
+**Presenter:** [Author]
 **Duration:** 25 minutes (10:05 AM - 10:30 AM)
 **Format:** Technical deep-dive with live demo
 
@@ -11,7 +11,7 @@
 **Live Security Depth for Agentic AI**
 Guardrails, Automated Reasoning, and HIPAA PII Detection
 
-Author
+[Author]
 [Affiliation]
 
 ---

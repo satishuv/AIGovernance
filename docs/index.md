@@ -317,4 +317,4 @@ python -m pytest tests/ -v                     # 225 tests
 
 ## Author
 
-**Author** - [Affiliation]
+Available on request.

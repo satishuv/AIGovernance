@@ -28,7 +28,7 @@ style: |
 
 ## Guardrails, Automated Reasoning & HIPAA PII Detection
 
-**Author**
+**[Author]**
 [Affiliation]
 
 ---
@@ -224,7 +224,7 @@ Update policy in S3. Takes effect in **60 seconds**. Zero deployment.
 
 # Questions?
 
-**Author**
+**[Author]**
 [Affiliation]
 
 satishuv@amazon.com

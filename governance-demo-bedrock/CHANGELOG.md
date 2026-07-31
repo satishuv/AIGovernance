@@ -55,8 +55,8 @@ API surface is not yet stability-guaranteed (see Versioning below).
 - Apache-2.0 LICENSE.
 - Plane-3 application-security threat model (request forgery, dependency CVEs,
   secrets, AI-accelerated vuln discovery) and CI scanning (pip-audit, detect-secrets).
-- AARM R1-R9 controls (five verdicts incl. MODIFY/DEFER, intent alignment,
-  semantic drift, OTLP telemetry) and T9 side-channel defenses.
+- Runtime governance spec controls (five verdicts incl. MODIFY/DEFER, intent alignment,
+  semantic drift, OTLP telemetry) and side-channel defenses.
 
 ### Changed
 - Latency documentation corrected to measured numbers (ALLOW ~3.5s single-Lambda
@@ -75,7 +75,7 @@ API surface is not yet stability-guaranteed (see Versioning below).
   False negatives possible when untrusted content is reformatted before re-use.
 - Single-Lambda ALLOW latency ~3.5s; async-evidence fix (durable Step Functions
   path) is the recommended production configuration.
-- AARM: technical requirements R1-R9 implemented; NOT certified/conformant
+- Runtime governance spec: technical requirements implemented; NOT certified/conformant
   (organizational preconditions unmet). Do not claim conformance.
 - Multi-account: structure demonstrated in a single account; not a true
   multi-account production deployment.

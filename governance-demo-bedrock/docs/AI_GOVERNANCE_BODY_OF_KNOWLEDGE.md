@@ -2,7 +2,7 @@
 
 **A Complete Framework for Governing Autonomous AI Systems in the Enterprise**
 
-*By Author*
+*Author available on request.*
 
 ---
 
@@ -467,7 +467,7 @@ Scale:
 
 ## About the Author
 
-**Author** is an Associate Assurance Consultant at [Affiliation]. He built the AIGovernance reference implementation - the first open-source production-grade runtime governance framework for autonomous AI agents on AWS. His work spans ISO 42001, NIST AI RMF, and enterprise compliance for regulated organizations worldwide.
+Author information available on request.
 
 ---
 
