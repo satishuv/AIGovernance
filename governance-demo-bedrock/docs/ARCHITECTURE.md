@@ -89,8 +89,8 @@ tests triggered. Results will be available in 10 minutes."
 
 | Engine | When | Purpose | Components |
 |--------|------|---------|-----------|
-| **Preventive** | Before execution | Block unauthorized or dangerous actions | OPA policy engine, input sanitizer, threat detector, tool auth, scope enforcement, behavioral invariants |
-| **Detective** | During and after | Monitor for anomalies, track health | Runtime drift detection, continuous monitoring, CloudWatch metrics, decision history |
+| **Preventive** | Before execution | Block unauthorized or dangerous actions | OPA policy engine, input sanitizer, threat detector, tool auth, scope enforcement, behavioral invariants, information-flow taint check, Cedar role-boxing |
+| **Detective** | During and after | Monitor for anomalies, track health | Runtime drift detection, continuous monitoring, CloudWatch metrics, decision history, cumulative drift tracking |
 | **Proactive** | Before config changes | Validate policies and configs are safe | (Planned: policy validation, config drift prevention) |
 
 ## Execution Modes
@@ -168,13 +168,15 @@ Verdict: DENY
 | Threat | Layer 1 (Preventive) | Layer 2 (Per-Tool) | Layer 3 (Infrastructure) |
 |--------|---------------------|-------------------|-------------------------|
 | Prompt injection | Input sanitizer (base64, ChatML, leet-speak) | N/A | N/A |
-| Scope escalation | OPA policy denies | Scope-action-group check | IAM permission boundary |
+| Indirect injection via tool data | Information-flow taint check (flags untrusted source to privileged sink) | Tool response validator | N/A |
+| Scope escalation | OPA policy denies | Scope-action-group check | IAM permission boundary (dynamically set per decision) |
 | SQL injection in params | Threat detector (regex) | Parameter injection scan | N/A |
 | Data exfiltration | Exfiltration detector (output size) | Output sanitization | S3 bucket policies |
 | Credential leakage | N/A | Output sanitization strips secrets | IAM role isolation |
 | Agent compromise | Canary tripwire detection | N/A | Kill switch (instant) |
 | Unauthorized tools | Tool/model registry | Scope enforcement | IAM actions restricted |
 | After-hours deploy | Behavioral invariants | N/A | N/A |
+| AI compliance determination | Cedar role-boxing (HUMAN_ONLY_ACTIONS) | N/A | N/A |
 
 ## Key Design Decisions
 

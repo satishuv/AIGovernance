@@ -19,7 +19,9 @@ Thank you for your interest in contributing to AIGovernance.
 ### Running Tests
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -v           # 344 tests, ~25s, no AWS required
+python -m pytest tests/ -q           # quick summary
+python -m pytest tests/ -k "not live"  # skip the LIVE_AWS=1 IAM test
 ```
 
 ### Linting
@@ -53,10 +55,13 @@ python test_datasets/run_demo_validation.py
 ## Architecture Decisions
 
 - Follow the three-engine model (Preventive/Detective/Proactive)
-- New governance checks go in the pipeline orchestrator
-- New API endpoints go in the API router
-- Infrastructure changes go in the appropriate construct module
-- Lambda imports must be flat (no relative imports, no package-qualified)
+- New governance checks go in the pipeline orchestrator (`pipeline_orchestrator.py`)
+- New API endpoints go in the API router (`api_router.py`)
+- Infrastructure changes go in the appropriate construct module (`governance_constructs/`)
+- Lambda imports must be flat: `from models import GovernanceDecision` (no relative imports, no package-qualified)
+- New pipeline stages must be fail-open: any exception must leave the verdict unchanged, never generate a false denial
+- Off-by-default feature flags for experimental stages (e.g. `INFORMATION_FLOW_ENABLED`)
+- Evidence and trace writes are best-effort: a write failure must never change the verdict
 
 ## Code Style
 

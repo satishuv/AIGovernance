@@ -36,8 +36,8 @@ Target level: **AARM Extended** (technical requirements R1-R9).
 | T2 | Confused deputy | `tool_execution_auth`, scope enforcement |
 | T3 | Data exfiltration | `exfiltration_detector`, `output_guardrails` |
 | T4 | Goal hijacking | `behavioral_invariants`, intent alignment (R3) |
-| T5 | Memory poisoning | `agent_memory` (poisoning detection), `cache_governance` |
-| T6 | Intent drift | `intent_alignment` + `runtime_drift_detection` (R7) |
+| T5 | Memory poisoning | `agent_memory` (poisoning detection), `cache_governance`, `information_flow` (provenance-taint on memory reads from untrusted sources) |
+| T6 | Intent drift | `intent_alignment` + `runtime_drift_detection` (R7) + `CumulativeDriftTracker` (rolling session mean) |
 | T7 | Cross-agent propagation | `multi_agent` cross-agent rules |
 | T8 | Over-privileged credentials | `privilege_escalation`, graduated scope (R9) |
 | T9 | Side-channel leakage | `side_channel_defense`: deny-timing floor (removes stage-of-denial latency oracle) + oracle-probing detection (near-identical repeat-request bursts). Residual: hardware/micro-timing channels not defeated. Plus output size/canary limits |
@@ -53,7 +53,11 @@ are the integration surface.
 
 ## Verification
 
-- Unit/integration: `python -m pytest tests/ -q` (all green).
+- Unit/integration: `python -m pytest tests/ -q` (344 tests, 1 skipped for `LIVE_AWS=1`).
 - Live demo: `python test_datasets/run_demo_validation.py` (21/21).
 - Signed-receipt offline verification: `TestEvidenceSigning` proves a receipt
   signed via KMS verifies with the exported public key and fails on any tamper.
+- R9 / role separation: `tests/test_compromised_enforcer.py::TestRoleSeparation`
+  proves enforcer role holds `iam:PutRolePermissionsBoundary` and action-group role
+  does not, via direct IAM policy inspection against live Isengard infrastructure
+  (requires `LIVE_AWS=1`).

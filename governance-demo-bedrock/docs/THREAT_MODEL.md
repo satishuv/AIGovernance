@@ -56,19 +56,23 @@ Agent output       -->  [ Output Guardrails ]              -->  End user
 - Behavioral invariants (hard limits no model output can override)
 
 ### 2. Indirect Prompt Injection (Tool Response Poisoning)
-**Threat:** Attacker poisons data in S3/DynamoDB; agent reads it and follows embedded instructions.
+**Threat:** Attacker poisons data in S3/DynamoDB; agent reads it and follows embedded instructions, possibly across multiple turns.
 **Mitigations:**
 - Tool response validator (injection patterns, action directives, entropy)
+- Information-flow taint tracking (`information_flow.py`): once a tool response (or retrieved doc, web, MCP) is seen in a session, any subsequent privileged action is flagged. Catches multi-turn injection chains that per-request checks miss by design.
 - Sensitive data stripping before agent processing
 - Response size enforcement per tool type
 
 ### 3. Privilege Escalation
 **Threat:** Agent attempts to increase its own scope or invoke unauthorized tools.
 **Mitigations:**
-- IAM permission boundaries per scope level (enforced by AWS, not model)
+- IAM permission boundaries per scope level, dynamically set per decision by the scope enforcer (`swap_permission_boundary`) and verified post-swap (`verify_boundary`). Enforced at the AWS IAM layer, independent of the agent process.
+- Role separation: only the scope-enforcer role holds `iam:PutRolePermissionsBoundary`; the action-group role does not. Proven on live infrastructure (`tests/test_compromised_enforcer.py::TestRoleSeparation`).
+- DynamoDB lease serialization prevents concurrent swaps from racing.
 - Enum-based action group allowlisting
 - Scope enforcement via DynamoDB (external state, not model memory)
 - Privilege escalation detector (self-modification and policy-modification blocked)
+- Cedar role-boxing: AI agents cannot call `MakeComplianceDetermination`, `IssueAttestation`, `ApproveException`, or `OverrideDecision` regardless of policy content.
 
 ### 4. Data Exfiltration
 **Threat:** Agent leaks sensitive data in its responses or via tool calls.
@@ -181,6 +185,7 @@ the action. This is a compensating control, not a substitute for remediation.
 | Risk | Severity | Acceptance Rationale |
 |------|----------|---------------------|
 | Novel prompt injection bypassing all regex + AI classifier | Medium | Mitigated by behavioral invariants (hard limits) and output guardrails |
+| Information-flow taint is provenance-based, not semantic | Medium | Records that a tool response was seen, not that its content influenced the agent's reasoning. A tainted session that never reaches a privileged sink generates no signal; a clean reformatting of injected content produces no new taint marker. Accepted in V1; semantic tracking is future work. |
 | DynamoDB eventually-consistent reads on scope table | Low | Scope changes propagate within milliseconds; risk window is negligible |
 | `cloudwatch:PutMetricData` uses `Resource: "*"` | Low | Restricted to namespace `AGCP/Governance` via IAM condition; AWS limitation |
 | Model-level hallucination affecting action selection | Medium | Governance validates the ACTION, not the model's reasoning; wrong action still gets governed |

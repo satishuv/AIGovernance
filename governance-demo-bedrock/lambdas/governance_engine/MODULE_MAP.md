@@ -1,6 +1,6 @@
 # Governance Engine Module Map
 
-72 modules in a flat directory (required by Lambda import constraints). This map groups them by function.
+65 modules in a flat directory (required by Lambda import constraints). This map groups them by function.
 
 ---
 
@@ -31,7 +31,7 @@
 |--------|---------|
 | `opa_engine.py` | OPA Rego-subset evaluator (embedded or external mode) |
 | `policy_engine.py` | Policy loading from S3, caching, evaluation orchestration |
-| `cedar_engine.py` | Cedar authorization engine (ABAC, data classification). Available but not in default pipeline. |
+| `cedar_engine.py` | Cedar authorization engine (ABAC, data classification). `authorize_agent_role_boxed()` enforces `HUMAN_ONLY_ACTIONS` boundary before Cedar runs; `verify_agent_subset_of_human()` detects privilege escalations. Available but not in default pipeline. |
 | `risk_scoring.py` | Composite risk score (0-100) from 5 weighted factors, capped |
 | `behavioral_invariants.py` | Hard physical limits (output size cap, canary tripwire, time-of-day) |
 | `formal_assurance.py` | Proves 6 safety invariants hold regardless of input |
@@ -64,6 +64,12 @@
 | `exfiltration_detector.py` | Detects data theft via output channels (size limits, endpoint allowlisting) |
 | `retrieval_validator.py` | Validates RAG/retrieved content before agent context injection |
 | `cache_governance.py` | Governs what gets cached, PII never cached in semantic memory |
+
+## Information Flow and Provenance
+
+| Module | Purpose |
+|--------|---------|
+| `information_flow.py` | Cross-session taint tracking: labels inputs by trust origin (trusted: user/operator; untrusted: tool response, retrieved doc, web, MCP), records session taint in DynamoDB, detects untrusted-to-privileged-sink flows. Off by default (`INFORMATION_FLOW_ENABLED`). Fail-open. Integrated into pipeline after probe detection and before the decision engine. |
 
 ## Detection and Monitoring
 

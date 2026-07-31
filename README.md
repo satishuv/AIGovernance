@@ -268,7 +268,7 @@ All numbers below are produced by running real payloads through the deployed cod
 - **End-to-end (full 2,000 scenarios, live, no sampling)**: 86.0% correct verdict (1,719/2,000, 0 errors). 100% on every structurally-enforced category (scope, privilege escalation, kill switch, escalation, permitted actions); the misses concentrate in categories needing semantic inference (exfiltration 5%, parameter injection 24%). Mix: 610 allow, 50 escalate, 1,340 deny across 14 categories.
 - **False-positive rate**: 0% on a benign set representative of the agent's real traffic (build/pipeline/ops queries). This is scope-dependent - the same strict detectors block much open-domain roleplay, which is appropriate for a locked-down agent but not for a general chatbot.
 - **Attack corpus**: 9,465 payloads across 20 datasets (~8,972 unique after deduplication) used during development.
-- **Unit/integration tests**: 239 automated tests (runs locally in ~33 seconds, no AWS required), including fail-closed, concurrency-lease, forgery-detection, and data-flow-chain tests.
+- **Unit/integration tests**: 344 automated tests (runs locally in ~25 seconds, no AWS required), including fail-closed, concurrency-lease, forgery-detection, and data-flow-chain tests.
 - **Research foundation**: informed by peer-reviewed work (2023-2026) on tool poisoning, sequential chaining, indirect injection, memory, and supply-chain threats.
 
 > Honest scope: these are strong validation artifacts for an individual open-source project, **not** a peer-reviewed scientific evaluation. There is not yet a head-to-head comparison against a published defense baseline (Llama Guard, CaMeL) on an identical payload set - the clearest next step, and disclosed as such.
@@ -288,7 +288,7 @@ npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate
 python test_datasets/run_demo_validation.py    # 21 scenarios
-python -m pytest tests/ -v                     # 239 tests
+python -m pytest tests/ -v                     # 344 tests
 ```
 
 ---
