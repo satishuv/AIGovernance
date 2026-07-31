@@ -48,6 +48,7 @@ from telemetry_export import export_decision
 from side_channel_defense import ProbeDetector, normalize_deny_timing
 from information_flow import FlowTracker, INFORMATION_FLOW_ENABLED, INFORMATION_FLOW_STRICT
 from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BLOCK
+from egress_governor import EgressGovernor
 
 logger = logging.getLogger()
 
@@ -171,6 +172,7 @@ _ERROR_CATEGORY_STAGE = {
     "undeclared_data_class": "data_class_access",
     "unapproved_tool_model": "tool_model_registry",
     "tool_auth_denied": "tool_execution_auth",
+    "egress_blocked": "egress_governor",
     "exfiltration_blocked": "exfiltration_detector",
     "unknown_verdict": "verdict_guard",
     "pipeline_failure": "pipeline",
@@ -524,6 +526,36 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         reason=f"Tool execution denied: {tool_auth_result.denial_reason}",
                         agent_id=agent_id, error_category="tool_auth_denied",
                     )
+
+        # Egress governance: block incident-2 class attacks (external account
+        # creation, public package registry uploads, dependency confusion).
+        try:
+            egress_verdict = EgressGovernor().evaluate(
+                action_group=action_group,
+                scope_level=action_request.get("scope_level", 1),
+                input_text=input_text,
+                tool_parameters=event.get("tool_parameters", {}),
+                session_instructions=event.get("session_instructions", ""),
+            )
+            if not egress_verdict.allowed:
+                _TRACE_BUILDER and _TRACE_BUILDER.add_stage(
+                    stage="egress_governor", result=RESULT_BLOCK,
+                    detail=egress_verdict.reason, decisive=True,
+                    extra=egress_verdict.to_trace_extra(),
+                )
+                return _deny_response(
+                    reason=egress_verdict.reason,
+                    agent_id=agent_id,
+                    error_category="egress_blocked",
+                )
+            if risk_assessment is not None and egress_verdict.risk_delta:
+                risk_assessment.risk_score = min(100, risk_assessment.risk_score + egress_verdict.risk_delta)
+        except Exception as _egress_exc:
+            logger.warning(json.dumps({
+                "event": "egress_governor_error",
+                "error": str(_egress_exc),
+                "agent_id": agent_id,
+            }))
 
         # Policy evaluation
         if agent_environment:
