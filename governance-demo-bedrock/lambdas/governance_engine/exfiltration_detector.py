@@ -9,6 +9,7 @@ Requirements: 28.1, 28.2, 28.3, 28.4
 
 import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -21,9 +22,30 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SIZE_LIMITS = {0: 0, 1: 1024, 2: 4096, 3: 16384, 4: 65536}
 DEFAULT_MAX_ENCODED_LENGTH = 512
+# Minimum blob length (bytes) subject to entropy check; short strings are noisy
+_ENTROPY_MIN_BLOB_LEN = 64
+# Shannon entropy threshold above which a blob is flagged (7.2 bits/byte catches
+# XOR+gzip+base64 chunked payloads; true random is ~8.0, English text is ~4.5)
+_ENTROPY_THRESHOLD = 7.2
+# Minimum number of high-entropy blobs before blocking (avoids false positives on
+# single short tokens like JWTs in normal API responses)
+_ENTROPY_MIN_BLOBS = 2
 BASE64_PATTERN = re.compile(r"[A-Za-z0-9+/]{64,}={0,2}")
 HEX_PATTERN = re.compile(r"(?:[0-9a-fA-F]{2}){32,}")
 URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+")
+# Chunked blob pattern: short base64 segments separated by delimiters (XOR+chunk scheme)
+_CHUNKED_BLOB_PATTERN = re.compile(r"(?:[A-Za-z0-9+/]{8,}={0,2}[\s,;|]+){4,}")
+
+
+def _shannon_entropy(data: bytes) -> float:
+    """Shannon entropy in bits per byte. Returns 0.0 for empty input."""
+    if not data:
+        return 0.0
+    counts: Dict[int, int] = {}
+    for b in data:
+        counts[b] = counts.get(b, 0) + 1
+    n = len(data)
+    return -sum((c / n) * math.log2(c / n) for c in counts.values())
 
 
 class ExfiltrationDetector:
@@ -62,6 +84,28 @@ class ExfiltrationDetector:
                 matched_detail=f"Detected {len(blocks)} encoded block(s)",
                 output_size_bytes=size, blocked=True,
                 risk_score_increase=15, timestamp=now)
+
+        # Entropy-based detection: catches XOR+gzip+base64 chunked payloads that
+        # evade regex pattern matching on chunk boundaries.
+        high_entropy_blobs = self.detect_high_entropy_blobs(output_text)
+        if high_entropy_blobs:
+            return ExfiltrationDetectionResult(
+                detection_id=det_id, agent_id=agent_id,
+                pattern_type="high_entropy_blob",
+                matched_detail=f"Detected {len(high_entropy_blobs)} high-entropy blob(s) "
+                               f"(max entropy: {max(e for _, e in high_entropy_blobs):.2f} bits/byte)",
+                output_size_bytes=size, blocked=True,
+                risk_score_increase=25, timestamp=now)
+
+        # Chunked blob pattern: multiple short base64 segments -- hallmark of
+        # chunk+encode exfil schemes used in the HF incident.
+        if _CHUNKED_BLOB_PATTERN.search(output_text):
+            return ExfiltrationDetectionResult(
+                detection_id=det_id, agent_id=agent_id,
+                pattern_type="chunked_blob",
+                matched_detail="Chunked base64 blob pattern detected (possible staged exfil payload)",
+                output_size_bytes=size, blocked=True,
+                risk_score_increase=25, timestamp=now)
 
         unapproved = self.check_external_endpoints(output_text, allowlist)
         if unapproved:
@@ -105,6 +149,47 @@ class ExfiltrationDetector:
             if len(m.group()) > max_encoded_length:
                 blocks.append(f"hex@{m.start()}:{len(m.group())}chars")
         return blocks
+
+    @staticmethod
+    def detect_high_entropy_blobs(
+        output_text: str,
+        min_len: int = _ENTROPY_MIN_BLOB_LEN,
+        threshold: float = _ENTROPY_THRESHOLD,
+        min_blobs: int = _ENTROPY_MIN_BLOBS,
+    ) -> List[tuple]:
+        """Detect high-entropy blobs regardless of encoding scheme.
+
+        Catches XOR+gzip+base64 chunked payloads that evade regex pattern
+        matching by splitting the encoded payload across chunk boundaries.
+        For base64-encoded tokens, measures entropy on the decoded bytes
+        (base64 text is capped at ~6 bits/byte and would otherwise escape
+        the threshold). Returns list of (blob_excerpt, entropy) tuples;
+        empty list if count is below min_blobs.
+        """
+        import base64 as _b64
+        _B64_RE = re.compile(r'^[A-Za-z0-9+/]+={0,2}$')
+
+        # Split on common delimiters to surface individual blobs
+        candidates = re.split(r'[\s,;|"\'\n]+', output_text)
+        high: List[tuple] = []
+        for token in candidates:
+            if len(token) < min_len:
+                continue
+            # Attempt base64 decode to measure entropy on raw bytes
+            raw: bytes
+            if _B64_RE.match(token):
+                try:
+                    raw = _b64.b64decode(token + "==")
+                except Exception:
+                    raw = token.encode("utf-8", errors="replace")
+            else:
+                raw = token.encode("utf-8", errors="replace")
+            entropy = _shannon_entropy(raw)
+            if entropy >= threshold:
+                high.append((token[:32] + "...", entropy))
+        if len(high) >= min_blobs:
+            return high
+        return []
 
     @staticmethod
     def check_external_endpoints(output_text: str,

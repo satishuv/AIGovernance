@@ -12,6 +12,7 @@ midnight deploys, canary detects compromise automatically).
 import hashlib
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
@@ -24,6 +25,26 @@ DEFAULT_CONFIG = {
     "max_output_bytes": 65536,
     "canary_salt": "agcp-governance-canary-v1",
 }
+
+# Phrases that indicate the agent has detected it is operating in a real
+# (non-sandbox) environment. Presence of these in the request context or
+# input text is an invariant violation: the agent must stop, not continue.
+_REAL_ENV_SIGNALS = re.compile(
+    r"(?:"
+    r"\bthis is a real system\b"
+    r"|\bnot a simulation\b"
+    r"|\bnot in a sandbox\b"
+    r"|\boperating on the real internet\b"
+    r"|\bthis is production\b"
+    r"|\breal-world (?:infrastructure|systems|environment|target)\b"
+    r"|\bI(?:'m| am) (?:now )?outside (?:the )?(?:sandbox|simulation|test environment)\b"
+    r"|\bdetected (?:real|live|production) (?:systems?|infrastructure|environment)\b"
+    r"|\bevidence (?:it|this) (?:was|is) (?:running on|in|a) (?:the )?(?:real|production|live)\b"
+    r"|\bsandbox\s+misconfigur\w*\b"
+    r"|\bno longer in (?:a |the )?(?:sandbox|simulation)\b"
+    r")",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -82,6 +103,31 @@ class BehavioralInvariantsEnforcer:
             violations.append(reason)
             action_blocked = True
             block_reason = reason
+
+        # Real-environment recognition invariant: if the agent's input text or
+        # context contains signals that it has acknowledged operating outside a
+        # sandbox but is continuing anyway, block immediately. This is the
+        # Opus 4.7 / HF-incident failure mode.
+        probe_text = " ".join(
+            str(action_request.get(k, ""))
+            for k in ("input_text", "context", "agent_reasoning", "session_instructions")
+        )
+        if probe_text.strip() and _REAL_ENV_SIGNALS.search(probe_text):
+            reason = (
+                "Behavioral invariant: agent input contains signals that it has "
+                "recognized a real/production environment but is continuing. "
+                "Action blocked pending operator review."
+            )
+            violations.append(reason)
+            action_blocked = True
+            block_reason = reason
+            logger.critical(json.dumps({
+                "event": "REAL_ENVIRONMENT_RECOGNITION_INVARIANT_TRIGGERED",
+                "severity": "CRITICAL",
+                "agent_id": action_request.get("agent_id", "unknown"),
+                "action_group": action_group,
+                "timestamp": now.isoformat(),
+            }))
 
         # Generate canary tokens
         agent_id = action_request.get("agent_id", "unknown")
