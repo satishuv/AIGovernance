@@ -46,6 +46,7 @@ from verdicts import to_aarm as _to_aarm
 from intent_alignment import IntentStore, assess_alignment
 from telemetry_export import export_decision
 from side_channel_defense import ProbeDetector, normalize_deny_timing
+from information_flow import FlowTracker, INFORMATION_FLOW_ENABLED, INFORMATION_FLOW_STRICT
 from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BLOCK
 
 logger = logging.getLogger()
@@ -630,6 +631,65 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }))
             except Exception:
                 pass
+
+        # Information-flow taint tracking (cross-turn, provenance-based).
+        # Records the source trust for the current request; if the session has
+        # seen untrusted data (tool response, retrieved doc, web, MCP) AND this
+        # action is a privileged sink, flags the flow. Never blocks on its own:
+        # a tainted flow adds to the risk score so the decision engine decides,
+        # and any exception leaves the pipeline unchanged (fail-open).
+        if INFORMATION_FLOW_ENABLED:
+            try:
+                ifc_table = dynamodb.Table(RUNTIME_DRIFT_TABLE_NAME) if RUNTIME_DRIFT_TABLE_NAME else None
+                ifc_tracker = FlowTracker(ifc_table)
+                current_source = event.get("source_type", "") or event.get("input_source", "")
+                data_sensitivity = action_request.get("data_sensitivity", "")
+                has_external_output = action_group in {
+                    "SendEmail", "TransferFunds", "DeleteResource", "WriteDeploymentConfig",
+                }
+                ifc_verdict = ifc_tracker.check_flow(
+                    session_id=session_id,
+                    current_source=current_source,
+                    action_group=action_group,
+                    data_sensitivity=data_sensitivity,
+                    has_external_output=has_external_output,
+                )
+                if ifc_verdict.tainted_sink:
+                    logger.info(json.dumps({
+                        "event": "information_flow_tainted_sink",
+                        "agent_id": agent_id, "session_id": session_id,
+                        "action_group": action_group,
+                        "signal": ifc_verdict.signal,
+                        "reason": ifc_verdict.reason,
+                        "timestamp": _iso_now(),
+                    }))
+                    if ifc_verdict.signal == "deny" and INFORMATION_FLOW_STRICT:
+                        return _deny_response(
+                            reason=f"Information-flow control: {ifc_verdict.reason}",
+                            agent_id=agent_id,
+                            error_category="information_flow_tainted",
+                        )
+                    if risk_assessment is not None:
+                        risk_assessment.risk_score = min(100, risk_assessment.risk_score + 25)
+                        if risk_assessment.risk_score >= risk_engine.escalation_threshold:
+                            risk_assessment.escalation_flagged = True
+                try:
+                    _TRACE_BUILDER.add(
+                        stage="information_flow",
+                        result="block" if (ifc_verdict.tainted_sink and INFORMATION_FLOW_STRICT) else (
+                            "flag" if ifc_verdict.tainted_sink else "pass"
+                        ),
+                        detail=ifc_verdict.reason or f"source_trust={ifc_verdict.source_trust} privileged_sink={ifc_verdict.privileged_sink}",
+                        extra=ifc_verdict.to_trace_extra(),
+                    )
+                except Exception:
+                    pass
+            except Exception as ifc_exc:
+                logger.warning(json.dumps({
+                    "event": "information_flow_check_error",
+                    "error": str(ifc_exc)[:120],
+                    "timestamp": _iso_now(),
+                }))
 
         # Decision
         with tracker.track("decision_engine"):
