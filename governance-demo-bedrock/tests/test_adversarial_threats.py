@@ -210,3 +210,66 @@ class TestR7CumulativeDrift:
         from intent_alignment import CumulativeDriftTracker
         r = CumulativeDriftTracker(_MemTable()).record_distance("sess", 0.3)
         assert r.aggregation == "running_mean"
+
+
+# =============================================================================
+# Authorization boundary: AI-role-boxing + agent-subset-of-human invariant
+# (concepts raised in the CE collaboration; these are the runtime-side controls)
+# =============================================================================
+
+class TestAgentRoleBoxing:
+    def test_agent_denied_compliance_determination(self):
+        from cedar_engine import CedarEngine
+        eng = CedarEngine()
+        d = eng.authorize_agent_role_boxed("agent-1", "MakeComplianceDetermination", "control::CC6.1")
+        assert d.decision == "Deny"
+
+    def test_agent_denied_attestation_and_override(self):
+        from cedar_engine import CedarEngine
+        eng = CedarEngine()
+        assert eng.authorize_agent_role_boxed("agent-1", "IssueAttestation", "r").decision == "Deny"
+        assert eng.authorize_agent_role_boxed("agent-1", "OverrideDecision", "r").decision == "Deny"
+
+    def test_agent_allowed_evidence_action(self):
+        # A non-human-only (evidence/tool) action is NOT blocked by the boundary;
+        # it proceeds to normal authorize (which allows when Cedar is disabled).
+        from cedar_engine import CedarEngine
+        eng = CedarEngine()
+        d = eng.authorize_agent_role_boxed("agent-1", "ReadPipelineStatus", "pipeline::main")
+        assert d.decision == "Allow"
+
+    def test_human_only_set_is_inspectable(self):
+        from cedar_engine import CedarEngine
+        assert CedarEngine().is_human_only_action("SetVerdict") is True
+        assert CedarEngine().is_human_only_action("ReadBuildResults") is False
+
+
+class TestAgentSubsetOfHumanInvariant:
+    def test_strict_subset_holds(self):
+        from cedar_engine import CedarEngine
+        r = CedarEngine().verify_agent_subset_of_human(
+            agent_actions=["ReadPipelineStatus", "ProposeChanges"],
+            human_actions=["ReadPipelineStatus", "ProposeChanges", "ApproveException", "SetVerdict"],
+        )
+        assert r["invariant_holds"] is True
+        assert r["is_strict_subset"] is True
+        assert r["privilege_escalations"] == []
+
+    def test_privilege_escalation_detected(self):
+        # Agent permitted something no human is -> invariant violated, flagged.
+        from cedar_engine import CedarEngine
+        r = CedarEngine().verify_agent_subset_of_human(
+            agent_actions=["ReadPipelineStatus", "OverrideDecision"],
+            human_actions=["ReadPipelineStatus"],
+        )
+        assert r["invariant_holds"] is False
+        assert "OverrideDecision" in r["privilege_escalations"]
+
+    def test_equal_sets_not_strict_subset(self):
+        from cedar_engine import CedarEngine
+        r = CedarEngine().verify_agent_subset_of_human(
+            agent_actions=["ReadPipelineStatus"],
+            human_actions=["ReadPipelineStatus"],
+        )
+        assert r["is_subset"] is True
+        assert r["is_strict_subset"] is False  # not STRICT: human has nothing extra

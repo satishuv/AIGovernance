@@ -23,7 +23,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +266,69 @@ forbid (
                 decision="Deny",
                 diagnostics={"error": str(exc), "reason": "Cedar evaluation failed (fail-safe deny)"},
             )
+
+    # Actions reserved to human principals: an AI agent may never issue a
+    # compliance/authorization DETERMINATION. The agent's role is bounded to
+    # producing/reading evidence and operating governed tools; deciding, attesting,
+    # approving, or overriding is a human action. Kept as an explicit deny set so
+    # the boundary is inspectable, not implicit in prose.
+    HUMAN_ONLY_ACTIONS = frozenset({
+        "MakeComplianceDetermination", "IssueAttestation", "ApproveException",
+        "OverrideDecision", "SignOffControl", "CloseFinding", "SetVerdict",
+        "AmendPolicy", "GrantScope",
+    })
+
+    def is_human_only_action(self, action: str) -> bool:
+        """True if `action` is reserved to a human (never an AI agent)."""
+        return action in self.HUMAN_ONLY_ACTIONS
+
+    def authorize_agent_role_boxed(self, agent_id: str, action: str, resource_id: str,
+                                   agent_attrs: Dict[str, Any] = None,
+                                   resource_attrs: Dict[str, Any] = None) -> CedarDecision:
+        """Authorize an AGENT action with the Evidence-Analyst boundary enforced.
+
+        The agent is structurally boxed: it emits/handles evidence and operates
+        tools, but any decision/attestation/determination action is denied before
+        Cedar even runs. This makes it impossible for an AI principal to issue a
+        compliance determination, independent of policy content. Human principals
+        are authorized through the normal path.
+        """
+        if self.is_human_only_action(action):
+            logger.info(json.dumps({
+                "event": "agent_role_boundary_denied",
+                "agent_id": agent_id, "action": action,
+                "reason": "action reserved to human principal (AI = Evidence Analyst, not Decision Maker)",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return CedarDecision(
+                decision="Deny",
+                diagnostics={"reason": "human-only action; AI agent is boxed to Evidence Analyst"},
+            )
+        return self.authorize(agent_id, action, resource_id, agent_attrs, resource_attrs)
+
+    def verify_agent_subset_of_human(self, agent_actions, human_actions) -> Dict[str, Any]:
+        """Verify the invariant: the set of AGENT-permitted actions is a strict
+        subset of HUMAN-permitted actions.
+
+        Given the actions permitted to an agent principal and to a human
+        principal (over the same resource context), confirm every agent action is
+        also permitted to a human AND at least one human action is not permitted
+        to the agent (strict subset). Returns the verdict plus any violating
+        actions, so a regression that lets an agent do something no human can is
+        caught explicitly.
+        """
+        agent_set = set(agent_actions)
+        human_set = set(human_actions)
+        escalations = sorted(agent_set - human_set)  # agent can, human cannot = violation
+        is_subset = len(escalations) == 0
+        is_strict = is_subset and len(human_set - agent_set) > 0
+        return {
+            "invariant_holds": is_strict,
+            "is_subset": is_subset,
+            "is_strict_subset": is_strict,
+            "privilege_escalations": escalations,
+            "human_only_actions": sorted(human_set - agent_set),
+        }
 
     def validate_policies(self) -> Dict[str, Any]:
         """Validate Cedar policies against the schema.
