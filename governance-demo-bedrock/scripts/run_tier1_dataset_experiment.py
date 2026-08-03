@@ -211,7 +211,7 @@ def main():
             "structurally guaranteed at Scope1; the value of this experiment is establishing "
             "the baseline across the full published attack corpus, not discovering a failure.",
             "Tier 1 with live Bedrock invocations (model actually running, prompt injected) "
-            "is the next step and requires the Bedrock quota to be unblocked on 831926627799.",
+            "is the next step and requires the Bedrock service quota on the target account to be raised.",
         ],
     }
 

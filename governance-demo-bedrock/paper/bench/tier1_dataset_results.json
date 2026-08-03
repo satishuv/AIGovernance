@@ -106,6 +106,6 @@
     "Models the worst case: every attack prompt is assumed to have jailbroken the model and issued an out-of-scope tool call. This isolates IAM-plane containment from model robustness -- a conservative, falsifiable claim.",
     "Boundary is applied once before the loop; containment check is deterministic (boundary ARN -> scope level -> action permitted). No Bedrock invocations made.",
     "A Scope1 boundary denies ProductionDeployment unconditionally. RCR=100% is structurally guaranteed at Scope1; the value of this experiment is establishing the baseline across the full published attack corpus, not discovering a failure.",
-    "Tier 1 with live Bedrock invocations (model actually running, prompt injected) is the next step and requires the Bedrock quota to be unblocked on 831926627799."
+    "Tier 1 with live Bedrock invocations (model actually running, prompt injected) is the next step and requires the Bedrock service quota on the target account to be raised."
   ]
 }
