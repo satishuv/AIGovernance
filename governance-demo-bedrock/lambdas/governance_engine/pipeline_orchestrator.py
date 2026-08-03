@@ -48,6 +48,7 @@ from telemetry_export import export_decision
 from side_channel_defense import ProbeDetector, normalize_deny_timing
 from information_flow import FlowTracker, INFORMATION_FLOW_ENABLED, INFORMATION_FLOW_STRICT
 from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BLOCK
+from trust_chain import TrustChainValidator
 from egress_governor import EgressGovernor
 
 logger = logging.getLogger()
@@ -162,6 +163,9 @@ _ERROR_CATEGORY_STAGE = {
     "self_modification": "privilege_escalation",
     "policy_modification": "privilege_escalation",
     "cross_agent_violation": "multi_agent_rules",
+    "trust_chain_scope_laundering": "trust_chain",
+    "trust_chain_depth_exceeded": "trust_chain",
+    "trust_chain_injection": "trust_chain",
     "runtime_drift_critical": "runtime_drift",
     "input_sanitization_blocked": "input_sanitizer",
     "content_safety_blocked": "bedrock_guardrails",
@@ -394,6 +398,25 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             allowed, violation_reason = multi_agent_manager.enforce_cross_agent_rules(agent_id, target_agent_id, action_request)
             if not allowed:
                 return _deny_response(reason=violation_reason, agent_id=agent_id, error_category="cross_agent_violation")
+
+        # Multi-agent trust chain enforcement:
+        # (a) delegation depth limit, (b) scope laundering prevention,
+        # (c) cross-agent prompt injection detection.
+        # Runs before scope enforcement so a compromised orchestrator cannot
+        # bootstrap a sub-agent to a higher scope than it was authorized for.
+        _trust_chain = TrustChainValidator()
+        _tc_result = _trust_chain.validate(agent_id, scope_level, action_request)
+        if not _tc_result.allowed:
+            _tc_category = "trust_chain_injection" if _tc_result.injection_suspected else (
+                "trust_chain_depth_exceeded" if len(
+                    list(action_request.get("delegation_chain", []) or [])
+                ) >= 4 else "trust_chain_scope_laundering"
+            )
+            return _deny_response(reason=_tc_result.reason, agent_id=agent_id, error_category=_tc_category)
+        # If the calling agent had a lower scope, cap this request to that scope.
+        if _tc_result.effective_scope_cap is not None:
+            scope_level = _tc_result.effective_scope_cap
+            action_request["scope_level"] = scope_level
 
         # Runtime drift detection
         runtime_drift_table = None
