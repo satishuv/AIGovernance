@@ -54,7 +54,7 @@ IN_SCOPE_ACTIONS = [
 ]
 
 N_SEEDS = 5
-ATTEMPTS_PER_SEED = 20  # out-of-scope attempts per tier per seed
+ATTEMPTS_PER_SEED = 80  # out-of-scope attempts per tier per seed (5x80=400 total -> 99.0% CI lower bound)
 
 
 def wilson_ci(k, n, z=1.96):
