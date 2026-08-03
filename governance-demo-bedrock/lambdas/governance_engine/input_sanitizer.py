@@ -49,6 +49,8 @@ class SanitizationResult:
     blocked: bool = False
     block_reason: str = ""
     timestamp: str = ""
+    # A008: credential/secret types found in the input
+    secrets_detected: List[str] = field(default_factory=list)
 
 
 # Homoglyph mapping: visually similar characters to their ASCII equivalents
@@ -308,6 +310,46 @@ _BYPASS_PHRASES = {
     "ignore safety", "ignore filters",
 }
 
+# ---------------------------------------------------------------------------
+# A008 - Credentials / secrets detection in user inputs
+# Patterns cover the most common literal-credential forms that should never
+# appear in an agent request. Detection is warn-and-flag (not hard-block) so
+# operators can tune thresholds without breaking legitimate API-key-related
+# help requests.
+# ---------------------------------------------------------------------------
+
+# AWS access key: AKIA + 16 uppercase/digit chars
+_CRED_AWS_ACCESS_KEY = re.compile(r"\bAKIA[0-9A-Z]{16}\b")
+# GitHub personal access tokens (classic ghp_ and fine-grained github_pat_)
+_CRED_GITHUB_TOKEN = re.compile(r"\b(?:ghp|ghs|gho|github_pat)_[A-Za-z0-9_]{20,}\b")
+# OpenAI / Anthropic / common AI provider key prefixes
+_CRED_AI_KEY = re.compile(r"\bsk-[A-Za-z0-9\-_]{20,}\b")
+# Google/GCP service account key identifier
+_CRED_GCP_KEY = re.compile(r"\bAIza[A-Za-z0-9\-_]{35}\b")
+# GitLab personal access token
+_CRED_GITLAB_TOKEN = re.compile(r"\bglpat-[A-Za-z0-9\-_]{20,}\b")
+# PEM private key header (user pasting a private key into a prompt)
+_CRED_PRIVATE_KEY = re.compile(
+    r"-----BEGIN\s+(?:RSA\s+|EC\s+|DSA\s+|OPENSSH\s+)?PRIVATE\s+KEY-----"
+)
+# Label-value patterns: api_key=..., token=..., secret=..., password=...
+_CRED_LABEL_VALUE = re.compile(
+    r"(?:api[_\-]?key|access[_\-]?key|secret[_\-]?key|auth[_\-]?token|bearer|"
+    r"password|passwd|credential)[\s:=]+['\"]?([A-Za-z0-9\-_/+=]{16,})",
+    re.IGNORECASE,
+)
+
+# Collected for iteration in detect_secrets()
+_SECRET_PATTERNS = [
+    ("aws_access_key", _CRED_AWS_ACCESS_KEY),
+    ("github_token", _CRED_GITHUB_TOKEN),
+    ("ai_api_key", _CRED_AI_KEY),
+    ("gcp_api_key", _CRED_GCP_KEY),
+    ("gitlab_token", _CRED_GITLAB_TOKEN),
+    ("private_key_pem", _CRED_PRIVATE_KEY),
+    ("labeled_credential", _CRED_LABEL_VALUE),
+]
+
 # Base64 detection pattern: valid base64 strings longer than 20 characters
 _BASE64_PATTERN = re.compile(
     r"[A-Za-z0-9+/]{20,}={0,2}"
@@ -406,6 +448,13 @@ class InputSanitizer:
                 f"Instruction override patterns: {'; '.join(instruction_patterns)}"
             )
 
+        # Step 5b: A008 secrets detection
+        secrets_detected = self._detect_secrets(input_text)
+        if secrets_detected:
+            threats_detected.append(
+                f"Credentials/secrets detected in input: {', '.join(secrets_detected)}"
+            )
+
         # Step 6: Determine block decision
         blocked = False
         block_reason = ""
@@ -442,6 +491,7 @@ class InputSanitizer:
             blocked=blocked,
             block_reason=block_reason,
             timestamp=timestamp,
+            secrets_detected=secrets_detected,
         )
 
         # Structured JSON logging for security events
@@ -453,6 +503,7 @@ class InputSanitizer:
             "context_stuffing": context_stuffing,
             "instruction_patterns_count": len(instruction_patterns),
             "decoded_payloads_count": len(decoded_payloads),
+            "secrets_detected_count": len(secrets_detected),
             "input_length": len(input_text),
             "timestamp": timestamp,
         }
@@ -700,6 +751,19 @@ class InputSanitizer:
                 break
 
         return detected
+
+    @staticmethod
+    def _detect_secrets(text: str) -> List[str]:
+        """Scan input text for credential/secret patterns (A008.1).
+
+        Returns a list of detected secret type labels; empty list if none found.
+        Detection is non-blocking: callers decide whether to warn or deny.
+        """
+        found: List[str] = []
+        for label, pattern in _SECRET_PATTERNS:
+            if pattern.search(text):
+                found.append(label)
+        return found
 
     @staticmethod
     def _apply_leet_decode(text: str) -> str:
