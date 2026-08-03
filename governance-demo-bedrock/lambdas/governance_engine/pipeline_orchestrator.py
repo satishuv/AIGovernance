@@ -571,8 +571,8 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     agent_id=agent_id,
                     error_category="egress_blocked",
                 )
-            if risk_assessment is not None and egress_verdict.risk_delta:
-                risk_assessment.risk_score = min(100, risk_assessment.risk_score + egress_verdict.risk_delta)
+            if egress_verdict.risk_delta:
+                risk_score_adjustment += egress_verdict.risk_delta
         except Exception as _egress_exc:
             logger.warning(json.dumps({
                 "event": "egress_governor_error",
