@@ -561,11 +561,15 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 session_instructions=event.get("session_instructions", ""),
             )
             if not egress_verdict.allowed:
-                _TRACE_BUILDER and _TRACE_BUILDER.add_stage(
-                    stage="egress_governor", result=RESULT_BLOCK,
-                    detail=egress_verdict.reason, decisive=True,
-                    extra=egress_verdict.to_trace_extra(),
-                )
+                if _TRACE_BUILDER is not None:
+                    try:
+                        _TRACE_BUILDER.add(
+                            stage="egress_governor", result=RESULT_BLOCK,
+                            detail=egress_verdict.reason, decisive=True,
+                            extra=egress_verdict.to_trace_extra(),
+                        )
+                    except Exception:
+                        pass
                 return _deny_response(
                     reason=egress_verdict.reason,
                     agent_id=agent_id,
