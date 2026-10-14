@@ -55,3 +55,8 @@ class GovernanceBedrockStack(Stack):
         CfnOutput(self, "KillSwitchApiUrl", value=self.api.kill_switch_api.url)
         CfnOutput(self, "ApprovalApiUrl", value=self.api.approval_api.url)
         CfnOutput(self, "DashboardName", value=self.monitoring.governance_dashboard.dashboard_name)
+        CfnOutput(self, "DelegatedExecutionRoleArn",
+                  value=self.governance_engine.delegated_execution_role.role_arn)
+        CfnOutput(self, "DelegatedAuthorityFunctionName",
+                  value=self.governance_engine.authority_lambda.function_name)
+        CfnOutput(self, "DataBucketName", value=self.storage.data_bucket.bucket_name)

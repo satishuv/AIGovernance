@@ -203,13 +203,22 @@ class SpendLedger:
         return _dec(item.get("total")) or Decimal("0")
 
     def totals(self, agent_id: str, session_id: str, now: Optional[datetime] = None) -> Tuple[Decimal, Decimal]:
+        """AUTONOMOUS spend in this session and today (what the caps limit)."""
         return (self._total(f"SESSION#{agent_id}#{session_id}"),
                 self._total(f"DAY#{agent_id}#{self._day(now)}"))
 
+    def total_spend_today(self, agent_id: str, now: Optional[datetime] = None) -> Decimal:
+        """All spend today, autonomous and human-approved."""
+        return self._total(f"TOTAL#{agent_id}#{self._day(now)}")
+
     def record(self, agent_id: str, session_id: str, amount: Decimal, currency: str,
                grant_id: str, session_cap: Optional[Decimal] = None,
-               daily_cap: Optional[Decimal] = None) -> Tuple[bool, str]:
-        """Add amount to both totals. Caps are enforced atomically when given.
+               daily_cap: Optional[Decimal] = None, autonomous: bool = True) -> Tuple[bool, str]:
+        """Record spend. Autonomous spend counts against the caps atomically.
+
+        Human-approved spend is outside the autonomous budget: a human
+        authorized that exact transaction, so it is recorded in the daily total
+        (visible to oversight) without consuming the agent's autonomous headroom.
 
         The session total is updated first. If the daily update is rejected the
         session increment is reversed; in the brief window between the two the
@@ -218,8 +227,12 @@ class SpendLedger:
         """
         now_iso = datetime.now(timezone.utc).isoformat()
         applied: List[str] = []
-        for key, cap in ((f"SESSION#{agent_id}#{session_id}", session_cap),
-                         (f"DAY#{agent_id}#{self._day()}", daily_cap)):
+        keyed = []
+        if autonomous:
+            keyed = [(f"SESSION#{agent_id}#{session_id}", session_cap),
+                     (f"DAY#{agent_id}#{self._day()}", daily_cap)]
+        keyed.append((f"TOTAL#{agent_id}#{self._day()}", None))
+        for key, cap in keyed:
             kwargs: Dict[str, Any] = {
                 "Key": {"ledger_key": key},
                 "UpdateExpression": "ADD #t :amt SET #c = :cur, #u = :now, #g = :grant",

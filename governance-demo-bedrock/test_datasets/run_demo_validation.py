@@ -1,16 +1,27 @@
-"""Run all demo scenarios against live Isengard deployment.
-Validates every scenario that will be shown to customers."""
+"""Run all demo scenarios against a live deployment.
+Validates every scenario that will be shown to customers.
+
+Configure from the deployed stack (no account-specific values live in this file):
+    DEMO_REGION          region of the stack (default us-east-1)
+    DEMO_AGENT_ID        stack output AgentId
+    DEMO_AGENT_ALIAS_ID  stack output AgentAliasId
+    DEMO_GOV_ENGINE_FN   governance engine Lambda function name
+"""
 import boto3
 import json
+import os
 import sys
 
-runtime = boto3.client("bedrock-agent-runtime", region_name="us-east-1")
-lambda_client = boto3.client("lambda", region_name="us-east-1")
-sfn_client = boto3.client("stepfunctions", region_name="us-east-1")
+REGION = os.environ.get("DEMO_REGION", "us-east-1")
+AGENT_ID = os.environ.get("DEMO_AGENT_ID", "")
+ALIAS_ID = os.environ.get("DEMO_AGENT_ALIAS_ID", "")
+GOV_ENGINE = os.environ.get("DEMO_GOV_ENGINE_FN", "")
+if not (AGENT_ID and ALIAS_ID and GOV_ENGINE):
+    sys.exit("Set DEMO_AGENT_ID, DEMO_AGENT_ALIAS_ID and DEMO_GOV_ENGINE_FN from the deployed stack.")
 
-AGENT_ID = "0YHRUKKENP"
-ALIAS_ID = "MK9HF5CSAK"
-GOV_ENGINE = "GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y"
+runtime = boto3.client("bedrock-agent-runtime", region_name=REGION)
+lambda_client = boto3.client("lambda", region_name=REGION)
+sfn_client = boto3.client("stepfunctions", region_name=REGION)
 
 results = []
 
@@ -43,7 +54,7 @@ def test_agent(name, prompt):
         return False
 
 print("=" * 70)
-print("LIVE DEMO VALIDATION - Isengard (917914785227)")
+print(f"LIVE DEMO VALIDATION - region {REGION}")
 print("=" * 70)
 print()
 

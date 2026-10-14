@@ -102,6 +102,91 @@ class GovernanceEngineConstruct(Construct):
 
         # AARM R5/R6: allow the engine to sign evidence receipts.
         storage.evidence_signing_key.grant(self.governance_engine_lambda, "kms:Sign")
+
+        # --- Delegated authority (hall pass) control plane ---
+        # A dedicated function with its own least-privilege role: it is the only
+        # component that can mint/verify grants and assume the per-grant
+        # execution role. Keeping it off the governance engine role also keeps
+        # that role's policy size unchanged.
+        self.authority_lambda = _lambda.Function(
+            self,
+            "DelegatedAuthorityLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="authority_api.lambda_handler",
+            code=_lambda.Code.from_asset(
+                os.path.join(stack_dir, "lambdas", "governance_engine")
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment={
+                "SCOPE_TABLE_NAME": storage.scope_table.table_name,
+                "AGENT_REGISTRY_TABLE_NAME": storage.agent_registry_table.table_name,
+                "PENDING_APPROVAL_TABLE_NAME": storage.pending_approval_table.table_name,
+                "TOOL_AUTH_TABLE_NAME": storage.tool_auth_table.table_name,
+                "AUTHORITY_GRANT_TABLE_NAME": storage.authority_grant_table.table_name,
+                "SPEND_LEDGER_TABLE_NAME": storage.spend_ledger_table.table_name,
+                "DECISION_TRACE_TABLE_NAME": storage.decision_trace_table.table_name,
+                "GOVERNANCE_ROLES_TABLE_NAME": storage.governance_roles_table.table_name,
+                "EVIDENCE_BUCKET_NAME": storage.evidence_bucket.bucket_name,
+                "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
+                "GRANT_SIGNING_KEY_ID": storage.grant_signing_key.key_id,
+                "AWS_ACCOUNT_ID": stack.account,
+                "PROVIDER_MODE": "mock",
+                "AWS_PROVIDER_MODE": "live",
+                "OPA_MODE": "embedded",
+            },
+        )
+        storage.scope_table.grant_read_write_data(self.authority_lambda)
+        storage.agent_registry_table.grant_read_data(self.authority_lambda)
+        storage.pending_approval_table.grant_read_write_data(self.authority_lambda)
+        storage.tool_auth_table.grant_read_write_data(self.authority_lambda)
+        storage.authority_grant_table.grant_read_write_data(self.authority_lambda)
+        storage.spend_ledger_table.grant_read_write_data(self.authority_lambda)
+        storage.decision_trace_table.grant_read_write_data(self.authority_lambda)
+        storage.governance_roles_table.grant_read_data(self.authority_lambda)
+        storage.evidence_bucket.grant_read_write(self.authority_lambda)
+        storage.evidence_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify")
+        storage.grant_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify", "kms:GetPublicKey")
+
+        # Per-grant AWS enforcement: the credential broker assumes this role
+        # with an inline session policy derived from each grant (one action, one
+        # object ARN, a deadline at the grant's expiry). The role itself can
+        # only read approved report objects; the session policy narrows that to
+        # the single object a grant names. No shared role is mutated.
+        authority_role = self.authority_lambda.role
+        self.delegated_execution_role = iam.Role(
+            self,
+            "DelegatedExecutionRole",
+            assumed_by=iam.ArnPrincipal(authority_role.role_arn),
+            description="Assumed per Delegated Authority Grant with a grant-derived session policy",
+            max_session_duration=Duration.hours(1),
+        )
+        self.delegated_execution_role.assume_role_policy.add_statements(
+            iam.PolicyStatement(
+                actions=["sts:TagSession", "sts:SetSourceIdentity"],
+                principals=[iam.ArnPrincipal(authority_role.role_arn)],
+            )
+        )
+        demo_operator = stack.node.try_get_context("delegated_demo_operator")
+        if demo_operator:
+            # Optional: lets an operator run demo/public_sector_hallpass/live_aws_demo.py
+            # locally against the deployed stack. Off unless explicitly set.
+            self.delegated_execution_role.assume_role_policy.add_statements(
+                iam.PolicyStatement(
+                    actions=["sts:AssumeRole", "sts:TagSession", "sts:SetSourceIdentity"],
+                    principals=[iam.ArnPrincipal(demo_operator)],
+                )
+            )
+        storage.data_bucket.grant_read(self.delegated_execution_role, "reports/approved/*")
+        self.authority_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["sts:AssumeRole", "sts:TagSession", "sts:SetSourceIdentity"],
+                resources=[self.delegated_execution_role.role_arn],
+            )
+        )
+        self.authority_lambda.add_environment(
+            "DELEGATED_EXECUTION_ROLE_ARN", self.delegated_execution_role.role_arn)
         # Auditor decision traces: write signed traces + serve GET /trace.
         storage.decision_trace_table.grant_read_write_data(self.governance_engine_lambda)
         # Optional async-evidence mode: emit decision events to EventBridge so the

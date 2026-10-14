@@ -567,7 +567,7 @@ class DelegatedAuthorityControlPlane:
             ok, reason = self.ledger.record(
                 agent_id, grant.session_id, amount, verified.canonical_request["financial_context"]["currency"],
                 grant_id, session_cap=policy.per_session_max if autonomous else None,
-                daily_cap=policy.daily_max if autonomous else None)
+                daily_cap=policy.daily_max if autonomous else None, autonomous=autonomous)
             if not ok:
                 return deny(reason, verification.checks_view())
 

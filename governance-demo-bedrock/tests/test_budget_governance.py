@@ -126,6 +126,15 @@ class TestBudgetThroughTheControlPlane:
             session_total, daily_total = cp.ledger.totals("procurement-agent", "s-1")
             assert session_total == Decimal("168") and daily_total == Decimal("168")
 
+    def test_approved_spend_is_recorded_but_outside_the_autonomous_budget(self):
+        with offline_demo() as demo:
+            ledger = demo.control_plane.ledger
+            ok, _ = ledger.record("procurement-agent", "s-a", Decimal("1800"), "CAD", "g-approved",
+                                  autonomous=False)
+            assert ok
+            assert ledger.totals("procurement-agent", "s-a") == (Decimal("0"), Decimal("0"))
+            assert ledger.total_spend_today("procurement-agent") == Decimal("1800")
+
     @pytest.mark.parametrize("claimed", [0, 1, 167.99])
     def test_claimed_session_totals_from_the_agent_are_ignored(self, claimed):
         with offline_demo() as demo:
