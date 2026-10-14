@@ -231,22 +231,16 @@ class ApprovalWorkflow:
             return False, "approval consumed concurrently (replay attempt)"
         return True, "approved request verified and consumed"
 
-    def verify_and_consume(self, approval_id: str, action_request: Dict[str, Any],
-                           policy_version_hash: str = "") -> Tuple[bool, str, Dict[str, Any]]:
-        """Verify a structured request against its approval and consume it once.
+    def check_binding(self, approval_id: str, action_request: Dict[str, Any],
+                      policy_version_hash: str = "") -> Tuple[bool, str, Dict[str, Any]]:
+        """Read-only check that a presented request matches an approval.
 
-        The approval must exist, be approved, unexpired and unconsumed, and the
-        digest of (canonical request, current policy version hash, the
-        approval's absolute expiry) must equal the digest recorded when the
-        approval was created. Any difference in agent, session, provider,
-        operation, target, parameters, environment, data class, amount or
-        currency, or a policy change since approval, fails closed. Consumption
-        is a conditional write, so of two concurrent callers only one succeeds.
-
-        Returns (ok, reason, approval_item).
+        Same checks as verify_and_consume except consumption. Callers use it
+        to report tampering precisely before running other gates; the atomic
+        verify_and_consume still re-checks everything at consumption time.
         """
         try:
-            resp = self._table.get_item(Key={"approval_id": approval_id})
+            resp = self._table.get_item(Key={"approval_id": approval_id}, ConsistentRead=True)
         except Exception as exc:
             return False, f"approval lookup failed ({type(exc).__name__}); failing closed", {}
         item = resp.get("Item") or {}
@@ -261,13 +255,11 @@ class ApprovalWorkflow:
             return False, "approval already consumed (replay attempt)", item
         if _is_expired(item):
             return False, "approval expired; a new approval is required", item
-
         try:
             canonical = canonicalize_action_request(action_request)
         except CanonicalizationError as exc:
             return False, f"request could not be canonicalized ({exc})", item
-        actual = compute_action_request_digest(
-            canonical, policy_version_hash, item.get("expires_at", ""))
+        actual = compute_action_request_digest(canonical, policy_version_hash, item.get("expires_at", ""))
         expected = str(item.get("request_digest", ""))
         if not expected or not hmac.compare_digest(actual, expected):
             changed = _changed_fields(item.get("action_request") or {}, canonical)
@@ -282,6 +274,25 @@ class ApprovalWorkflow:
             detail = f" (changed: {', '.join(changed)})" if changed else ""
             return False, ("approved request digest does not match the presented request"
                            f"{detail}; failing closed"), item
+        return True, "presented request matches the approval", item
+
+    def verify_and_consume(self, approval_id: str, action_request: Dict[str, Any],
+                           policy_version_hash: str = "") -> Tuple[bool, str, Dict[str, Any]]:
+        """Verify a structured request against its approval and consume it once.
+
+        The approval must exist, be approved, unexpired and unconsumed, and the
+        digest of (canonical request, current policy version hash, the
+        approval's absolute expiry) must equal the digest recorded when the
+        approval was created. Any difference in agent, session, provider,
+        operation, target, parameters, environment, data class, amount or
+        currency, or a policy change since approval, fails closed. Consumption
+        is a conditional write, so of two concurrent callers only one succeeds.
+
+        Returns (ok, reason, approval_item).
+        """
+        ok, reason, item = self.check_binding(approval_id, action_request, policy_version_hash)
+        if not ok:
+            return False, reason, item
 
         now_epoch = int(datetime.now(timezone.utc).timestamp())
         try:
@@ -603,6 +614,10 @@ class ApprovalWorkflow:
         )
 
         return s3_key
+
+    def get_record(self, approval_id: str) -> Dict[str, Any]:
+        """Raw approval record (including binding fields), or {} if absent."""
+        return self._table.get_item(Key={"approval_id": approval_id}, ConsistentRead=True).get("Item") or {}
 
     def _get_approval(self, approval_id: str) -> Optional[PendingApproval]:
         """Retrieve a PendingApproval from DynamoDB.
