@@ -73,11 +73,17 @@ def seed(session, outputs, tables, operator_arn):
                                                        "scope_level": DEMO_SCOPES[agent.agent_id]})
     for rule in OperationRegistry.load().tool_auth_rules(agents):
         ddb.Table(tables["ToolAuthTable"]).put_item(Item=rule)
+    # Store the IAM role ARN, not the session ARN, so the roles survive new sessions.
+    from authority_identity import normalize_principal_arn
     for role in ("policy_approver", "operator", "governance_admin"):
-        ddb.Table(tables["GovernanceRolesTable"]).put_item(Item={"user_id": operator_arn, "role": role})
+        ddb.Table(tables["GovernanceRolesTable"]).put_item(
+            Item={"user_id": normalize_principal_arn(operator_arn), "role": role})
     bucket = outputs["DataBucketName"]
     s3.put_object(Bucket=bucket, Key="reports/approved/price-benchmark-2026.csv",
                   Body=b"item,list_price\nproductivity-suite,42.00\n")
+    # Readable by the execution role, NOT named by the grant: the IAM probe target.
+    s3.put_object(Bucket=bucket, Key="reports/approved/vendor-contacts-2026.csv",
+                  Body=b"vendor,contact\nvendor-a,generic-contact\n")
     s3.put_object(Bucket=bucket, Key="reports/restricted/salary-bands.csv", Body=b"restricted demo object\n")
     print("Seeded demo registry, scopes, tool rules, operator roles and report objects.")
 
@@ -125,7 +131,8 @@ def main():
         check("Read with the grant's STS session", out.get("status") == "executed",
               json.dumps((out.get("credential") or {}).get("details", {}))[:240])
         probe = summary.get("iam_probe", {})
-        check("Same credential cannot read another object (IAM)", probe.get("probe") == "denied", json.dumps(probe))
+        check("Same credential cannot read a second object the role CAN read (session policy)",
+              probe.get("probe") == "denied", json.dumps(probe))
     restricted = dict(read, target_resource=f"aws/s3/{bucket}/reports/restricted/salary-bands.csv")
     r = agent.request_authority(restricted)
     check("Restricted object is denied before any credential", r.get("verdict") == "deny" and "grant" not in r)

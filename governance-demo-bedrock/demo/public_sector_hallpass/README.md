@@ -37,7 +37,7 @@ npx cdk deploy -c profile=public-sector-canada \
 python demo/public_sector_hallpass/live_aws_demo.py --region ca-central-1 --seed
 ```
 
-`--seed` writes demo registry entries, scopes, tool rules, your principal's governance roles and two generic report objects into the stack's own tables and bucket. Use a demo account. The live script assumes a demo agent runtime role that may call only the agent-plane routes, and your own credentials act as the human approver and administrator. It shows a grant's STS credential reading the approved object and IAM denying the same credential on a second object.
+`--seed` writes demo registry entries, scopes, tool rules, your principal's governance roles and two generic report objects into the stack's own tables and bucket. Use a demo account. The live script assumes a demo agent runtime role that may call only the agent-plane routes, and your own credentials act as the human approver and administrator. It shows a grant's STS credential reading the approved object, and IAM denying the same credential on a second object that the execution role itself is allowed to read, which isolates the effect of the grant's session policy.
 
 The `public-sector-canada` profile pins the stack to `ca-central-1`; deploying it to another Region fails unless `-c allow_region_override=true` is passed.
 

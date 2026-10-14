@@ -44,6 +44,21 @@ class TestGuardianBoundaries:
         out = cp.execute(resp["grant"]["grant_id"], req, demo.agent("guardian-agent"))
         assert out["status"] == "executed"
 
+    def test_engine_traces_in_the_shared_table_are_ignored(self, demo):
+        cp = demo.control_plane
+        # The governance engine writes traces with a different body to the same table.
+        demo.tables["decisions"].put_item(Item={
+            "decision_id": "engine-1", "agent_id": "procurement-agent", "verdict": "allow",
+            "timestamp": "2026-10-14T00:00:00+00:00", "canonical_body": "{\"decision_id\": \"engine-1\"}",
+            "trace_hash": "x", "signature": ""})
+        req = governance("guardian-agent", "Governance.InspectDecisionHistory", "agent/procurement-agent",
+                         {"limit": 5})
+        resp = cp.request_authority(req, demo.agent("guardian-agent"))
+        out = cp.execute(resp["grant"]["grant_id"], req, demo.agent("guardian-agent"))
+        assert out["status"] == "executed"
+        ids = [d["decision_id"] for d in out["execution"]["summary"]["decisions"]]
+        assert "engine-1" not in ids
+
     def test_guardian_recommendation_does_not_change_authority(self, demo):
         cp = demo.control_plane
         req = governance("guardian-agent", "Governance.RecommendSuspension", "agent/procurement-agent",

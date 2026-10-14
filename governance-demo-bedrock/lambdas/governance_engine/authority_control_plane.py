@@ -186,9 +186,16 @@ class DelegatedAuthorityControlPlane:
         if self.decision_table is None:
             return []
         from boto3.dynamodb.conditions import Attr
-        resp = self.decision_table.scan(FilterExpression=Attr("agent_id").eq(agent_id))
+        # The trace table is shared with the governance engine, whose traces
+        # have a different body; read only delegated-authority traces.
+        flt = Attr("agent_id").eq(agent_id) & Attr("trace_type").eq("delegated_authority")
+        resp = self.decision_table.scan(FilterExpression=flt)
+        items = list(resp.get("Items", []))
+        while "LastEvaluatedKey" in resp:
+            resp = self.decision_table.scan(FilterExpression=flt, ExclusiveStartKey=resp["LastEvaluatedKey"])
+            items.extend(resp.get("Items", []))
         rows = []
-        for item in resp.get("Items", []):
+        for item in items:
             body = json.loads(item["canonical_body"])
             rows.append({"decision_id": body["decision_id"], "operation_id": body["operation_id"],
                          "verdict": body["verdict"], "risk_score": body["risk_score"],

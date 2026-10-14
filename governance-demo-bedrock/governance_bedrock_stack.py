@@ -69,8 +69,11 @@ class GovernanceBedrockStack(Stack):
                            api.arn_for_execute_api("POST", "/authority-grants/*/execute", "prod"),
                            api.arn_for_execute_api("GET", "/authority-grants/*", "prod")],
             ))
+            # The probe object sits under reports/approved/, which the execution
+            # ROLE may read; only the grant's SESSION POLICY forbids it. A denial
+            # therefore isolates the session policy's narrowing effect.
             self.governance_engine.authority_lambda.add_environment(
-                "DEMO_ENFORCEMENT_PROBE_KEY", "reports/restricted/salary-bands.csv")
+                "DEMO_ENFORCEMENT_PROBE_KEY", "reports/approved/vendor-contacts-2026.csv")
             CfnOutput(self, "DemoAgentRuntimeRoleArn", value=agent_runtime.role_arn)
 
         # --- Outputs ---
