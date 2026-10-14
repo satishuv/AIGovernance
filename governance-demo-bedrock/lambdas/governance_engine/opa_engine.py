@@ -135,6 +135,23 @@ class OPAEngine:
         self._prefix = prefix
         self._fetch_and_parse_policies()
 
+    def policy_fingerprint(self) -> str:
+        """SHA-256 over the loaded rules (name, outcome, priority, conditions).
+
+        Used as the policy version an approval or authority grant binds to: a
+        change to any rule changes the fingerprint and voids earlier approvals.
+        """
+        import hashlib
+        canonical = json.dumps(
+            [
+                {"name": r.name, "outcome": r.outcome, "priority": r.priority,
+                 "conditions": r.conditions}
+                for r in sorted(self._rules, key=lambda r: (r.priority, r.name))
+            ],
+            sort_keys=True, default=str,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def load_policies_from_json(self, policy_defs: List[Dict[str, Any]]) -> None:
         """Load policies from JSON definitions (backward compat with existing format).
 

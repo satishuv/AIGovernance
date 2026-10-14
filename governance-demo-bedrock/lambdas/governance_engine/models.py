@@ -201,6 +201,12 @@ class GovernanceDecision:
         framework_mapping: List of ISO 42001 control IDs and NIST AI RMF function IDs.
         timestamp: ISO 8601 timestamp of the decision.
         latency_breakdown: Dict of component names to elapsed milliseconds.
+        action_request: Canonical, security-relevant view of the exact request
+            that was evaluated (operation, target, parameters, environment,
+            data class, financial subject). Never contains credentials. This is
+            what an approval and a delegated authority grant bind to.
+        policy_version_hash: Hash of every policy input that shaped the verdict.
+        request_digest: SHA-256 over action_request + policy_version_hash.
     """
 
     decision_id: str
@@ -213,6 +219,9 @@ class GovernanceDecision:
     framework_mapping: List[str] = field(default_factory=list)
     timestamp: str = ""
     latency_breakdown: Dict[str, float] = field(default_factory=dict)
+    action_request: Dict[str, Any] = field(default_factory=dict)
+    policy_version_hash: str = ""
+    request_digest: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -226,6 +235,9 @@ class GovernanceDecision:
             "framework_mapping": list(self.framework_mapping),
             "timestamp": self.timestamp,
             "latency_breakdown": {k: Decimal(str(v)) for k, v in self.latency_breakdown.items()},
+            "action_request": _decimalize(self.action_request),
+            "policy_version_hash": self.policy_version_hash,
+            "request_digest": self.request_digest,
         }
 
     @classmethod
@@ -241,7 +253,23 @@ class GovernanceDecision:
             framework_mapping=data.get("framework_mapping", []),
             timestamp=data.get("timestamp", ""),
             latency_breakdown=data.get("latency_breakdown", {}),
+            action_request=data.get("action_request", {}) or {},
+            policy_version_hash=data.get("policy_version_hash", "") or "",
+            request_digest=data.get("request_digest", "") or "",
         )
+
+
+def _decimalize(obj: Any) -> Any:
+    """Recursively convert floats to Decimal so the value is DynamoDB-safe."""
+    if isinstance(obj, bool) or obj is None:
+        return obj
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    if isinstance(obj, dict):
+        return {k: _decimalize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_decimalize(v) for v in obj]
+    return obj
 
 
 @dataclass
@@ -332,10 +360,32 @@ class AgentRegistryEntry:
         agent_id: Unique identifier for the agent.
         purpose: Description of the agent's purpose.
         owner: Identity of the agent owner.
-        data_classes: List of data classes the agent is declared to access.
+        data_classes: List of data classes the agent is approved to access
+            (the approved data classes for delegated authority).
         tools: List of tools the agent is declared to use.
         approved_scope: Maximum approved scope level for the agent.
         environment: Deployment environment: "dev", "staging", or "prod".
+
+    Delegated-authority fields (all optional; older entries load with safe
+    defaults). The agent's CURRENT scope is not stored here: the Scope Table is
+    the single source of truth for it, because the kill switch writes there.
+
+        agent_type: "worker", "guardian" or "governance".
+        business_owner / technical_owner: accountable humans.
+        runtime_provider / model_provider: where the agent runs and which model.
+        runtime_principal: IAM role ARN the agent runtime authenticates as.
+        allowed_providers / allowed_operations / allowed_resource_patterns:
+            the boundary within which the agent may receive authority.
+        spend_policy: {currency, per_transaction_max, per_session_max,
+            daily_max, hard_transaction_max}.
+        credential_ttl_seconds: lifetime of a delegated authority grant.
+        guardian_agent_ids: guardians permitted to observe this agent.
+        requires_guardian: the agent must have at least one guardian.
+        requires_human_for: operation ids that always need human approval.
+        risk_tier: "low", "medium", "high" or "critical".
+        policy_bundle: name of the policy bundle that governs the agent.
+        status: "active", "suspended" or "retired".
+        created_at / last_attested_at: lifecycle timestamps (ISO 8601).
     """
 
     agent_id: str
@@ -345,6 +395,71 @@ class AgentRegistryEntry:
     tools: List[str] = field(default_factory=list)
     approved_scope: int = 1
     environment: str = "dev"
+    agent_type: str = "worker"
+    business_owner: str = ""
+    technical_owner: str = ""
+    runtime_provider: str = ""
+    model_provider: str = ""
+    runtime_principal: str = ""
+    allowed_providers: List[str] = field(default_factory=list)
+    allowed_operations: List[str] = field(default_factory=list)
+    allowed_resource_patterns: List[str] = field(default_factory=list)
+    spend_policy: Dict[str, Any] = field(default_factory=dict)
+    credential_ttl_seconds: int = 300
+    guardian_agent_ids: List[str] = field(default_factory=list)
+    requires_guardian: bool = False
+    requires_human_for: List[str] = field(default_factory=list)
+    risk_tier: str = "medium"
+    policy_bundle: str = "default"
+    status: str = "active"
+    created_at: str = ""
+    last_attested_at: str = ""
+
+    VALID_AGENT_TYPES = ("worker", "guardian", "governance")
+    VALID_RISK_TIERS = ("low", "medium", "high", "critical")
+    VALID_STATUSES = ("active", "suspended", "retired")
+
+    @property
+    def approved_data_classes(self) -> List[str]:
+        return list(self.data_classes)
+
+    def validate_governance_fields(self) -> List[str]:
+        """Return a list of validation errors for the delegated-authority fields."""
+        errors: List[str] = []
+        if self.agent_type not in self.VALID_AGENT_TYPES:
+            errors.append(f"agent_type must be one of {list(self.VALID_AGENT_TYPES)}")
+        if self.risk_tier not in self.VALID_RISK_TIERS:
+            errors.append(f"risk_tier must be one of {list(self.VALID_RISK_TIERS)}")
+        if self.status not in self.VALID_STATUSES:
+            errors.append(f"status must be one of {list(self.VALID_STATUSES)}")
+        try:
+            scope = int(self.approved_scope)
+            if scope < 0 or scope > 4:
+                errors.append("approved_scope must be between 0 and 4")
+        except (TypeError, ValueError):
+            errors.append("approved_scope must be an integer")
+        try:
+            ttl = int(self.credential_ttl_seconds)
+            if ttl < 60 or ttl > 3600:
+                errors.append("credential_ttl_seconds must be between 60 and 3600")
+        except (TypeError, ValueError):
+            errors.append("credential_ttl_seconds must be an integer")
+        if self.agent_id in self.guardian_agent_ids:
+            errors.append("an agent cannot be its own guardian")
+        if self.requires_guardian and not self.guardian_agent_ids:
+            errors.append("requires_guardian is set but no guardian_agent_ids are declared")
+        for key in ("per_transaction_max", "per_session_max", "daily_max", "hard_transaction_max"):
+            if key in (self.spend_policy or {}):
+                try:
+                    if Decimal(str(self.spend_policy[key])) < 0:
+                        errors.append(f"spend_policy.{key} must not be negative")
+                except Exception:
+                    errors.append(f"spend_policy.{key} must be a number")
+        if self.spend_policy and not str(self.spend_policy.get("currency", "")).strip():
+            errors.append("spend_policy.currency is required when a spend policy is set")
+        if self.agent_type == "guardian" and self.spend_policy:
+            errors.append("guardian agents cannot hold spending authority")
+        return errors
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -355,6 +470,25 @@ class AgentRegistryEntry:
             "tools": list(self.tools),
             "approved_scope": self.approved_scope,
             "environment": self.environment,
+            "agent_type": self.agent_type,
+            "business_owner": self.business_owner,
+            "technical_owner": self.technical_owner,
+            "runtime_provider": self.runtime_provider,
+            "model_provider": self.model_provider,
+            "runtime_principal": self.runtime_principal,
+            "allowed_providers": list(self.allowed_providers),
+            "allowed_operations": list(self.allowed_operations),
+            "allowed_resource_patterns": list(self.allowed_resource_patterns),
+            "spend_policy": _decimalize(dict(self.spend_policy or {})),
+            "credential_ttl_seconds": self.credential_ttl_seconds,
+            "guardian_agent_ids": list(self.guardian_agent_ids),
+            "requires_guardian": self.requires_guardian,
+            "requires_human_for": list(self.requires_human_for),
+            "risk_tier": self.risk_tier,
+            "policy_bundle": self.policy_bundle,
+            "status": self.status,
+            "created_at": self.created_at,
+            "last_attested_at": self.last_attested_at,
         }
 
     @classmethod
@@ -367,6 +501,25 @@ class AgentRegistryEntry:
             tools=data.get("tools", []),
             approved_scope=data.get("approved_scope", 1),
             environment=data["environment"],
+            agent_type=data.get("agent_type", "worker") or "worker",
+            business_owner=data.get("business_owner", "") or "",
+            technical_owner=data.get("technical_owner", "") or "",
+            runtime_provider=data.get("runtime_provider", "") or "",
+            model_provider=data.get("model_provider", "") or "",
+            runtime_principal=data.get("runtime_principal", "") or "",
+            allowed_providers=list(data.get("allowed_providers", []) or []),
+            allowed_operations=list(data.get("allowed_operations", []) or []),
+            allowed_resource_patterns=list(data.get("allowed_resource_patterns", []) or []),
+            spend_policy=dict(data.get("spend_policy", {}) or {}),
+            credential_ttl_seconds=int(data.get("credential_ttl_seconds", 300) or 300),
+            guardian_agent_ids=list(data.get("guardian_agent_ids", []) or []),
+            requires_guardian=bool(data.get("requires_guardian", False)),
+            requires_human_for=list(data.get("requires_human_for", []) or []),
+            risk_tier=data.get("risk_tier", "medium") or "medium",
+            policy_bundle=data.get("policy_bundle", "default") or "default",
+            status=data.get("status", "active") or "active",
+            created_at=data.get("created_at", "") or "",
+            last_attested_at=data.get("last_attested_at", "") or "",
         )
 
 

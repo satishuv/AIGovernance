@@ -9,15 +9,47 @@ Requirements: 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7
 """
 
 import hashlib
+import hmac
 import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from models import GovernanceDecision, PendingApproval
+from request_canonicalization import (
+    CanonicalizationError,
+    SECURITY_RELEVANT_FIELDS,
+    canonical_json,
+    canonicalize_action_request,
+    compute_action_request_digest,
+    to_dynamodb_safe,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _is_expired(item: Dict[str, Any]) -> bool:
+    """True when the approval's absolute expiry has passed (fail closed on bad data)."""
+    epoch = item.get("expires_at_epoch")
+    if epoch in (None, ""):
+        return False  # legacy record without an absolute expiry
+    try:
+        return int(epoch) <= int(datetime.now(timezone.utc).timestamp())
+    except (TypeError, ValueError):
+        return True
+
+
+def _changed_fields(stored: Dict[str, Any], presented: Dict[str, Any]) -> List[str]:
+    """Names of security-relevant fields that differ (for audit, never for authz)."""
+    changed = []
+    for key in SECURITY_RELEVANT_FIELDS:
+        try:
+            if canonical_json(stored.get(key, "")) != canonical_json(presented.get(key, "")):
+                changed.append(key)
+        except Exception:
+            changed.append(key)
+    return changed
 
 
 def compute_request_digest(agent_id, action, parameters, target,
@@ -91,17 +123,36 @@ class ApprovalWorkflow:
 
         item = approval.to_dict()
         # Bind this approval to the exact request (TOCTOU / replay defense).
-        # decision.action_requested carries the action context; include any
-        # structured request fields the decision exposes.
+        # Decisions carry a canonical action_request (operation, target,
+        # parameters, environment, data class, financial subject) and the
+        # policy version hash; the digest also covers the ABSOLUTE expiry so a
+        # stale approval cannot be stretched.
+        created_epoch = int(datetime.now(timezone.utc).timestamp())
+        expires_epoch = created_epoch + int(timeout_seconds)
+        expires_at = datetime.fromtimestamp(expires_epoch, tz=timezone.utc).isoformat()
         req = getattr(decision, "action_request", None) or {}
-        item["request_digest"] = compute_request_digest(
-            agent_id=decision.agent_id,
-            action=decision.action_requested,
-            parameters=req.get("parameters", req.get("tool_parameters", {})),
-            target=req.get("target_resource", ""),
-            policy_version=getattr(decision, "policy_version", ""),
-            expiry=str(timeout_seconds),
-        )
+        policy_version_hash = (getattr(decision, "policy_version_hash", "")
+                               or getattr(decision, "policy_version", "") or "")
+        if req:
+            canonical = canonicalize_action_request(req)
+            item["digest_version"] = 2
+            item["action_request"] = to_dynamodb_safe(canonical)
+            item["policy_version_hash"] = policy_version_hash
+            item["request_digest"] = compute_action_request_digest(
+                canonical, policy_version_hash, expires_at)
+        else:
+            # Legacy decisions without a structured request.
+            item["digest_version"] = 1
+            item["request_digest"] = compute_request_digest(
+                agent_id=decision.agent_id,
+                action=decision.action_requested,
+                parameters={},
+                target="",
+                policy_version=policy_version_hash,
+                expiry=str(timeout_seconds),
+            )
+        item["expires_at"] = expires_at
+        item["expires_at_epoch"] = expires_epoch
         item["consumed"] = False
         self._table.put_item(Item=item)
 
@@ -145,6 +196,8 @@ class ApprovalWorkflow:
             return False, f"approval status is {item.get('status')!r}, not approved"
         if item.get("consumed"):
             return False, "approval already consumed (replay attempt)"
+        if _is_expired(item):
+            return False, "approval expired; a new approval is required"
 
         expected = item.get("request_digest", "")
         actual = compute_request_digest(
@@ -152,7 +205,7 @@ class ApprovalWorkflow:
             target=target, policy_version=policy_version,
             expiry=str(item.get("timeout_seconds", "")),
         )
-        if not expected or actual != expected:
+        if not expected or not hmac.compare_digest(str(actual), str(expected)):
             logger.error(json.dumps({
                 "audit_event": "approval_request_digest_mismatch",
                 "approval_id": approval_id,
@@ -168,14 +221,91 @@ class ApprovalWorkflow:
             self._table.update_item(
                 Key={"approval_id": approval_id},
                 UpdateExpression="SET consumed = :t, resolved_at = :r",
-                ConditionExpression="consumed = :f",
+                ConditionExpression="consumed = :f AND #s = :approved",
+                ExpressionAttributeNames={"#s": "status"},
                 ExpressionAttributeValues={
-                    ":t": True, ":f": False,
+                    ":t": True, ":f": False, ":approved": "approved",
                     ":r": datetime.now(timezone.utc).isoformat()},
             )
         except Exception:
             return False, "approval consumed concurrently (replay attempt)"
         return True, "approved request verified and consumed"
+
+    def verify_and_consume(self, approval_id: str, action_request: Dict[str, Any],
+                           policy_version_hash: str = "") -> Tuple[bool, str, Dict[str, Any]]:
+        """Verify a structured request against its approval and consume it once.
+
+        The approval must exist, be approved, unexpired and unconsumed, and the
+        digest of (canonical request, current policy version hash, the
+        approval's absolute expiry) must equal the digest recorded when the
+        approval was created. Any difference in agent, session, provider,
+        operation, target, parameters, environment, data class, amount or
+        currency, or a policy change since approval, fails closed. Consumption
+        is a conditional write, so of two concurrent callers only one succeeds.
+
+        Returns (ok, reason, approval_item).
+        """
+        try:
+            resp = self._table.get_item(Key={"approval_id": approval_id})
+        except Exception as exc:
+            return False, f"approval lookup failed ({type(exc).__name__}); failing closed", {}
+        item = resp.get("Item") or {}
+        if not item:
+            return False, "approval not found", {}
+        if int(item.get("digest_version", 1) or 1) != 2:
+            return False, "approval is not bound to a structured request; failing closed", item
+        status = item.get("status")
+        if status != "approved":
+            return False, f"approval status is {status!r}, not approved", item
+        if item.get("consumed"):
+            return False, "approval already consumed (replay attempt)", item
+        if _is_expired(item):
+            return False, "approval expired; a new approval is required", item
+
+        try:
+            canonical = canonicalize_action_request(action_request)
+        except CanonicalizationError as exc:
+            return False, f"request could not be canonicalized ({exc})", item
+        actual = compute_action_request_digest(
+            canonical, policy_version_hash, item.get("expires_at", ""))
+        expected = str(item.get("request_digest", ""))
+        if not expected or not hmac.compare_digest(actual, expected):
+            changed = _changed_fields(item.get("action_request") or {}, canonical)
+            if policy_version_hash != item.get("policy_version_hash", ""):
+                changed.append("policy_version_hash")
+            logger.error(json.dumps({
+                "audit_event": "approval_request_digest_mismatch",
+                "approval_id": approval_id,
+                "changed_fields": changed,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }, default=str))
+            detail = f" (changed: {', '.join(changed)})" if changed else ""
+            return False, ("approved request digest does not match the presented request"
+                           f"{detail}; failing closed"), item
+
+        now_epoch = int(datetime.now(timezone.utc).timestamp())
+        try:
+            self._table.update_item(
+                Key={"approval_id": approval_id},
+                UpdateExpression="SET consumed = :t, consumed_at = :r",
+                ConditionExpression=("consumed = :f AND #s = :approved "
+                                     "AND expires_at_epoch > :now"),
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={
+                    ":t": True, ":f": False, ":approved": "approved",
+                    ":now": now_epoch,
+                    ":r": datetime.now(timezone.utc).isoformat()},
+            )
+        except Exception:
+            return False, "approval consumed concurrently (replay attempt)", item
+        logger.info(json.dumps({
+            "audit_event": "approval_consumed",
+            "approval_id": approval_id,
+            "decision_id": item.get("decision_id", ""),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
+        item["consumed"] = True
+        return True, "approved request verified and consumed", item
 
     def notify_approvers(
         self,
@@ -242,6 +372,9 @@ class ApprovalWorkflow:
             ValueError: If approver_id equals agent_owner_id.
             KeyError: If approval_id is not found.
         """
+        if not approver_id or not str(approver_id).strip():
+            raise ValueError("Approver identity is required to approve a request.")
+
         if approver_id == agent_owner_id:
             logger.warning(
                 json.dumps(
@@ -260,20 +393,32 @@ class ApprovalWorkflow:
 
         now = datetime.now(timezone.utc).isoformat()
 
-        self._table.update_item(
-            Key={"approval_id": approval_id},
-            UpdateExpression=(
-                "SET #s = :status, approver_id = :approver, "
-                "approval_conditions = :conditions, resolved_at = :resolved"
-            ),
-            ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={
-                ":status": "approved",
-                ":approver": approver_id,
-                ":conditions": conditions,
-                ":resolved": now,
-            },
-        )
+        # Only an existing, still-pending approval can be approved. Without the
+        # condition, update_item would create a brand-new "approved" record for
+        # an unknown id, or re-approve a denied or timed-out one.
+        try:
+            self._table.update_item(
+                Key={"approval_id": approval_id},
+                UpdateExpression=(
+                    "SET #s = :status, approver_id = :approver, "
+                    "approval_conditions = :conditions, resolved_at = :resolved"
+                ),
+                ConditionExpression="attribute_exists(approval_id) AND #s = :pending",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={
+                    ":status": "approved",
+                    ":approver": approver_id,
+                    ":conditions": conditions,
+                    ":resolved": now,
+                    ":pending": "pending",
+                },
+            )
+        except Exception as exc:
+            if "ConditionalCheckFailed" in type(exc).__name__ or "ConditionalCheckFailed" in str(exc):
+                raise ValueError(
+                    f"Approval {approval_id} does not exist or is no longer pending."
+                ) from exc
+            raise
 
         logger.info(
             json.dumps(
@@ -307,20 +452,36 @@ class ApprovalWorkflow:
         """
         now = datetime.now(timezone.utc).isoformat()
 
-        self._table.update_item(
-            Key={"approval_id": approval_id},
-            UpdateExpression=(
-                "SET #s = :status, approver_id = :approver, "
-                "denial_reason = :reason, resolved_at = :resolved"
-            ),
-            ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={
-                ":status": "denied",
-                ":approver": approver_id,
-                ":reason": denial_reason,
-                ":resolved": now,
-            },
-        )
+        # A pending approval can be denied, and an approved-but-unused one can
+        # be withdrawn. A consumed approval already executed and is history.
+        try:
+            self._table.update_item(
+                Key={"approval_id": approval_id},
+                UpdateExpression=(
+                    "SET #s = :status, approver_id = :approver, "
+                    "denial_reason = :reason, resolved_at = :resolved"
+                ),
+                ConditionExpression=(
+                    "attribute_exists(approval_id) AND "
+                    "(#s = :pending OR (#s = :approved AND consumed = :f))"
+                ),
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={
+                    ":status": "denied",
+                    ":approver": approver_id,
+                    ":reason": denial_reason,
+                    ":resolved": now,
+                    ":pending": "pending",
+                    ":approved": "approved",
+                    ":f": False,
+                },
+            )
+        except Exception as exc:
+            if "ConditionalCheckFailed" in type(exc).__name__ or "ConditionalCheckFailed" in str(exc):
+                raise ValueError(
+                    f"Approval {approval_id} does not exist or can no longer be denied."
+                ) from exc
+            raise
 
         logger.info(
             json.dumps(
