@@ -220,9 +220,9 @@ class ApprovalWorkflow:
         try:
             self._table.update_item(
                 Key={"approval_id": approval_id},
-                UpdateExpression="SET consumed = :t, resolved_at = :r",
-                ConditionExpression="consumed = :f AND #s = :approved",
-                ExpressionAttributeNames={"#s": "status"},
+                UpdateExpression="SET #c = :t, resolved_at = :r",
+                ConditionExpression="#c = :f AND #s = :approved",
+                ExpressionAttributeNames={"#s": "status", "#c": "consumed"},
                 ExpressionAttributeValues={
                     ":t": True, ":f": False, ":approved": "approved",
                     ":r": datetime.now(timezone.utc).isoformat()},
@@ -287,10 +287,10 @@ class ApprovalWorkflow:
         try:
             self._table.update_item(
                 Key={"approval_id": approval_id},
-                UpdateExpression="SET consumed = :t, consumed_at = :r",
-                ConditionExpression=("consumed = :f AND #s = :approved "
+                UpdateExpression="SET #c = :t, consumed_at = :r",
+                ConditionExpression=("#c = :f AND #s = :approved "
                                      "AND expires_at_epoch > :now"),
-                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeNames={"#s": "status", "#c": "consumed"},
                 ExpressionAttributeValues={
                     ":t": True, ":f": False, ":approved": "approved",
                     ":now": now_epoch,
@@ -463,9 +463,9 @@ class ApprovalWorkflow:
                 ),
                 ConditionExpression=(
                     "attribute_exists(approval_id) AND "
-                    "(#s = :pending OR (#s = :approved AND consumed = :f))"
+                    "(#s = :pending OR (#s = :approved AND #c = :f))"
                 ),
-                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeNames={"#s": "status", "#c": "consumed"},
                 ExpressionAttributeValues={
                     ":status": "denied",
                     ":approver": approver_id,
