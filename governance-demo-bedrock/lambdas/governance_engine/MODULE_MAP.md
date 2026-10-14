@@ -32,6 +32,24 @@
 | `opa_engine.py` | OPA Rego-subset evaluator (embedded or external mode) |
 | `policy_engine.py` | Policy loading from S3, caching, evaluation orchestration |
 | `cedar_engine.py` | Cedar authorization engine (ABAC, data classification). `authorize_agent_role_boxed()` enforces `HUMAN_ONLY_ACTIONS` boundary before Cedar runs; `verify_agent_subset_of_human()` detects privilege escalations. Available but not in default pipeline. |
+
+### Delegated authority (hall pass)
+
+See `docs/architecture/delegated-authority.md`.
+
+| Module | Role |
+|---|---|
+| `request_canonicalization.py` | Canonical action request and request digest shared by decisions, approvals, grants and evidence. |
+| `operation_registry.py` + `operation_catalog/` | OpenAPI operation catalog; the operationId is the authorization subject. |
+| `authority_control_plane.py` | Ordered gates, OPA verdict, approvals, grant mint/execute, revoke, kill switch, admin scope. |
+| `delegated_authority.py` | KMS-signed, DynamoDB-persisted Delegated Authority Grants with conditional consume/revoke. |
+| `credential_broker/` | Provider-neutral broker; AWS STS session policies (live), Entra/ServiceNow/Google (mock). |
+| `budget_governance.py` | Server-side amount derivation, spend limits, atomic spend ledger. |
+| `agent_role_boundaries.py` | Worker, guardian and governance boundaries over the Cedar human-only set. |
+| `authority_identity.py` | Caller identity from the request context; approver and admin eligibility. |
+| `authority_evidence.py` | Hash-chained, signed, secret-free evidence. |
+| `authority_api.py` / `authority_factory.py` | Dedicated Lambda entry point and wiring. |
+| `agent_token_exchange.py` | EXPERIMENTAL research module (process-local state). Not the hall-pass implementation. |
 | `risk_scoring.py` | Composite risk score (0-100) from 5 weighted factors, capped |
 | `behavioral_invariants.py` | Hard physical limits (output size cap, canary tripwire, time-of-day) |
 | `formal_assurance.py` | Proves 6 safety invariants hold regardless of input |

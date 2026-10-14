@@ -1,0 +1,342 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Public Sector Agent Delegated Authority Demo Operations",
+    "version": "2026.10.14",
+    "description": "Generic demonstration operations. Every executable operation has a stable operationId and an x-governance block. The governance control plane authorizes the operationId, never a model's description of it. An operationId that is not in this catalog is denied."
+  },
+  "paths": {
+    "/servicenow/incidents/{incident_id}": {
+      "get": {
+        "operationId": "ServiceNow.GetIncident",
+        "summary": "Read one incident",
+        "x-governance": {
+          "provider": "servicenow", "risk_category": "read", "min_scope": 1,
+          "resource_type": "incident", "resource_patterns": ["servicenow/incident/*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker", "guardian"],
+          "provider_scopes": ["incident.read"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["incident_id"],
+            "properties": {"incident_id": {"type": "string", "pattern": "^INC[0-9]{7}$"}}
+          }
+        }
+      },
+      "patch": {
+        "operationId": "ServiceNow.UpdateIncident",
+        "summary": "Update incident state or add a work note",
+        "x-governance": {
+          "provider": "servicenow", "risk_category": "write", "min_scope": 2,
+          "resource_type": "incident", "resource_patterns": ["servicenow/incident/*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "provider_scopes": ["incident.write"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["incident_id", "state"],
+            "properties": {
+              "incident_id": {"type": "string", "pattern": "^INC[0-9]{7}$"},
+              "state": {"type": "string", "enum": ["in_progress", "resolved"]},
+              "work_note": {"type": "string", "maxLength": 500}
+            }
+          }
+        }
+      }
+    },
+    "/servicenow/incidents": {
+      "post": {
+        "operationId": "ServiceNow.CreateIncident",
+        "summary": "Open an incident",
+        "x-governance": {
+          "provider": "servicenow", "risk_category": "write", "min_scope": 2,
+          "resource_type": "incident", "resource_patterns": ["servicenow/incident/new"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "provider_scopes": ["incident.write"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["short_description", "urgency"],
+            "properties": {
+              "short_description": {"type": "string", "minLength": 5, "maxLength": 160},
+              "urgency": {"type": "integer", "enum": [1, 2, 3]}
+            }
+          }
+        }
+      }
+    },
+    "/servicenow/catalog": {
+      "get": {
+        "operationId": "Subscription.ListCatalog",
+        "summary": "List the approved software catalog",
+        "x-governance": {
+          "provider": "servicenow", "risk_category": "read", "min_scope": 1,
+          "resource_type": "catalog", "resource_patterns": ["catalog/software"],
+          "data_class": "Public", "allowed_agent_types": ["worker", "guardian"],
+          "provider_scopes": ["catalog.read"],
+          "parameter_schema": {"type": "object", "additionalProperties": false, "properties": {}}
+        }
+      }
+    },
+    "/servicenow/catalog/{catalog_item_id}/order": {
+      "post": {
+        "operationId": "Subscription.Purchase",
+        "summary": "Order seats of an approved catalog item",
+        "x-governance": {
+          "provider": "servicenow", "risk_category": "financial", "min_scope": 3,
+          "resource_type": "catalog_item", "resource_patterns": ["catalog/software/approved/*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "financial_impact": true,
+          "amount_derivation": {"source": "approved_catalog", "item_param": "catalog_item_id", "quantity_param": "quantity"},
+          "provider_scopes": ["catalog.order"],
+          "credential_ttl_seconds": 300, "max_uses": 1,
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["catalog_item_id", "quantity", "cost_centre"],
+            "properties": {
+              "catalog_item_id": {"type": "string", "pattern": "^[a-z0-9-]{3,64}$"},
+              "quantity": {"type": "integer", "minimum": 1, "maximum": 500},
+              "cost_centre": {"type": "string", "pattern": "^CC-[0-9]{4}$"}
+            }
+          }
+        }
+      }
+    },
+    "/entra/users/{user_id}": {
+      "get": {
+        "operationId": "Entra.GetUser",
+        "summary": "Read a directory user",
+        "x-governance": {
+          "provider": "entra", "risk_category": "read", "min_scope": 1,
+          "resource_type": "user", "resource_patterns": ["entra/user/*"],
+          "data_class": "Protected-A", "allowed_agent_types": ["worker"],
+          "provider_scopes": ["User.Read.All"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["user_id"],
+            "properties": {"user_id": {"type": "string", "pattern": "^[a-z0-9.-]{3,64}$"}}
+          }
+        }
+      }
+    },
+    "/entra/groups/{group_id}/members": {
+      "post": {
+        "operationId": "Entra.AddGroupMember",
+        "summary": "Add a user to a directory group",
+        "x-governance": {
+          "provider": "entra", "risk_category": "identity_admin", "min_scope": 3,
+          "resource_type": "group", "resource_patterns": ["entra/group/*"],
+          "human_only_resource_patterns": ["entra/group/*Admin*", "entra/group/*admin*"],
+          "human_only_action": "GrantScope",
+          "data_class": "Protected-A", "allowed_agent_types": ["worker"],
+          "requires_approval": true,
+          "provider_scopes": ["GroupMember.ReadWrite.All"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["group_id", "user_id"],
+            "properties": {
+              "group_id": {"type": "string", "pattern": "^[A-Za-z0-9-]{3,64}$"},
+              "user_id": {"type": "string", "pattern": "^[a-z0-9.-]{3,64}$"}
+            }
+          }
+        }
+      }
+    },
+    "/entra/applications": {
+      "post": {
+        "operationId": "Entra.CreateApplication",
+        "summary": "Register a new application identity",
+        "x-governance": {
+          "provider": "entra", "risk_category": "identity_admin", "min_scope": 4,
+          "resource_type": "application", "resource_patterns": ["entra/application/*"],
+          "human_only": true, "human_only_action": "GrantScope",
+          "data_class": "Protected-A", "allowed_agent_types": [],
+          "provider_scopes": ["Application.ReadWrite.All"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["display_name"],
+            "properties": {"display_name": {"type": "string", "maxLength": 120}}
+          }
+        }
+      }
+    },
+    "/aws/s3/{bucket}/{key}": {
+      "get": {
+        "operationId": "AWS.ReadObject",
+        "summary": "Read one approved report object",
+        "x-governance": {
+          "provider": "aws", "risk_category": "read", "min_scope": 1,
+          "resource_type": "s3_object", "resource_patterns": ["aws/s3/*/reports/approved/*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "aws_actions": ["s3:GetObject"],
+          "provider_scopes": ["s3:GetObject"],
+          "credential_ttl_seconds": 300, "max_uses": 1,
+          "parameter_schema": {"type": "object", "additionalProperties": false, "properties": {}}
+        }
+      }
+    },
+    "/aws/states/{state_machine}/executions": {
+      "post": {
+        "operationId": "AWS.StartWorkflow",
+        "summary": "Start one approved workflow execution",
+        "x-governance": {
+          "provider": "aws", "risk_category": "write", "min_scope": 3,
+          "resource_type": "state_machine", "resource_patterns": ["aws/states/approved-*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "aws_actions": ["states:StartExecution"],
+          "provider_scopes": ["states:StartExecution"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["input_reference"],
+            "properties": {"input_reference": {"type": "string", "pattern": "^[a-z0-9-]{3,64}$"}}
+          }
+        }
+      }
+    },
+    "/google/drive/files/{file_id}": {
+      "get": {
+        "operationId": "Google.ReadDriveFile",
+        "summary": "Read one shared document",
+        "x-governance": {
+          "provider": "google", "risk_category": "read", "min_scope": 1,
+          "resource_type": "drive_file", "resource_patterns": ["google/drive/file/*"],
+          "data_class": "Internal", "allowed_agent_types": ["worker"],
+          "provider_scopes": ["https://www.googleapis.com/auth/drive.readonly"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["file_id"],
+            "properties": {"file_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{6,64}$"}}
+          }
+        }
+      }
+    },
+    "/governance/agents/{agent_id}/decisions": {
+      "get": {
+        "operationId": "Governance.InspectDecisionHistory",
+        "summary": "Read another agent's governance decisions",
+        "x-governance": {
+          "provider": "governance", "risk_category": "oversight", "min_scope": 1,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "data_class": "Internal", "allowed_agent_types": ["guardian", "governance"],
+          "requires_assigned_guardian": true,
+          "provider_scopes": ["governance.decisions.read"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false,
+            "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 50}}
+          }
+        }
+      }
+    },
+    "/governance/agents/{agent_id}/evidence": {
+      "get": {
+        "operationId": "Governance.InspectEvidence",
+        "summary": "Read another agent's evidence records",
+        "x-governance": {
+          "provider": "governance", "risk_category": "oversight", "min_scope": 1,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "data_class": "Internal", "allowed_agent_types": ["guardian", "governance"],
+          "requires_assigned_guardian": true,
+          "provider_scopes": ["governance.evidence.read"],
+          "parameter_schema": {"type": "object", "additionalProperties": false, "properties": {}}
+        }
+      }
+    },
+    "/governance/agents/{agent_id}/suspension-recommendations": {
+      "post": {
+        "operationId": "Governance.RecommendSuspension",
+        "summary": "Recommend that humans suspend an agent",
+        "x-governance": {
+          "provider": "governance", "risk_category": "oversight", "min_scope": 1,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "data_class": "Internal", "allowed_agent_types": ["guardian"],
+          "requires_assigned_guardian": true,
+          "provider_scopes": ["governance.recommendations.write"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["reason"],
+            "properties": {"reason": {"type": "string", "minLength": 10, "maxLength": 500}}
+          }
+        }
+      }
+    },
+    "/governance/alerts": {
+      "post": {
+        "operationId": "Governance.CreateAlert",
+        "summary": "Raise an alert for human review",
+        "x-governance": {
+          "provider": "governance", "risk_category": "oversight", "min_scope": 1,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "data_class": "Internal", "allowed_agent_types": ["guardian", "governance"],
+          "requires_assigned_guardian": true,
+          "provider_scopes": ["governance.alerts.write"],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["severity", "summary"],
+            "properties": {
+              "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+              "summary": {"type": "string", "maxLength": 300}
+            }
+          }
+        }
+      }
+    },
+    "/governance/agents/{agent_id}/scope": {
+      "put": {
+        "operationId": "Governance.UpdateAgentScope",
+        "summary": "Change an agent's scope (human-only)",
+        "x-governance": {
+          "provider": "governance", "risk_category": "authority_change", "min_scope": 4,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "human_only": true, "human_only_action": "GrantScope",
+          "data_class": "Internal", "allowed_agent_types": [],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["new_scope_level"],
+            "properties": {"new_scope_level": {"type": "integer", "minimum": 0, "maximum": 4}}
+          }
+        }
+      }
+    },
+    "/governance/scope-grants": {
+      "post": {
+        "operationId": "Governance.GrantScope",
+        "summary": "Grant additional scope (human-only)",
+        "x-governance": {
+          "provider": "governance", "risk_category": "authority_change", "min_scope": 4,
+          "resource_type": "agent", "resource_patterns": ["agent/*"],
+          "human_only": true, "human_only_action": "GrantScope",
+          "data_class": "Internal", "allowed_agent_types": [],
+          "parameter_schema": {
+            "type": "object", "additionalProperties": false, "required": ["new_scope_level"],
+            "properties": {"new_scope_level": {"type": "integer", "minimum": 0, "maximum": 4}}
+          }
+        }
+      }
+    },
+    "/governance/policies": {
+      "put": {
+        "operationId": "Governance.AmendPolicy",
+        "summary": "Amend a governance policy (human-only)",
+        "x-governance": {
+          "provider": "governance", "risk_category": "authority_change", "min_scope": 4,
+          "resource_type": "policy", "resource_patterns": ["policy/*"],
+          "human_only": true, "human_only_action": "AmendPolicy",
+          "data_class": "Internal", "allowed_agent_types": [],
+          "parameter_schema": {"type": "object", "additionalProperties": true, "properties": {}}
+        }
+      }
+    },
+    "/governance/exceptions": {
+      "post": {
+        "operationId": "Governance.ApproveException",
+        "summary": "Approve a policy exception (human-only)",
+        "x-governance": {
+          "provider": "governance", "risk_category": "authority_change", "min_scope": 4,
+          "resource_type": "policy", "resource_patterns": ["policy/*"],
+          "human_only": true, "human_only_action": "ApproveException",
+          "data_class": "Internal", "allowed_agent_types": [],
+          "parameter_schema": {"type": "object", "additionalProperties": true, "properties": {}}
+        }
+      }
+    },
+    "/governance/monitoring": {
+      "put": {
+        "operationId": "Governance.ModifyMonitoringConfig",
+        "summary": "Change monitoring or evidence settings (human-only)",
+        "x-governance": {
+          "provider": "governance", "risk_category": "authority_change", "min_scope": 4,
+          "resource_type": "monitoring", "resource_patterns": ["monitoring/*", "agent/*"],
+          "human_only": true, "human_only_action": "OverrideDecision",
+          "data_class": "Internal", "allowed_agent_types": [],
+          "parameter_schema": {"type": "object", "additionalProperties": true, "properties": {}}
+        }
+      }
+    }
+  }
+}

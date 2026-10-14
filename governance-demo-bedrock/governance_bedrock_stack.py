@@ -48,6 +48,34 @@ class GovernanceBedrockStack(Stack):
             self, "SeedData", storage=self.storage
         )
 
+        # --- Optional live delegated-authority demo (off by default) ---
+        # With -c delegated_demo_operator=<principal ARN>, the operator can
+        # assume a demo agent runtime role that may call ONLY the agent-plane
+        # authority routes, and the authority Lambda adds an IAM probe to show
+        # that a grant's credential cannot read any other object.
+        demo_operator = self.node.try_get_context("delegated_demo_operator")
+        if demo_operator:
+            from aws_cdk import aws_iam as iam
+            api = self.api.approval_api
+            agent_runtime = iam.Role(
+                self, "DemoAgentRuntimeRole",
+                assumed_by=iam.ArnPrincipal(demo_operator),
+                description="Demo only: acts as procurement-agent's runtime identity",
+            )
+            agent_runtime.add_to_policy(iam.PolicyStatement(
+                actions=["execute-api:Invoke"],
+                resources=[api.arn_for_execute_api("POST", "/authority/requests", "prod"),
+                           api.arn_for_execute_api("POST", "/authority-grants/mint", "prod"),
+                           api.arn_for_execute_api("POST", "/authority-grants/*/execute", "prod"),
+                           api.arn_for_execute_api("GET", "/authority-grants/*", "prod")],
+            ))
+            # The probe object sits under reports/approved/, which the execution
+            # ROLE may read; only the grant's SESSION POLICY forbids it. A denial
+            # therefore isolates the session policy's narrowing effect.
+            self.governance_engine.authority_lambda.add_environment(
+                "DEMO_ENFORCEMENT_PROBE_KEY", "reports/approved/vendor-contacts-2026.csv")
+            CfnOutput(self, "DemoAgentRuntimeRoleArn", value=agent_runtime.role_arn)
+
         # --- Outputs ---
 
         CfnOutput(self, "AgentId", value=self.bedrock_agent.bedrock_agent.attr_agent_id)
@@ -55,3 +83,8 @@ class GovernanceBedrockStack(Stack):
         CfnOutput(self, "KillSwitchApiUrl", value=self.api.kill_switch_api.url)
         CfnOutput(self, "ApprovalApiUrl", value=self.api.approval_api.url)
         CfnOutput(self, "DashboardName", value=self.monitoring.governance_dashboard.dashboard_name)
+        CfnOutput(self, "DelegatedExecutionRoleArn",
+                  value=self.governance_engine.delegated_execution_role.role_arn)
+        CfnOutput(self, "DelegatedAuthorityFunctionName",
+                  value=self.governance_engine.authority_lambda.function_name)
+        CfnOutput(self, "DataBucketName", value=self.storage.data_bucket.bucket_name)

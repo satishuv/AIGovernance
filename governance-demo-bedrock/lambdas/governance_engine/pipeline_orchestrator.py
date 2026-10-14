@@ -283,11 +283,19 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "input_text": event.get("input_text", ""),
         "scope_level": int(event.get("scope_level", 1)),
     }
+    # Structured request fields (operation-level authorization). When present
+    # they travel into the GovernanceDecision so an approval binds to the exact
+    # operation, target and parameters rather than to free text.
+    for _structured_key in ("operation_id", "provider", "environment", "tool_parameters",
+                            "financial_context", "session_id", "action_source"):
+        if _structured_key in event and event.get(_structured_key) not in (None, ""):
+            action_request[_structured_key] = event.get(_structured_key)
     scope_level = action_request["scope_level"]
     action_group = action_request["action_group"]
     target_resource = action_request["target_resource"]
     input_text = action_request["input_text"]
     session_id = event.get("session_id", "") or event.get("sessionId", "")
+    created_approval_id = ""
 
     tracker = LatencyTracker()
 
@@ -542,13 +550,14 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             tool_exec_auth = ToolExecutionAuthManager()
             tool_name = event.get("tool_name", "") or action_request.get("action_group", "")
             tool_parameters = event.get("tool_parameters", {})
-            if tool_name:
-                tool_auth_result = tool_exec_auth.authorize_tool(agent_id, tool_name, tool_parameters, tool_auth_table)
-                if not tool_auth_result.authorized:
-                    return _deny_response(
-                        reason=f"Tool execution denied: {tool_auth_result.denial_reason}",
-                        agent_id=agent_id, error_category="tool_auth_denied",
-                    )
+            # Fail closed: an execution request that names no tool (or an
+            # unregistered one) is denied by authorize_tool, never skipped.
+            tool_auth_result = tool_exec_auth.authorize_tool(agent_id, tool_name, tool_parameters, tool_auth_table)
+            if not tool_auth_result.authorized:
+                return _deny_response(
+                    reason=f"Tool execution denied: {tool_auth_result.denial_reason}",
+                    agent_id=agent_id, error_category="tool_auth_denied",
+                )
 
         # Egress governance: block incident-2 class attacks (external account
         # creation, public package registry uploads, dependency confusion).
@@ -752,10 +761,15 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Decision
         with tracker.track("decision_engine"):
+            try:
+                _policy_version_hash = _get_cached_opa_engine().policy_fingerprint()
+            except Exception:
+                _policy_version_hash = ""
             decision = decision_engine.decide(
                 policy_result, risk_assessment, action_request, agent_id,
                 modification_applied=modification_applied,
                 context_sufficient=context_sufficient,
+                policy_version_hash=_policy_version_hash,
             )
 
         # DEFER dependent-action cascade bound (AARM R4). A deferred action
@@ -896,10 +910,14 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Approval workflow for escalated (STEP_UP) and deferred decisions.
             # DEFER suspends pending more context with a shorter timeout; both
             # reuse the pending-approval record + auto-timeout-to-deny path.
+            # This is the ONE authoritative approval record for the decision;
+            # its id is returned to the caller so no other component creates a
+            # second record.
             if decision.verdict in ("escalate", "defer") and approval_workflow is not None:
                 try:
                     _timeout = 300 if decision.verdict == "defer" else 3600
                     approval_id = approval_workflow.create_pending_approval(decision, timeout_seconds=_timeout)
+                    created_approval_id = approval_id
                     approval_record = approval_workflow._get_approval(approval_id)
                     if approval_record is not None:
                         try:
@@ -1015,6 +1033,8 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Return decision
         response_body = decision.to_dict()
+        if created_approval_id:
+            response_body["approval_id"] = created_approval_id
         if canary_tokens:
             response_body["_canary_tokens"] = canary_tokens
         if simulation_mode:

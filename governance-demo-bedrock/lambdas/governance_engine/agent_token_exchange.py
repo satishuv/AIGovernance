@@ -19,14 +19,23 @@ import hmac
 import json
 import logging
 import os
-import time
+import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-TOKEN_SECRET = os.environ.get("AGENT_TOKEN_SECRET", "agcp-governance-token-v1-default")
+# EXPERIMENTAL research module. Tokens and the access log live in process
+# memory, so they do not survive a Lambda cold start and are not shared across
+# instances. It is NOT the delegated-authority implementation: production-path
+# hall passes are delegated_authority.DelegatedAuthorityGrant (KMS-signed,
+# DynamoDB-persisted, conditionally consumed).
+#
+# There is no hard-coded fallback secret. Without AGENT_TOKEN_SECRET each
+# process generates a random secret, which matches the process-local token
+# store (a token is only ever verified by the process that issued it).
+TOKEN_SECRET = os.environ.get("AGENT_TOKEN_SECRET", "")
 TOKEN_TTL_SECONDS = int(os.environ.get("AGENT_TOKEN_TTL", "3600"))
 
 
@@ -112,7 +121,7 @@ class AgentTokenExchange:
     """
 
     def __init__(self, secret: str = None, ttl: int = None):
-        self._secret = (secret or TOKEN_SECRET).encode("utf-8")
+        self._secret = (secret or TOKEN_SECRET or secrets.token_hex(32)).encode("utf-8")
         self._ttl = ttl or TOKEN_TTL_SECONDS
         self._active_tokens: Dict[str, AgentToken] = {}
         self._access_log: List[DataAccessRecord] = []

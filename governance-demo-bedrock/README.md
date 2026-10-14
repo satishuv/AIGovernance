@@ -206,11 +206,15 @@ pip install -r requirements.txt
 # Deploy (requires AWS credentials with CDK permissions)
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
-# Validate demo scenarios (must show 21/21 before any demo)
+# Validate demo scenarios (must show 21/21 before any demo; needs a deployed stack)
 python test_datasets/run_demo_validation.py
 
+# Delegated authority (hall pass) demo: offline, no AWS account (must show 12/12)
+python demo/public_sector_hallpass/run_demo_validation.py
+python demo/public_sector_hallpass/app.py        # UI at http://127.0.0.1:8765
+
 # Full offline test suite
-python -m pytest tests/ -v           # 344 tests, ~25s, no AWS required
+python -m pytest tests/ -v           # 614 tests, no AWS required (stack tests need aws-cdk-lib >= 2.244)
 python -m pytest tests/ -q -k "not live"
 ```
 

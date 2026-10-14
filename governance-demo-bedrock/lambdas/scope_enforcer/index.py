@@ -3,15 +3,24 @@ Scope Enforcer Lambda for the Bedrock Agent Governance Demo.
 
 Entry point for all user requests. Enforces scope-based governance
 before invoking the Bedrock Agent:
-1. Optionally updates scope if new_scope is provided (Task 6.4)
+1. Rejects any request that tries to change authority (new_scope,
+   permissions, roles, approvals). Scope changes belong to the separate,
+   authenticated governance-administration plane, never the agent plane.
 2. Reads current scope from Scope Table (Task 6.1)
 3. If scope is 0, denies request (kill switch active) (Task 6.1)
 4. Invokes Governance Engine Lambda for policy/risk evaluation (Task 11.1)
 5. If denied: return denied response with explanation
-6. If escalated: create pending approval record and return escalated response
+6. If escalated/deferred: return the governance engine's single
+   authoritative approval_id (no second approval record is created here)
 7. If allowed: swap IAM permission boundary on Action Group Lambda role (Task 6.2)
 8. Calls bedrock-agent-runtime:InvokeAgent with session attributes (Task 6.3)
 9. Collects streamed response and returns it (Task 6.3)
+
+Authorization source of truth: when the caller supplies a structured
+operation_id, that operation is what governance evaluates. The keyword
+mapping in _derive_action_group() is a legacy conversational pre-screen only;
+it is never the authority for a structured request, and the IAM permission
+boundary for the agent's stored scope remains the infrastructure control.
 
 Environment variables:
     AGENT_ID: Bedrock Agent ID
@@ -20,7 +29,6 @@ Environment variables:
     ACTION_GROUP_LAMBDA_ROLE_NAME: IAM role name for the action group lambda
     SCOPE_BOUNDARY_ARNS: JSON-encoded dict mapping scope levels to permission boundary ARNs
     GOVERNANCE_ENGINE_LAMBDA_ARN: ARN of the Governance Engine Lambda
-    PENDING_TABLE_NAME: DynamoDB table for pending approval records
 """
 
 import json
@@ -87,7 +95,6 @@ SCOPE_TABLE_NAME = os.environ.get("SCOPE_TABLE_NAME", "")
 ACTION_GROUP_LAMBDA_ROLE_NAME = os.environ.get("ACTION_GROUP_LAMBDA_ROLE_NAME", "")
 SCOPE_BOUNDARY_ARNS = json.loads(os.environ.get("SCOPE_BOUNDARY_ARNS", "{}"))
 GOVERNANCE_ENGINE_LAMBDA_ARN = os.environ.get("GOVERNANCE_ENGINE_LAMBDA_ARN", "")
-PENDING_TABLE_NAME = os.environ.get("PENDING_TABLE_NAME", "")
 GOVERNANCE_MODE = os.environ.get("GOVERNANCE_MODE", "lambda")
 GOVERNANCE_PIPELINE_ARN = os.environ.get("GOVERNANCE_PIPELINE_ARN", "")
 
@@ -113,26 +120,30 @@ SCOPE_ACTION_GROUPS = {
 
 
 # ---------------------------------------------------------------------------
-# Task 6.4 -- Requirement 8.6: Optional scope update from input event
+# Agent-plane authority boundary.
+#
+# The agent execution interface accepts a description of the action the agent
+# wants to perform. It never accepts a field that changes the agent's own
+# authority. Earlier versions accepted "new_scope" here and wrote it straight
+# to the Scope Table, which let any caller of the agent entry point raise an
+# agent's scope. Scope changes now live only in the authenticated
+# governance-administration plane (AgentIdentityManager.update_scope_level with
+# a human-authorized requester). A request carrying any of these fields is
+# denied and logged as a privilege-escalation attempt; nothing is written.
 # ---------------------------------------------------------------------------
-def update_scope_level(agent_id, new_scope):
-    """Update the scope level in the Scope Table for the given agent."""
-    table = dynamodb.Table(SCOPE_TABLE_NAME)
-    table.update_item(
-        Key={"agent_id": agent_id},
-        UpdateExpression="SET scope_level = :s, updated_at = :t, updated_by = :u",
-        ExpressionAttributeValues={
-            ":s": new_scope,
-            ":t": datetime.now(timezone.utc).isoformat(),
-            ":u": "scope_enforcer",
-        },
-    )
-    logger.info(json.dumps({
-        "event": "scope_updated",
-        "agent_id": agent_id,
-        "new_scope": new_scope,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }))
+AUTHORITY_CHANGING_FIELDS = frozenset({
+    "new_scope", "approved_scope", "current_scope", "scope_override",
+    "new_permissions", "permissions", "new_role", "role", "roles",
+    "new_policy", "policy_override", "human_authorized", "approved",
+    "approval_status", "approver_id", "grant_scope", "elevate",
+})
+
+
+def find_authority_changing_fields(event):
+    """Return the sorted list of authority-changing fields present in event."""
+    if not isinstance(event, dict):
+        return []
+    return sorted(k for k in event.keys() if k in AUTHORITY_CHANGING_FIELDS)
 
 
 # ---------------------------------------------------------------------------
@@ -340,8 +351,11 @@ def invoke_bedrock_agent(input_text, session_attributes):
 def _derive_action_group(input_text):
     """Derive an action group name from the user's input text.
 
-    Uses simple keyword matching to map input to known action groups.
-    Falls back to 'general' if no match is found.
+    LEGACY conversational pre-screen only. Uses simple keyword matching to map
+    input to known action groups and falls back to 'general' (which the
+    governance engine denies). This is never the authorization source for a
+    structured request: when the caller supplies an operation_id, governance
+    evaluates that operation instead (see invoke_governance_engine).
     """
     text_lower = (input_text or "").lower()
     if any(kw in text_lower for kw in ("deploy", "release", "production")):
@@ -355,14 +369,20 @@ def _derive_action_group(input_text):
     return "general"
 
 
-def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=""):
+def invoke_governance_engine(agent_id, input_text, scope_level, target_resource="",
+                             operation_id="", tool_parameters=None, session_id=""):
     """Invoke the Governance Engine Lambda synchronously.
 
     Args:
         agent_id: The agent identifier.
-        input_text: The user's natural language request.
-        scope_level: Current scope level for the agent.
+        input_text: The user's natural language request (stated intent only).
+        scope_level: Current scope level for the agent (read from the Scope Table).
         target_resource: Optional target resource identifier.
+        operation_id: Structured operation the agent wants to execute. When
+            present it is the authorization subject; the natural-language text
+            is not used to infer the privilege.
+        tool_parameters: Parameters of the structured operation.
+        session_id: Optional agent session identifier.
 
     Returns:
         Parsed GovernanceDecision dict from the Governance Engine.
@@ -370,15 +390,27 @@ def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=
     Raises:
         Exception on invocation failure (timeout, error, bad response).
     """
-    action_group = _derive_action_group(input_text)
+    if operation_id:
+        action_group = operation_id
+        action_source = "structured_operation"
+    else:
+        action_group = _derive_action_group(input_text)
+        action_source = "legacy_keyword_prescreen"
 
     payload = {
         "agent_id": agent_id,
         "action_group": action_group,
+        "action_source": action_source,
         "target_resource": target_resource or "default",
         "input_text": input_text,
         "scope_level": scope_level,
     }
+    if operation_id:
+        payload["operation_id"] = operation_id
+        payload["tool_name"] = operation_id
+        payload["tool_parameters"] = tool_parameters or {}
+    if session_id:
+        payload["session_id"] = session_id
 
     # Invoke governance pipeline (mode-dependent)
     if GOVERNANCE_MODE == "step_functions" and GOVERNANCE_PIPELINE_ARN:
@@ -417,41 +449,21 @@ def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=
     return response_payload
 
 
-def create_pending_approval(agent_id, input_text, governance_decision):
-    """Create a pending approval record in the PendingTable for escalated actions.
+def _approval_response(status, governance_decision, default_message):
+    """Build the escalate/defer response from the governance engine's decision.
 
-    Args:
-        agent_id: The agent identifier.
-        input_text: The user's original request.
-        governance_decision: The GovernanceDecision dict from the Governance Engine.
+    The governance engine's ApprovalWorkflow already created the one
+    authoritative approval record (bound to the exact request digest). This
+    function only relays its approval_id; it never creates a second record.
     """
-    table = dynamodb.Table(PENDING_TABLE_NAME)
-    request_id = str(uuid.uuid4())
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    table.put_item(Item={
-        "request_id": request_id,
-        "agent_id": agent_id,
-        "input_text": input_text,
+    return {
+        "status": status,
+        "verdict": governance_decision.get("verdict", ""),
+        "message": governance_decision.get("explanation", default_message),
         "decision_id": governance_decision.get("decision_id", ""),
-        "verdict": "escalate",
-        "explanation": governance_decision.get("explanation", ""),
-        "risk_score": str(governance_decision.get("risk_score", 0)),
-        "framework_mapping": governance_decision.get("framework_mapping", []),
-        "status": "pending_approval",
-        "created_at": timestamp,
-        "updated_at": timestamp,
-    })
-
-    logger.info(json.dumps({
-        "event": "pending_approval_created",
-        "request_id": request_id,
-        "agent_id": agent_id,
-        "decision_id": governance_decision.get("decision_id", ""),
-        "timestamp": timestamp,
-    }))
-
-    return request_id
+        "approval_id": governance_decision.get("approval_id", ""),
+        "risk_score": governance_decision.get("risk_score", 0),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -461,12 +473,12 @@ def handler(event, context):
     """Orchestrate scope enforcement, governance evaluation, and Bedrock Agent invocation.
 
     Flow:
-        1. Optionally update scope level
+        1. Reject authority-changing fields (agent cannot raise its own authority)
         2. Read current scope level
         3. Deny if kill switch active (scope == 0)
         4. Invoke Governance Engine for policy/risk evaluation
            - deny  → return denied response with explanation
-           - escalate → create pending approval, return escalated response
+           - escalate/defer → return the governance engine's approval_id
            - allow → proceed to Bedrock Agent
         5. Swap IAM permission boundary (allow only)
         6. Build session attributes (allow only)
@@ -476,17 +488,42 @@ def handler(event, context):
         {
             "agent_id": "demo-agent",
             "input_text": "Show me the build status for build-47",
-            "new_scope": 2  // optional
+            "operation_id": "ReadPipelineStatus",   // optional, structured
+            "tool_parameters": {"build_id": "47"},  // optional, structured
+            "target_resource": "pipeline/build-47"  // optional
         }
+
+    Scope changes are NOT accepted here. Use the governance-administration
+    plane (human-authenticated) to change an agent's scope.
     """
     agent_id = event.get("agent_id", AGENT_ID)
     input_text = event.get("input_text", "")
-    new_scope = event.get("new_scope")
+    operation_id = event.get("operation_id", "") or ""
+    tool_parameters = event.get("tool_parameters") or {}
+    target_resource = event.get("target_resource", "") or ""
+    session_id = event.get("session_id", "") or ""
 
     try:
-        # Step 1: Optionally update scope (Task 6.4 -- Requirement 8.6)
-        if new_scope is not None:
-            update_scope_level(agent_id, int(new_scope))
+        # Step 1: The agent plane never changes authority. Deny and log any
+        # attempt to submit scope/permission/approval fields; write nothing.
+        rejected_fields = find_authority_changing_fields(event)
+        if rejected_fields:
+            logger.warning(json.dumps({
+                "event": "privilege_escalation_attempt",
+                "agent_id": agent_id,
+                "rejected_fields": rejected_fields,
+                "action_taken": "deny",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return {
+                "status": "denied",
+                "error": "authority_change_not_permitted",
+                "message": (
+                    "The agent execution interface does not accept authority-changing "
+                    f"fields ({', '.join(rejected_fields)}). Scope and permission changes "
+                    "require the human-authenticated governance-administration plane."
+                ),
+            }
 
         # Step 2: Read current scope level (Task 6.1)
         scope_level = get_scope_level(agent_id)
@@ -502,7 +539,11 @@ def handler(event, context):
         # Step 4: Invoke Governance Engine (Task 11.1 -- Reqs 2.1, 4.1-4.5, 17.1, 18.2)
         try:
             governance_decision = invoke_governance_engine(
-                agent_id, input_text, scope_level
+                agent_id, input_text, scope_level,
+                target_resource=target_resource,
+                operation_id=operation_id,
+                tool_parameters=tool_parameters,
+                session_id=session_id,
             )
         except Exception as gov_exc:
             # Fail-safe: deny on Governance Engine failure (Req 18.2)
@@ -543,46 +584,35 @@ def handler(event, context):
                 "decision_id": governance_decision.get("decision_id", ""),
             }
 
-        # Step 4b: Handle escalate verdict (Reqs 4.4, 4.5)
+        # Step 4b: Handle escalate verdict (Reqs 4.4, 4.5). The governance
+        # engine already created the one authoritative approval record.
         if verdict == "escalate":
-            explanation = governance_decision.get("explanation", "Action escalated for human review.")
-            request_id = create_pending_approval(agent_id, input_text, governance_decision)
+            response = _approval_response(
+                "escalated", governance_decision, "Action escalated for human review.")
             logger.info(json.dumps({
                 "event": "governance_escalated",
                 "agent_id": agent_id,
-                "decision_id": governance_decision.get("decision_id", ""),
-                "request_id": request_id,
-                "explanation": explanation,
+                "decision_id": response["decision_id"],
+                "approval_id": response["approval_id"],
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
-            return {
-                "status": "escalated",
-                "message": explanation,
-                "decision_id": governance_decision.get("decision_id", ""),
-                "request_id": request_id,
-            }
+            return response
 
         # Step 4c: Handle defer verdict (AARM R4 DEFER). The action is suspended
         # pending additional context (e.g. stated intent / disambiguation). Like
         # escalate it does not execute; unresolved defers time out to deny in the
         # governance engine's pending-approval path.
         if verdict == "defer":
-            explanation = governance_decision.get("explanation", "Action deferred pending additional context.")
-            request_id = create_pending_approval(agent_id, input_text, governance_decision)
+            response = _approval_response(
+                "deferred", governance_decision, "Action deferred pending additional context.")
             logger.info(json.dumps({
                 "event": "governance_deferred",
                 "agent_id": agent_id,
-                "decision_id": governance_decision.get("decision_id", ""),
-                "request_id": request_id,
-                "explanation": explanation,
+                "decision_id": response["decision_id"],
+                "approval_id": response["approval_id"],
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
-            return {
-                "status": "deferred",
-                "message": explanation,
-                "decision_id": governance_decision.get("decision_id", ""),
-                "request_id": request_id,
-            }
+            return response
 
         # Fail-closed guard: only allow and modify proceed to execution. Any
         # unrecognized verdict is denied rather than executed (defense in depth
