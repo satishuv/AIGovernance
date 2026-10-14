@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased: delegated authority ("hall pass") demo branch
+
+### Security fixes
+- Tool authorization now fails closed: unknown, empty, unloadable and revoked tools were authorized; they are now denied.
+- The agent execution entry point no longer accepts `new_scope` (or any authority-changing field); it previously wrote the caller's value straight to the Scope Table.
+- Structured requests carry an `operation_id` that governance evaluates; keyword inference from the prompt is a labelled legacy pre-screen only.
+- Governance decisions retain the canonical request, the policy version hash and a request digest; approvals bind to that digest plus an absolute expiry.
+- One approval record per decision (the scope enforcer's second record is gone); approvals can be approved only while pending and are consumed once.
+- `consumed` is a DynamoDB reserved word; the unaliased consume condition made every real consume fail, so an approved request could never execute.
+- The approval API takes the approver from the authenticated request context and enforces separation of duties (agents, owners and principals without an approver role are refused).
+- `agent_token_exchange.py` no longer has a hard-coded fallback secret and is marked experimental.
+
+### Added
+- Delegated Authority Grants: KMS-signed, DynamoDB-persisted, conditionally consumed and revoked; credential broker with AWS STS session policies and mock Entra, ServiceNow and Google adapters; OpenAPI operation registry; budget governance; worker/guardian boundaries; hash-chained signed evidence; a dedicated least-privilege authority Lambda and IAM-only routes.
+- `public-sector-canada` deployment profile with a region guard.
+- Offline demo (12 scenarios), local UI, live AWS demo script, architecture document.
+
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0 and the
 API surface is not yet stability-guaranteed (see Versioning below).

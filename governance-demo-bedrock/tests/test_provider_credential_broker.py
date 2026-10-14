@@ -67,7 +67,7 @@ class TestAwsSessionPolicy:
         with pytest.raises(BrokerRefusal):
             resource_arn_for(target)
 
-    def test_live_mode_assumes_role_with_grant_session_policy_and_tags(self):
+    def test_sts_mode_assumes_role_with_grant_session_policy_and_tags(self):
         with offline_demo(aws_mode="live") as demo:
             cp = demo.control_plane
             adapter = demo.adapters["aws"]
@@ -104,7 +104,7 @@ class TestAwsSessionPolicy:
 
 class TestSaasAdapters:
     @pytest.mark.parametrize("adapter_cls", [ServiceNowAdapter, EntraAdapter])
-    def test_live_mode_refuses_without_federation_settings(self, adapter_cls):
+    def test_federated_mode_refuses_without_settings(self, adapter_cls):
         adapter = adapter_cls(mode="live")
         verified = MagicMock(grant=MagicMock(expires_at="2026-10-14T12:05:00+00:00"))
         with pytest.raises(ProviderNotConfigured):

@@ -39,7 +39,9 @@ def handler():
             BillingMode="PAY_PER_REQUEST")
         roles.put_item(Item={"user_id": ADMIN, "role": "governance_admin"})
         s3.create_bucket(Bucket="wired-evidence", CreateBucketConfiguration={"LocationConstraint": REGION})
-        key = lambda: kms.create_key(KeyUsage="SIGN_VERIFY", KeySpec="ECC_NIST_P256")["KeyMetadata"]["KeyId"]
+        def key():
+            return kms.create_key(KeyUsage="SIGN_VERIFY", KeySpec="ECC_NIST_P256")["KeyMetadata"]["KeyId"]
+
         env = {
             "SCOPE_TABLE_NAME": "wired-scope", "AGENT_REGISTRY_TABLE_NAME": "wired-registry",
             "PENDING_APPROVAL_TABLE_NAME": "wired-approvals", "TOOL_AUTH_TABLE_NAME": "wired-tool_auth",

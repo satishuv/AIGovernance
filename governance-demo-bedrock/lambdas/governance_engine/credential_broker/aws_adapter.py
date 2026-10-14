@@ -26,6 +26,7 @@ returned or written to evidence.
 
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -173,9 +174,14 @@ class AwsStsAdapter(CredentialProvider):
             else:
                 body = self._client("s3", handle).get_object(Bucket=bucket, Key=key)["Body"].read()
             # Never return object content; prove the read with size and hash.
-            return ExecutionResult(self.name, spec.operation_id, "success",
-                                   {"bucket": bucket, "key": key, "bytes": len(body),
-                                    "sha256": hashlib.sha256(body).hexdigest()})
+            summary = {"bucket": bucket, "key": key, "bytes": len(body),
+                       "sha256": hashlib.sha256(body).hexdigest()}
+            probe_key = os.environ.get("DEMO_ENFORCEMENT_PROBE_KEY", "")
+            if self.mode == MODE_LIVE and probe_key:
+                # Live demo only: show that the SAME credential cannot read
+                # anything else, because the session policy names one object.
+                summary["iam_probe"] = self.probe_out_of_scope(handle, bucket, probe_key)
+            return ExecutionResult(self.name, spec.operation_id, "success", summary)
         if spec.operation_id == "AWS.StartWorkflow":
             arn = resource_arn_for(target, self._region, self._account)
             params = verified.canonical_request["tool_parameters"]

@@ -91,7 +91,7 @@ class TestLocalUi:
         assert status == 200 and body["passed"] and body["decision"]["aarm_decision"] == "ALLOW"
 
 
-class TestLiveApiClient:
+class TestSigV4ApiClient:
     def test_requests_are_sigv4_signed_for_execute_api(self):
         import boto3
         session = boto3.Session(aws_access_key_id="AKIDEXAMPLE", aws_secret_access_key="secret",
