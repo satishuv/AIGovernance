@@ -139,8 +139,10 @@ class TestVerifyAndConsume:
         assert ok is False and "consumed" in reason
 
     def test_concurrent_double_use_permits_only_one(self, workflow):
-        wf, _ = workflow
+        from tests.authority_test_support import serialize_conditional_writes
+        wf, table = workflow
         approval_id = _approved(workflow)
+        serialize_conditional_writes(table)
         results = []
         barrier = threading.Barrier(8)
 
