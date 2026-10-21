@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +133,36 @@ class RoleDirectory:
             return cls({})
         return cls(assignments)
 
+    @classmethod
+    def for_principal(cls, table, principal_id: str) -> "RoleDirectory":
+        """Roles for one principal, read with key queries instead of a table scan.
+
+        The table's partition key is user_id, so the roles of a principal are
+        one Query for the principal itself and one for its normalized role ARN
+        (an assumed-role session inherits roles assigned to its role).
+        """
+        assignments: Dict[str, Set[str]] = {}
+        if table is None or not principal_id:
+            return cls(assignments)
+        from boto3.dynamodb.conditions import Key
+        try:
+            for user in {principal_id, normalize_principal_arn(principal_id)} - {""}:
+                kwargs: Dict[str, Any] = {"KeyConditionExpression": Key("user_id").eq(user)}
+                while True:
+                    resp = table.query(**kwargs)
+                    for item in resp.get("Items", []):
+                        role = str(item.get("role", "") or "")
+                        if role and str(item.get("status", "active")) == "active":
+                            assignments.setdefault(user, set()).add(role)
+                    if "LastEvaluatedKey" not in resp:
+                        break
+                    kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        except Exception as exc:
+            # Fail closed: nobody holds a role if the directory cannot be read.
+            logger.error(json.dumps({"event": "role_directory_query_failed", "error": str(exc)}))
+            return cls({})
+        return cls(assignments)
+
     def roles_for(self, principal_id: str) -> Set[str]:
         roles = set(self._assignments.get(principal_id, set()))
         normalized = normalize_principal_arn(principal_id)
@@ -141,18 +171,39 @@ class RoleDirectory:
         return roles
 
 
+class AmbiguousAgentPrincipal(Exception):
+    """More than one registered agent declares the same runtime principal."""
+
+
+AgentPrincipals = Union[Mapping[str, str], Callable[[str], str]]
+
+
+def _agent_id_for(principal_id: str, agent_principals: AgentPrincipals) -> str:
+    if callable(agent_principals):
+        return agent_principals(principal_id) or ""
+    normalized = normalize_principal_arn(principal_id)
+    return agent_principals.get(principal_id) or agent_principals.get(normalized) or ""
+
+
 def resolve_caller(principal_id: str, source: str, role_directory: RoleDirectory,
-                   agent_principals: Dict[str, str]) -> AuthenticatedCaller:
+                   agent_principals: AgentPrincipals) -> AuthenticatedCaller:
     """Classify an authenticated principal as an agent or a human.
 
     agent_principals maps runtime principal ARNs (role ARNs) to agent ids, as
-    declared in the agent registry. Any principal whose role is a registered
-    agent runtime principal is an agent, regardless of roles recorded for it.
+    declared in the agent registry, either as a mapping or as an indexed lookup
+    function (AgentRegistry.agent_id_for_principal). Any principal whose role
+    is a registered agent runtime principal is an agent, regardless of roles
+    recorded for it. A principal claimed by more than one agent is classified
+    as unknown, so every plane denies it.
     """
     if not principal_id:
         return AuthenticatedCaller(principal_id="", principal_type="unknown", source=source)
-    normalized = normalize_principal_arn(principal_id)
-    agent_id = agent_principals.get(principal_id) or agent_principals.get(normalized) or ""
+    try:
+        agent_id = _agent_id_for(principal_id, agent_principals)
+    except AmbiguousAgentPrincipal as exc:
+        logger.error(json.dumps({"event": "ambiguous_agent_principal", "principal_id": principal_id,
+                                 "error": str(exc)}))
+        return AuthenticatedCaller(principal_id=principal_id, principal_type="unknown", source=source)
     if agent_id:
         return AuthenticatedCaller(principal_id=principal_id, principal_type="agent",
                                    agent_id=agent_id, roles=set(), source=source)

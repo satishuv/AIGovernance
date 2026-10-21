@@ -10,13 +10,16 @@ Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7
 import json
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 
-from models import ToolModelRegistryEntry
+from models import ToolModelRegistryEntry, tool_model_identity_key
 
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"model", "tool_connector", "data_source"}
+
+# Global secondary index on identity_key (category#name#version).
+IDENTITY_INDEX = "ByIdentity"
 
 
 class ToolModelRegistry:
@@ -184,8 +187,10 @@ class ToolModelRegistry:
     ) -> bool:
         """Check whether a matching approved entry exists.
 
-        Scans the table for an entry matching the given category, name, and
-        version with ``approval_status == "approved"``.
+        One Query on the ByIdentity index (identity_key = category#name#version)
+        instead of a table scan on every governance decision (P0-18). Query
+        errors deny: an unreadable registry cannot prove a model or tool is
+        approved.
 
         Args:
             category: Entry category ("model", "tool_connector", or "data_source").
@@ -195,22 +200,57 @@ class ToolModelRegistry:
         Returns:
             True if a matching approved entry is found, False otherwise.
         """
+        from boto3.dynamodb.conditions import Key
+
+        kwargs = {
+            "IndexName": IDENTITY_INDEX,
+            "KeyConditionExpression": Key("identity_key").eq(
+                tool_model_identity_key(category, name, version)),
+        }
+        try:
+            while True:
+                response = self._table.query(**kwargs)
+                for item in response.get("Items", []):
+                    if (
+                        item.get("category") == category
+                        and item.get("name") == name
+                        and item.get("version") == version
+                        and item.get("approval_status") == "approved"
+                    ):
+                        return True
+                if "LastEvaluatedKey" not in response:
+                    return False
+                kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        except Exception as exc:
+            logger.error(json.dumps({
+                "event": "tool_model_registry_query_failed",
+                "category": category, "name": name, "version": version,
+                "error": str(exc),
+            }))
+            return False
+
+    def backfill_identity_keys(self) -> int:
+        """Add identity_key to entries written before the ByIdentity index.
+
+        Administrative migration, run once after deploying the index; it scans
+        the table and is never called on the request path. Returns the number
+        of entries updated.
+        """
+        updated = 0
         response = self._table.scan()
-        items = response.get("Items", [])
-
+        items = list(response.get("Items", []))
         while "LastEvaluatedKey" in response:
-            response = self._table.scan(
-                ExclusiveStartKey=response["LastEvaluatedKey"]
-            )
+            response = self._table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
             items.extend(response.get("Items", []))
-
         for item in items:
-            if (
-                item.get("category") == category
-                and item.get("name") == name
-                and item.get("version") == version
-                and item.get("approval_status") == "approved"
-            ):
-                return True
-
-        return False
+            if item.get("identity_key") or not item.get("entry_id"):
+                continue
+            self._table.update_item(
+                Key={"entry_id": item["entry_id"]},
+                UpdateExpression="SET identity_key = :k",
+                ExpressionAttributeValues={":k": tool_model_identity_key(
+                    str(item.get("category", "")), str(item.get("name", "")),
+                    str(item.get("version", "")))},
+            )
+            updated += 1
+        return updated

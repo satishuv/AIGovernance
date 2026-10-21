@@ -7,6 +7,8 @@ execution is permitted.
 DynamoDB table schema:
     PK: pk (String) - composite: "RULE#<tool_name>", "CHAIN#<chain_id>", "RATE#<agent_id>#<tool_name>"
     SK: sk (String) - for RULE: "*" or specific agent_id; for CHAIN: "0"; for RATE: timestamp
+    GSI ByLookupKey (lookup_pk, lookup_sk): CHAIN records ("CHAIN", pk) and
+    RATE records ("HISTORY#<agent_id>", timestamp); RULE records are not indexed
 """
 
 import json
@@ -14,7 +16,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,38 @@ RATE_LIMIT_WINDOW_SECONDS = 60
 
 # Rate record TTL: 5 minutes
 RATE_TTL_SECONDS = 5 * 60
+
+# One sparse global secondary index on the ToolAuthTable serves both request
+# path lookups (P0-18). CloudFormation adds at most one index per table update,
+# so a single overloaded index keeps an in-place stack update possible.
+#   CHAIN records: lookup_pk = "CHAIN",            lookup_sk = pk
+#   RATE records:  lookup_pk = "HISTORY#<agent>",  lookup_sk = timestamp
+LOOKUP_INDEX = "ByLookupKey"
+CHAIN_LOOKUP_PK = "CHAIN"
+
+
+def history_lookup_pk(agent_id: str) -> str:
+    return f"HISTORY#{agent_id}"
+
+
+def tool_auth_table_definition(table_name: str) -> Dict[str, Any]:
+    """create_table arguments matching the deployed ToolAuthTable."""
+    return {
+        "TableName": table_name,
+        "KeySchema": [{"AttributeName": "pk", "KeyType": "HASH"},
+                      {"AttributeName": "sk", "KeyType": "RANGE"}],
+        "AttributeDefinitions": [
+            {"AttributeName": name, "AttributeType": "S"}
+            for name in ("pk", "sk", "lookup_pk", "lookup_sk")
+        ],
+        "GlobalSecondaryIndexes": [
+            {"IndexName": LOOKUP_INDEX,
+             "KeySchema": [{"AttributeName": "lookup_pk", "KeyType": "HASH"},
+                           {"AttributeName": "lookup_sk", "KeyType": "RANGE"}],
+             "Projection": {"ProjectionType": "ALL"}},
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+    }
 
 
 @dataclass
@@ -354,6 +387,9 @@ class ToolExecutionAuthManager:
             "pk": f"RATE#{agent_id}#{tool_name}",
             "sk": timestamp,
             "agent_id": agent_id,
+            # Keys of the sparse ByLookupKey index (agent call history).
+            "lookup_pk": history_lookup_pk(agent_id),
+            "lookup_sk": timestamp,
             "tool_name": tool_name,
             "timestamp": timestamp,
             # Must match the table's configured TTL attribute name
@@ -509,8 +545,6 @@ class ToolExecutionAuthManager:
             Tuple of (safe, chain_description_if_matched).
             safe=True means no dangerous chain detected.
         """
-        from boto3.dynamodb.conditions import Key
-
         # Load chain definitions
         chains = self._load_chains(tool_auth_table)
         if not chains:
@@ -521,8 +555,11 @@ class ToolExecutionAuthManager:
 
         # Check each chain
         for chain in chains:
-            chain_sequence = chain.get("chain_sequence", [])
-            chain_id = chain.get("chain_id", "unknown")
+            # Seed data writes "sequence" and "chain_name"; older records use
+            # "chain_sequence" and "chain_id". Reading only the older names left
+            # the seeded exfiltration chain unchecked.
+            chain_sequence = list(chain.get("chain_sequence") or chain.get("sequence") or [])
+            chain_id = chain.get("chain_id") or chain.get("chain_name") or "unknown"
             chain_desc = chain.get("description", f"Chain {chain_id}")
 
             if not chain_sequence or tool_name not in chain_sequence:
@@ -710,17 +747,25 @@ class ToolExecutionAuthManager:
     def _load_chains(self, tool_auth_table) -> List[Dict[str, Any]]:
         """Load all tool chain definitions from the table.
 
+        One Query on the sparse ByLookupKey index (lookup_pk = "CHAIN").
+        The table also holds every agent's RATE records, so the previous
+        filtered scan read the whole call history on each authorization (P0-18).
+
         Returns:
             List of chain definition dicts.
         """
         from boto3.dynamodb.conditions import Key
 
         try:
-            # Scan for CHAIN records (prefix scan)
-            response = tool_auth_table.scan(
-                FilterExpression=Key("pk").begins_with("CHAIN#")
-            )
-            return response.get("Items", [])
+            kwargs = {"IndexName": LOOKUP_INDEX,
+                      "KeyConditionExpression": Key("lookup_pk").eq(CHAIN_LOOKUP_PK)}
+            items: List[Dict[str, Any]] = []
+            while True:
+                response = tool_auth_table.query(**kwargs)
+                items.extend(response.get("Items", []))
+                if "LastEvaluatedKey" not in response:
+                    return items
+                kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         except Exception as exc:
             logger.error(json.dumps({
                 "event": "load_chains_failed",
@@ -734,24 +779,32 @@ class ToolExecutionAuthManager:
     ) -> List[str]:
         """Get recent tool invocations for an agent (last 5 minutes).
 
+        One Query on the sparse ByLookupKey index (lookup_pk =
+        "HISTORY#<agent_id>", lookup_sk = timestamp), which only RATE records
+        carry.
+
         Returns:
             List of tool names in chronological order.
         """
-        from boto3.dynamodb.conditions import Attr
+        from boto3.dynamodb.conditions import Key
 
         now = datetime.now(timezone.utc)
         window_start = (now - timedelta(seconds=RATE_TTL_SECONDS)).isoformat()
 
         try:
-            # Scan for all RATE records for this agent within window
-            response = tool_auth_table.scan(
-                FilterExpression=(
-                    Attr("agent_id").eq(agent_id)
-                    & Attr("timestamp").gte(window_start)
-                    & Attr("pk").begins_with(f"RATE#{agent_id}#")
+            kwargs = {
+                "IndexName": LOOKUP_INDEX,
+                "KeyConditionExpression": (
+                    Key("lookup_pk").eq(history_lookup_pk(agent_id)) & Key("lookup_sk").gte(window_start)
                 ),
-            )
-            items = response.get("Items", [])
+            }
+            items: List[Dict[str, Any]] = []
+            while True:
+                response = tool_auth_table.query(**kwargs)
+                items.extend(response.get("Items", []))
+                if "LastEvaluatedKey" not in response:
+                    break
+                kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
             # Sort by timestamp
             items.sort(key=lambda x: x.get("timestamp", ""))
             return [item.get("tool_name", "") for item in items if item.get("tool_name")]

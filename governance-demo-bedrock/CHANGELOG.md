@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased: atomic approval consumption
+## Unreleased: no table scans on the request path (P0-18)
+
+### Security and scale fixes
+- Caller classification no longer scans the agent registry and the roles table on every authority and approval API request. The registry has a `ByRuntimePrincipal` index and the caller is resolved with one query on it; roles come from a key query on `user_id`. At 2,000 agents the old path read at least 2,000 registry items per request.
+- A runtime principal declared by two registered agents now resolves to neither: the caller is classified as unknown and every plane denies it. Before, the scan kept whichever agent it read last.
+- Each governance decision no longer scans the tool and model registry. Entries carry `identity_key` (`category#name#version`) and the check is one query on the `ByIdentity` index. A failed query denies.
+- Tool-chain detection no longer scans the tool authorization table, which also holds every agent's call history. Chain definitions and an agent's recent calls are read through one overloaded `ByLookupKey` index.
+- The seeded `exfiltration_pattern` chain was never checked: seed data writes `sequence` and `chain_name`, and the checker read only `chain_sequence` and `chain_id`. The checker now reads both.
+- The pipeline kept no configuration between requests: it scanned the risk configuration table and built a new threat detector and exfiltration detector on each decision, so their 60-second caches never hit. They are now cached per container for 60 seconds, the same window as the OPA policy cache. A failed load is never cached.
+
+### Upgrade notes
+- Deploying adds one index to each of three tables. CloudFormation adds at most one index per table per update, which is why the tool authorization table uses a single overloaded index.
+- Tool and model registry entries written before this change have no `identity_key` and are denied until backfilled. Run `ToolModelRegistry(table).backfill_identity_keys()` once after deploying.
+- Chain records written before this change need `lookup_pk = "CHAIN"` and `lookup_sk = pk`. The seed data sets both.
 
 ### Security fixes
 - Consuming a human approval and writing its hall pass are now one DynamoDB transaction. Before, the approval was consumed by one write and the grant written by a second; if the second failed, the approval was used up and no grant existed. Now a failed grant write leaves the approval unused, and a replay or an expired approval cancels both writes.

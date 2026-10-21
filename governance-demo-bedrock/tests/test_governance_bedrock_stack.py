@@ -266,6 +266,15 @@ class TestDelegatedAuthorityResources:
             "GlobalSecondaryIndexes": [Match.object_like({"IndexName": "ByAgentId"})],
         })
 
+    def test_request_path_lookups_have_indexes(self, template):
+        """P0-18: caller, model-usage and tool-chain lookups are index queries."""
+        for table_key, index in (("agent_id", "ByRuntimePrincipal"), ("entry_id", "ByIdentity"),
+                                 ("pk", "ByLookupKey")):
+            template.has_resource_properties("AWS::DynamoDB::Table", {
+                "KeySchema": Match.array_with([{"AttributeName": table_key, "KeyType": "HASH"}]),
+                "GlobalSecondaryIndexes": [Match.object_like({"IndexName": index})],
+            })
+
     def test_spend_ledger_table_exists(self, template):
         template.has_resource_properties("AWS::DynamoDB::Table", {
             "KeySchema": [{"AttributeName": "ledger_key", "KeyType": "HASH"}],

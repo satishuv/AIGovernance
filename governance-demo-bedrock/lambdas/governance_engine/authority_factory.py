@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from agent_registry import AgentRegistry
+from agent_registry import AgentRegistry, registry_table_definition
 from approval_workflow import ApprovalWorkflow
+from tool_execution_auth import tool_auth_table_definition
 from authority_control_plane import ControlPlaneConfig, DelegatedAuthorityControlPlane
 from authority_evidence import EvidenceLedger, S3EvidenceBackend
 from authority_identity import AuthenticatedCaller, RoleDirectory, resolve_caller
@@ -137,6 +138,10 @@ def create_demo_tables(dynamodb, prefix: str = "dag-demo-") -> Dict[str, Any]:
             kwargs["GlobalSecondaryIndexes"] = [{
                 "IndexName": "ByAgentId", "KeySchema": [{"AttributeName": "agent_id", "KeyType": "HASH"}],
                 "Projection": {"ProjectionType": "ALL"}}]
+        if name == "registry":
+            kwargs = registry_table_definition(prefix + name)
+        if name == "tool_auth":
+            kwargs = tool_auth_table_definition(prefix + name)
         tables[name] = dynamodb.create_table(**kwargs)
     return tables
 
@@ -174,9 +179,7 @@ class OfflineDemo:
     roles: RoleDirectory
 
     def _resolve(self, principal: str) -> AuthenticatedCaller:
-        agents = self.control_plane.registry.query_agents({})
-        return resolve_caller(principal, "demo", self.roles,
-                              {a.runtime_principal: a.agent_id for a in agents if a.runtime_principal})
+        return resolve_caller(principal, "demo", self.roles, self.control_plane.registry.agent_id_for_principal)
 
     def agent(self, agent_id: str) -> AuthenticatedCaller:
         """Authenticated agent session: the runtime role's STS session ARN."""
@@ -276,11 +279,11 @@ def from_environment(boto3_module=None) -> DelegatedAuthorityControlPlane:
 
 def caller_from_api_event(event: Dict[str, Any], control_plane: DelegatedAuthorityControlPlane,
                           roles_table=None) -> Optional[AuthenticatedCaller]:
-    """Classify the API caller using the registry's runtime principals."""
+    """Classify the API caller with key reads: one registry index query for the
+    principal and one roles query, never a scan of either table (P0-18)."""
     from authority_identity import principal_from_api_event, resolve_caller
     principal, source = principal_from_api_event(event)
     if not principal:
         return None
-    agents = control_plane.registry.query_agents({})
-    return resolve_caller(principal, source, RoleDirectory.from_table(roles_table),
-                          {a.runtime_principal: a.agent_id for a in agents if a.runtime_principal})
+    return resolve_caller(principal, source, RoleDirectory.for_principal(roles_table, principal),
+                          control_plane.registry.agent_id_for_principal)

@@ -19,6 +19,7 @@ _GE = os.path.join(os.path.dirname(__file__), "..", "lambdas", "governance_engin
 if _GE not in sys.path:
     sys.path.insert(0, _GE)
 
+from agent_registry import registry_table_definition  # noqa: E402
 from approval_workflow import ApprovalWorkflow  # noqa: E402
 from authority_identity import normalize_principal_arn  # noqa: E402
 from decision_engine import DecisionEngine  # noqa: E402
@@ -54,7 +55,9 @@ def api():
     with patch.dict(os.environ, ENV), mock_aws():
         ddb = boto3.resource("dynamodb", region_name=REGION)
         approvals = _table(ddb, "approvals", [("approval_id", "HASH")])
-        registry = _table(ddb, "registry", [("agent_id", "HASH")])
+        # The deployed schema, including the ByRuntimePrincipal index the
+        # caller lookup queries (P0-18).
+        registry = ddb.create_table(**registry_table_definition("registry"))
         roles = _table(ddb, "roles", [("user_id", "HASH"), ("role", "RANGE")])
         registry.put_item(Item=AgentRegistryEntry(
             agent_id="procurement-agent", purpose="Buys approved software", owner=OWNER,

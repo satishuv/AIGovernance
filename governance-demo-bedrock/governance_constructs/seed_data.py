@@ -465,6 +465,8 @@ class SeedDataConstruct(Construct):
                         {
                             "pk": "CHAIN#exfiltration_pattern",
                             "sk": "DEFINITION",
+                            "lookup_pk": "CHAIN",
+                            "lookup_sk": "CHAIN#exfiltration_pattern",
                             "chain_name": "exfiltration_pattern",
                             "description": "Detects potential data exfiltration via tool chaining",
                             "sequence": [
