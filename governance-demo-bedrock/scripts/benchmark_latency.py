@@ -5,13 +5,15 @@ Measures governance decision latency across both execution modes
 Generates data suitable for academic publication.
 
 Usage:
-    ada credentials update --account 917914785227 --provider isengard --role Admin --once
     python scripts/benchmark_latency.py [--iterations 20] [--mode lambda|sfn|both]
+
+Run it with AWS credentials for the account that holds the stack (for example
+`aws sso login`).
 
 Resource resolution (in priority order):
     1. Environment variables GOVERNANCE_ENGINE_FUNCTION / STATE_MACHINE_ARN
     2. Auto-discovery via AWS APIs (boto3 list/describe calls against current credentials)
-    3. Built-in defaults for the deployed Isengard stack (account 917914785227)
+    3. Built-in defaults for a stack deployed under its default names
 """
 
 import argparse
@@ -25,7 +27,7 @@ import boto3
 
 REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
-# Known deployed suffix for the GovernanceEngineLambda in account 917914785227.
+# Function name from an earlier deployment of the stack.
 # Override with env var if the stack is redeployed (CDK changes the suffix).
 _DEFAULT_FUNCTION = "GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y"
 _DEFAULT_SFN_NAME = "governance-pipeline"
@@ -34,8 +36,8 @@ _DEFAULT_SFN_NAME = "governance-pipeline"
 def _resolve_account():
     try:
         return boto3.client("sts", region_name=REGION).get_caller_identity()["Account"]
-    except Exception:
-        return "917914785227"
+    except Exception as exc:
+        raise SystemExit(f"Cannot resolve the AWS account from the current credentials: {exc}")
 
 
 def _resolve_function_name():

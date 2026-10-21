@@ -2,6 +2,7 @@ import json
 import os
 
 from aws_cdk import (
+    Annotations,
     Duration,
     aws_iam as iam,
     aws_lambda as _lambda,
@@ -23,6 +24,17 @@ class GovernanceEngineConstruct(Construct):
 
         stack = scope
         stack_dir = os.path.dirname(os.path.dirname(__file__))
+
+        # The Bedrock Guardrail is created outside this stack, so its ID comes
+        # from CDK context: -c bedrock_guardrail_id=<id>. Without it the
+        # guardrail layer reports "not configured" and passes content through.
+        guardrail_id = stack.node.try_get_context("bedrock_guardrail_id") or ""
+        if not guardrail_id:
+            Annotations.of(self).add_warning_v2(
+                "governance:guardrail-not-configured",
+                "No bedrock_guardrail_id context value: the Amazon Bedrock Guardrails "
+                "layer is skipped. Deploy with -c bedrock_guardrail_id=<id> to enable it.",
+            )
 
         # --- Main Governance Engine Lambda ---
 
@@ -66,7 +78,7 @@ class GovernanceEngineConstruct(Construct):
                 "TOOL_AUTH_TABLE_NAME": storage.tool_auth_table.table_name,
                 "OPA_MODE": "embedded",
                 "OPA_ENDPOINT": "",
-                "BEDROCK_GUARDRAIL_ID": "xilmtxfq02om",
+                "BEDROCK_GUARDRAIL_ID": guardrail_id,
                 "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
                 "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
                 "DECISION_TRACE_TABLE_NAME": storage.decision_trace_table.table_name,

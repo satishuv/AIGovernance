@@ -7,6 +7,15 @@ Also callable standalone:
     python scripts/pre_push_check.py --all     # scan entire working tree
 
 Exit 0 = clean (push proceeds). Exit 1 = blocked (push aborted).
+
+Real AWS account IDs are blocked generically: any 12-digit account in an ARN
+or an "account" field fails the scan unless it is an AWS documentation
+placeholder such as 111122223333.
+
+Names of internal systems are not listed in this file, because a public
+scanner that names them publishes them. Put one regular expression per line
+in `.pre-push-patterns` at the repository root (git-ignored); each line is a
+HIGH finding. Lines starting with # are comments.
 """
 
 import argparse
@@ -25,18 +34,23 @@ CONTENT_RULES = [
     ("AWS_ACCESS_KEY_ID",  re.compile(r"AKIA[0-9A-Z]{16}"),                             "CRITICAL"),
     ("AWS_PRIVATE_KEY",    re.compile(r"-----BEGIN [A-Z ]+PRIVATE KEY-----"),            "CRITICAL"),
     ("AWS_SESSION_TOKEN",  re.compile(r"FwoGZXIvYXdzE[A-Za-z0-9+/=]{80,}"),             "CRITICAL"),
-    # Amazon internal systems / URLs not appropriate for public repos
+    # Internal network domains not appropriate for public repos
     ("INTERNAL_URL",       re.compile(r"\.corp\.amazon\.com|\.internal\.amazon\.com"),   "HIGH"),
-    ("ISENGARD_URL",       re.compile(r"isengard\.amazon\.com"),                         "HIGH"),
-    ("MIDWAY_URL",         re.compile(r"midway-auth\.amazon\.com"),                      "HIGH"),
-    # Only flag ada commands that include --provider isengard (internal system reference in non-doc files)
-    ("ADA_ISENGARD_CMD",  re.compile(r"ada credentials update.*--provider isengard.*--role\s+Admin"), "HIGH"),
-    # Internal account IDs outside the known public demo account
-    ("AWS_ACCOUNT_INTERNAL", re.compile(r"\b83192662779[0-9]\b"),                        "HIGH"),
     # PII
     ("SSN",                re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                         "CRITICAL"),
     ("US_PHONE",           re.compile(r"\b(\+1[\s-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b"), "MEDIUM"),
 ]
+
+# Account IDs used in AWS documentation examples; any other account is real.
+PLACEHOLDER_ACCOUNTS = {
+    "111122223333", "123456789012", "444455556666", "777788889999", "000000000000",
+}
+ACCOUNT_PATTERNS = [
+    re.compile(r"arn:aws[\w-]*:[\w-]*:[\w-]*:(\d{12}):"),
+    re.compile(r"""["']?account(?:_id|Id)?["']?\s*[:=]\s*["']?(\d{12})\b""", re.IGNORECASE),
+]
+
+PRIVATE_PATTERNS_FILE = ".pre-push-patterns"
 
 # File path prefixes that must never be pushed externally (checked against the
 # actual file path, not content, so the scanner itself doesn't self-trigger).
@@ -46,6 +60,7 @@ BLOCKED_PATH_PATTERNS = [
     re.compile(r"(^|/)\.claude/"),
     re.compile(r"(^|/)paper_intercept/"),
     re.compile(r"(^|/)paper_iilm/"),
+    re.compile(r"(^|/)\.pre-push-patterns$"),
 ]
 
 # Known-safe test/demo values that must not trigger false positives.
@@ -94,7 +109,34 @@ def _all_tracked_files() -> list[str]:
     return _git("ls-files").splitlines()
 
 
-def _scan_file(path: str) -> list[tuple[str, str, str, int]]:
+def load_private_rules(root: Path) -> list[tuple[str, "re.Pattern[str]", str]]:
+    """Rules from the git-ignored private patterns file, if it exists."""
+    path = root / PRIVATE_PATTERNS_FILE
+    if not path.exists():
+        return []
+    rules = []
+    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            rules.append((f"PRIVATE_PATTERN_{n}", re.compile(line, re.IGNORECASE), "HIGH"))
+        except re.error as exc:
+            print(f"[pre-push] Ignoring invalid pattern on line {n} of {PRIVATE_PATTERNS_FILE}: {exc}")
+    return rules
+
+
+def real_account_ids(line: str) -> list[str]:
+    """12-digit account IDs in the line that are not documentation placeholders."""
+    found = []
+    for pattern in ACCOUNT_PATTERNS:
+        for match in pattern.finditer(line):
+            if match.group(1) not in PLACEHOLDER_ACCOUNTS:
+                found.append(match.group(1))
+    return found
+
+
+def _scan_file(path: str, extra_rules=()) -> list[tuple[str, str, str, int]]:
     """Return list of (path, label, severity, line_num) findings."""
     findings = []
     p = Path(path)
@@ -105,21 +147,20 @@ def _scan_file(path: str) -> list[tuple[str, str, str, int]]:
     # The scanner file itself contains its own patterns as string literals; skip it
     if p.name == "pre_push_check.py":
         return findings
-    is_doc = p.suffix.lower() in {".md", ".rst", ".txt"}
     try:
         lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
     except Exception:
         return findings
+    rules = list(CONTENT_RULES) + list(extra_rules)
     for i, line in enumerate(lines, 1):
         # Skip lines that only contain known-safe demo/test values
         if any(safe in line for safe in ALLOWLISTED_STRINGS):
             continue
-        for label, pattern, severity in CONTENT_RULES:
-            # Ada/isengard command in docs or script docstrings = usage instructions, expected
-            if label == "ADA_ISENGARD_CMD" and (is_doc or line.strip().startswith("ada ")):
-                continue
+        for label, pattern, severity in rules:
             if pattern.search(line):
                 findings.append((path, label, severity, i))
+        if real_account_ids(line):
+            findings.append((path, "AWS_ACCOUNT_ID", "HIGH", i))
     return findings
 
 
@@ -173,11 +214,15 @@ def main():
         files = list(set(files))
         print(f"[pre-push] Scanning {len(files)} changed file(s) before push to {url or 'remote'}...")
 
+    private_rules = load_private_rules(Path(_git("rev-parse", "--show-toplevel")))
+    if private_rules:
+        print(f"[pre-push] Loaded {len(private_rules)} private pattern(s) from {PRIVATE_PATTERNS_FILE}")
+
     # Run checks
     path_violations = _check_paths(files)
     content_violations = []
     for f in files:
-        content_violations.extend(_scan_file(f))
+        content_violations.extend(_scan_file(f, private_rules))
 
     # Report
     clean = True
@@ -188,9 +233,9 @@ def main():
         for path, label in path_violations:
             print(f"  {path}  ({label})")
 
-    criticals = [(p, l, s, n) for p, l, s, n in content_violations if s == "CRITICAL"]
-    highs     = [(p, l, s, n) for p, l, s, n in content_violations if s == "HIGH"]
-    mediums   = [(p, l, s, n) for p, l, s, n in content_violations if s == "MEDIUM"]
+    criticals = [v for v in content_violations if v[2] == "CRITICAL"]
+    highs     = [v for v in content_violations if v[2] == "HIGH"]
+    mediums   = [v for v in content_violations if v[2] == "MEDIUM"]
 
     if criticals:
         clean = False

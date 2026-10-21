@@ -31,7 +31,9 @@ import sys
 import boto3
 
 REGION = "us-east-1"
-ACCT = "917914785227"
+ACCT = os.environ.get("GOVERNANCE_ACCOUNT_ID", "")
+if __name__ == "__main__" and not ACCT:
+    sys.exit("Set GOVERNANCE_ACCOUNT_ID to the account that holds the stack.")
 ACTION_GROUP_ROLE = "GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid"
 
 BOUNDARY_ARNS = {

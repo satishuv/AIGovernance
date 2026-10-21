@@ -58,6 +58,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install bandit pip-audit detect-secrets
+      - name: Internal identifier and secret scan (blocking)
+        working-directory: .
+        run: python scripts/pre_push_check.py --all
       - name: Static security scan (high-severity only)
         run: bandit -r lambdas/ -lll --skip B101,B105,B110,B603,B613
       - name: Dependency CVE scan (advisory)

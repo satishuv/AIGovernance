@@ -181,7 +181,8 @@ def main():
     ap.add_argument("--ensemble", action="store_true", help="add local-OR-safeguard ensemble")
     ap.add_argument("--full-pipeline", action="store_true", help="add composed pipeline (lexical + threat + live Guardrails)")
     ap.add_argument("--judge", action="store_true", help="add LLM-as-judge as layer 4 of the full pipeline")
-    ap.add_argument("--guardrail-id", default="xilmtxfq02om", help="Bedrock guardrail id for full-pipeline mode")
+    ap.add_argument("--guardrail-id", default=os.environ.get("BEDROCK_GUARDRAIL_ID", ""),
+                    help="Bedrock guardrail id for full-pipeline mode (default: $BEDROCK_GUARDRAIL_ID)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 

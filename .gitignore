@@ -2,6 +2,9 @@
 CLAUDE.md
 .claude/
 
+# Private pre-push scan patterns (names of internal systems; never commit)
+.pre-push-patterns
+
 *.docx
 *.tmp
 ~$*

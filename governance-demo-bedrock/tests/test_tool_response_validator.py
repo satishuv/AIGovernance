@@ -102,11 +102,11 @@ class TestSensitiveDataStripping:
     """Sensitive data should be redacted from tool responses."""
 
     def test_aws_arn_stripped(self, validator):
-        response = '{"role": "arn:aws:iam::917914785227:role/AdminRole"}'
+        response = '{"role": "arn:aws:iam::111122223333:role/AdminRole"}'
         result = validator.validate("ReadPipelineStatus", response)
         assert not result.blocked
         assert any("aws-arn" in s for s in result.sensitive_data_stripped)
-        assert "917914785227" not in result.sanitized_response
+        assert "111122223333" not in result.sanitized_response
 
     def test_jwt_stripped(self, validator):
         response = '{"token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc123def456"}'

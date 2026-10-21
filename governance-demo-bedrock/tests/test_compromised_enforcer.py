@@ -47,7 +47,7 @@ _SE_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "lambdas", "scope_enforcer", "index.py")
 )
 
-_ACCT = "917914785227"
+_ACCT = "111122223333"
 _ROLE = "action-group-role"
 _ENFORCER_ROLE = "scope-enforcer-role"
 _BOUNDARY_BASE = f"arn:aws:iam::{_ACCT}:policy/Scope"
