@@ -18,7 +18,7 @@ except ImportError:
     HAS_JSONSCHEMA = False
 
 from models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
-from policy_lifecycle import is_enforceable_policy_key
+from policy_lifecycle import is_enforceable_policy_key, is_lifecycle_active_key, lifecycle_first
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +100,19 @@ class PolicyEngine:
             paginator = self._s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=self._bucket, Prefix=self._prefix)
 
+            keys = []
             for page in pages:
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
                     if not key.endswith(".json") or not is_enforceable_policy_key(key):
                         continue
-                    self._load_single_policy(key, new_policies)
+                    keys.append(key)
+            # F-4: approved lifecycle versions load first and are never
+            # replaced by a deployed baseline file with the same policy_id.
+            active_ids: set = set()
+            for key in lifecycle_first(keys):
+                self._load_single_policy(key, new_policies, active_ids=active_ids,
+                                         lifecycle_active=is_lifecycle_active_key(key))
 
         except Exception:
             logger.error(
@@ -131,7 +138,8 @@ class PolicyEngine:
         )
 
     def _load_single_policy(
-        self, key: str, target: Dict[str, PolicyDefinition]
+        self, key: str, target: Dict[str, PolicyDefinition],
+        active_ids: Optional[set] = None, lifecycle_active: bool = False,
     ) -> None:
         """Download one S3 object, validate, and add to *target* dict."""
         try:
@@ -158,6 +166,16 @@ class PolicyEngine:
 
         try:
             policy = PolicyDefinition.from_dict(policy_dict)
+            if active_ids is not None:
+                if lifecycle_active:
+                    active_ids.add(policy.policy_id)
+                elif policy.policy_id in active_ids:
+                    logger.info(json.dumps({
+                        "event": "baseline_policy_overridden",
+                        "policy_id": policy.policy_id,
+                        "key": key,
+                    }))
+                    return
             target[policy.policy_id] = policy
         except Exception:
             logger.error(
