@@ -127,7 +127,7 @@ class StorageConstruct(Construct):
             ),
         )
 
-        # Server-side running spend totals per agent session and per agent day.
+        # Server-side spend totals per agent session and per agent day.
         self.spend_ledger_table = dynamodb.Table(
             self,
             "SpendLedgerTable",
@@ -135,6 +135,20 @@ class StorageConstruct(Construct):
                 name="ledger_key", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # Verified agent-to-agent delegation (P0-11): one item per receipt the
+        # governance plane issues. Uses are conditional writes; TTL only cleans
+        # up expired receipts (expiry is enforced by expires_at_epoch).
+        self.delegation_receipt_table = dynamodb.Table(
+            self,
+            "DelegationReceiptTable",
+            partition_key=dynamodb.Attribute(
+                name="receipt_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute="ttl_expiry",
             removal_policy=RemovalPolicy.DESTROY,
         )
 

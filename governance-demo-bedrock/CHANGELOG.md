@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased: no table scans on the request path (P0-18)
+## Unreleased: verified delegation (P0-11) and trusted effective scope (P0-02)
+
+### Security fixes
+- Agent-to-agent delegation is verified. An allowed request that names `delegate_to_agent_id` gets a delegation receipt, stored server-side in the new `DelegationReceiptTable`. The child presents only `delegation_receipt_id`; its parent, delegation chain and scope cap come from the receipt. A receipt is bound to one child, optionally to a list of operations, expires (15 minutes by default, 1 hour at most) and is single-use by default, enforced with a conditional write. Delegation to self, cycles and chains at the depth limit are refused at issue.
+- `calling_agent_id`, `delegation_chain` and `calling_agent_scope` in a request are now claims. Without a receipt they are denied; a claim that disagrees with the receipt is denied as tampering. Before, the pipeline dropped these fields, so the trust-chain checks never saw a delegation, and the validator trusted them when it did: a missing `calling_agent_scope` removed the parent's cap.
+- The pipeline no longer uses the request's `scope_level` as authority. The effective scope is the minimum of the registry's approved scope, the Scope Table's operator-authorized scope (which also carries graduated reduction and the kill switch) and the verified delegation cap. A requested scope can only lower it. Before, a scope-1 agent that sent `scope_level: 4` was evaluated at scope 4.
+- No trusted scope source denies (`no_trusted_scope`). A registered agent with no Scope Table item, or at scope 0, is denied (`no_authorized_scope`), matching the scope enforcer.
+- Each decision response carries `effective_scope`: every ceiling, the requested scope and the ceiling that bound the result.
+- The scope enforcer forwards delegation receipts, delegation requests and delegation claims to the governance engine instead of dropping them.
+
+### Deployment
+- Adds `DelegationReceiptTable` and the `DELEGATION_RECEIPT_TABLE_NAME` setting on the governance engine Lambda. Without the setting, every delegated request is denied.
 
 ### Security and scale fixes
 - Caller classification no longer scans the agent registry and the roles table on every authority and approval API request. The registry has a `ByRuntimePrincipal` index and the caller is resolved with one query on it; roles come from a key query on `user_id`. At 2,000 agents the old path read at least 2,000 registry items per request.

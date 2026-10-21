@@ -49,6 +49,8 @@ from side_channel_defense import ProbeDetector, normalize_deny_timing
 from information_flow import FlowTracker, INFORMATION_FLOW_ENABLED, INFORMATION_FLOW_STRICT
 from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BLOCK
 from trust_chain import TrustChainValidator
+from delegation_receipts import DelegationError, DelegationReceiptStore
+from effective_scope import ceilings_for, read_operator_scope
 from egress_governor import EgressGovernor
 
 logger = logging.getLogger()
@@ -73,6 +75,9 @@ RUNTIME_DRIFT_TABLE_NAME = os.environ.get("RUNTIME_DRIFT_TABLE_NAME", "")
 AGENT_HEALTH_TABLE_NAME = os.environ.get("AGENT_HEALTH_TABLE_NAME", "")
 TOOL_AUTH_TABLE_NAME = os.environ.get("TOOL_AUTH_TABLE_NAME", "")
 DECISION_TRACE_TABLE_NAME = os.environ.get("DECISION_TRACE_TABLE_NAME", "")
+# Verified agent-to-agent delegation (P0-11). Without it, every delegated
+# request is denied.
+DELEGATION_RECEIPT_TABLE_NAME = os.environ.get("DELEGATION_RECEIPT_TABLE_NAME", "")
 # When "true", single-Lambda mode emits a durable EventBridge event and lets the
 # PostDecision Lambda write evidence asynchronously, removing the ~1.4s inline
 # WORM write from the hot path. Durable (EventBridge retries), so evidence is
@@ -212,6 +217,10 @@ _ERROR_CATEGORY_STAGE = {
     "trust_chain_scope_laundering": "trust_chain",
     "trust_chain_depth_exceeded": "trust_chain",
     "trust_chain_injection": "trust_chain",
+    "trust_chain_unverified_delegation": "trust_chain",
+    "trust_chain_delegation_mismatch": "trust_chain",
+    "no_trusted_scope": "effective_scope",
+    "no_authorized_scope": "effective_scope",
     "runtime_drift_critical": "runtime_drift",
     "input_sanitization_blocked": "input_sanitizer",
     "content_safety_blocked": "bedrock_guardrails",
@@ -322,13 +331,25 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "action": event.get("action_group", ""),
         "simulation": bool(simulation_mode),
     }
+    # The scope in the event is a request, never authority (P0-02): the
+    # trusted effective scope replaces it right after the kill switch check,
+    # once the registry and the Scope Table have been read.
+    try:
+        requested_scope = int(event["scope_level"]) if event.get("scope_level") not in (None, "") else None
+    except (TypeError, ValueError):
+        requested_scope = 0
     action_request = {
         "agent_id": agent_id,
         "action_group": event.get("action_group", ""),
         "target_resource": event.get("target_resource", ""),
         "input_text": event.get("input_text", ""),
-        "scope_level": int(event.get("scope_level", 1)),
+        "scope_level": requested_scope if requested_scope is not None else 1,
     }
+    # Delegation claims (P0-11) travel into the request only so the trust
+    # chain can deny them unless a verified receipt backs them.
+    for _claim_key in ("calling_agent_id", "delegation_chain", "calling_agent_scope"):
+        if event.get(_claim_key) not in (None, "", []):
+            action_request[_claim_key] = event.get(_claim_key)
     # Structured request fields (operation-level authorization). When present
     # they travel into the GovernanceDecision so an approval binds to the exact
     # operation, target and parameters rather than to free text.
@@ -382,6 +403,8 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             denial_pattern_table = dynamodb.Table(DENIAL_PATTERN_TABLE_NAME) if DENIAL_PATTERN_TABLE_NAME else None
             multi_agent_manager = MultiAgentManager()
             multi_agent_config_table = dynamodb.Table(MULTI_AGENT_CONFIG_TABLE_NAME) if MULTI_AGENT_CONFIG_TABLE_NAME else None
+            delegation_store = (DelegationReceiptStore(dynamodb.Table(DELEGATION_RECEIPT_TABLE_NAME))
+                                if DELEGATION_RECEIPT_TABLE_NAME else None)
 
         except Exception as init_exc:
             logger.error(json.dumps({
@@ -408,6 +431,68 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     agent_id=agent_id,
                     error_category="kill_switch_active",
                 )
+
+        # Verified delegation (P0-11). A request that presents a receipt, or
+        # claims a calling agent, chain or calling-agent scope, is delegated.
+        # Its parent, chain and scope cap come only from a receipt the
+        # governance plane issued. Simulation checks the receipt without
+        # using it; a real request uses it once (conditional write).
+        verified_delegation = None
+        delegation_receipt_id = str(event.get("delegation_receipt_id", "") or "")
+        if delegation_receipt_id:
+            if delegation_store is None:
+                return _deny_response(
+                    reason="Delegated request denied: no delegation receipt store is configured.",
+                    agent_id=agent_id, error_category="trust_chain_unverified_delegation",
+                )
+            _receipt_check = delegation_store.verify if simulation_mode else delegation_store.consume
+            verified_delegation, _receipt_reason = _receipt_check(
+                delegation_receipt_id, agent_id, str(action_request.get("operation_id", "") or ""))
+            if verified_delegation is None:
+                return _deny_response(
+                    reason=f"Delegated request denied: {_receipt_reason}.",
+                    agent_id=agent_id, error_category="trust_chain_unverified_delegation",
+                )
+        # Claims without a receipt reach the trust chain below, which denies them.
+
+        # Trusted effective scope (P0-02): the minimum of the registry's
+        # approved scope, the Scope Table's operator-authorized scope and the
+        # verified delegation cap. The caller's scope_level can only lower it.
+        registry_entry = None
+        try:
+            if agent_registry is not None:
+                registry_entry = agent_registry.get_agent(agent_id)
+            operator_scope = read_operator_scope(scope_table_resource, agent_id)
+        except Exception as scope_exc:
+            logger.error(json.dumps({"event": "trusted_scope_unavailable", "agent_id": agent_id,
+                                     "error": str(scope_exc), "timestamp": _iso_now()}))
+            return _deny_response(
+                reason="Trusted scope sources are unavailable. Request denied as a fail-safe measure.",
+                agent_id=agent_id, error_category="infrastructure_unavailable",
+            )
+        scope_ceilings = ceilings_for(
+            registry_entry=registry_entry, operator_scope=operator_scope,
+            delegation_cap=verified_delegation.scope_cap if verified_delegation is not None else None,
+            requested_scope=requested_scope,
+        )
+        effective_scope = scope_ceilings.effective()
+        if effective_scope is None:
+            return _deny_response(
+                reason=("No trusted scope source is configured (agent registry and Scope Table). "
+                        "A caller-supplied scope_level is not authority."),
+                agent_id=agent_id, error_category="no_trusted_scope",
+            )
+        if effective_scope == 0 and (registry_entry is not None or agent_registry is None):
+            # An unregistered agent is denied by the registry check below with
+            # its own reason; a registered agent at scope 0 has no authority.
+            return _deny_response(
+                reason=(f"Agent '{agent_id}' has no authorized scope "
+                        f"(binding ceiling: {scope_ceilings.binding_ceiling()})."),
+                agent_id=agent_id, error_category="no_authorized_scope",
+            )
+        scope_level = effective_scope
+        action_request["scope_level"] = effective_scope
+        action_request["scope_ceilings"] = scope_ceilings.to_dict()
 
         # Behavioral invariants
         invariants_enforcer = BehavioralInvariantsEnforcer()
@@ -454,22 +539,26 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Multi-agent trust chain enforcement:
         # (a) delegation depth limit, (b) scope laundering prevention,
-        # (c) cross-agent prompt injection detection.
-        # Runs before scope enforcement so a compromised orchestrator cannot
-        # bootstrap a sub-agent to a higher scope than it was authorized for.
+        # (c) cross-agent prompt injection detection, all against the
+        # verified receipt; unverified delegation claims are denied (P0-11).
+        # The delegation cap is already one of the scope ceilings above.
         _trust_chain = TrustChainValidator()
-        _tc_result = _trust_chain.validate(agent_id, scope_level, action_request)
+        _tc_result = _trust_chain.validate(agent_id, scope_level, action_request,
+                                           verified_delegation=verified_delegation)
         if not _tc_result.allowed:
-            _tc_category = "trust_chain_injection" if _tc_result.injection_suspected else (
-                "trust_chain_depth_exceeded" if len(
-                    list(action_request.get("delegation_chain", []) or [])
-                ) >= 4 else "trust_chain_scope_laundering"
-            )
+            _tc_category = {
+                "injection": "trust_chain_injection",
+                "depth": "trust_chain_depth_exceeded",
+                "unverified_delegation": "trust_chain_unverified_delegation",
+                "delegation_mismatch": "trust_chain_delegation_mismatch",
+            }.get(_tc_result.category, "trust_chain_scope_laundering")
             return _deny_response(reason=_tc_result.reason, agent_id=agent_id, error_category=_tc_category)
-        # If the calling agent had a lower scope, cap this request to that scope.
-        if _tc_result.effective_scope_cap is not None:
-            scope_level = _tc_result.effective_scope_cap
-            action_request["scope_level"] = scope_level
+        if verified_delegation is not None:
+            # Record the verified delegation on the request, replacing claims.
+            action_request["calling_agent_id"] = verified_delegation.parent_agent_id
+            action_request["delegation_chain"] = list(verified_delegation.chain)
+            action_request["calling_agent_scope"] = verified_delegation.scope_cap
+            action_request["delegation_receipt_id"] = verified_delegation.receipt_id
 
         # Runtime drift detection
         runtime_drift_table = None
@@ -543,10 +632,8 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 error_category="identity_unverified",
             )
 
-        # Agent registry check
-        registry_entry = None
+        # Agent registry check (the entry was read once for the effective scope)
         if agent_registry is not None:
-            registry_entry = agent_registry.get_agent(agent_id)
             if registry_entry is None:
                 return _deny_response(
                     reason="Agent not registered in governance registry",
@@ -1076,8 +1163,50 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except Exception:
                 pass
 
+        # Delegation issuance (P0-11): an allowed or modified request that
+        # names a child agent gets a receipt; the child presents its id as
+        # delegation_receipt_id. The cap is this request's trusted effective
+        # scope and the chain extends this request's own verified chain.
+        delegation_summary = None
+        delegation_error = ""
+        delegate_to = str(event.get("delegate_to_agent_id", "") or "")
+        if delegate_to and decision.verdict in ("allow", "modify") and not simulation_mode:
+            delegated_ops = [str(o) for o in (event.get("delegated_operations") or []) if o]
+            parent_ops = list(verified_delegation.allowed_operations) if verified_delegation else []
+            if parent_ops and not delegated_ops:
+                delegated_ops = parent_ops
+            if delegation_store is None:
+                delegation_error = "delegation receipts are not configured"
+            elif parent_ops and not set(delegated_ops) <= set(parent_ops):
+                delegation_error = (f"cannot delegate operations {sorted(set(delegated_ops) - set(parent_ops))} "
+                                    "that this agent was not delegated")
+            elif agent_registry is not None and agent_registry.get_agent(delegate_to) is None:
+                delegation_error = f"delegate '{delegate_to}' is not registered"
+            else:
+                try:
+                    issued = delegation_store.issue(
+                        parent_agent_id=agent_id, child_agent_id=delegate_to, parent_scope=scope_level,
+                        parent_chain=list(verified_delegation.chain) if verified_delegation else [],
+                        parent_decision_id=decision.decision_id, allowed_operations=delegated_ops,
+                        ttl_seconds=int(event.get("delegation_ttl_seconds") or 900),
+                        max_uses=int(event.get("delegation_max_uses") or 1),
+                    )
+                    delegation_summary = issued.summary()
+                except (DelegationError, ValueError, TypeError) as deleg_exc:
+                    delegation_error = str(deleg_exc)
+                except Exception as deleg_exc:
+                    logger.error(json.dumps({"event": "delegation_issue_failed", "agent_id": agent_id,
+                                             "error": str(deleg_exc), "timestamp": _iso_now()}))
+                    delegation_error = "delegation receipt store unavailable"
+
         # Return decision
         response_body = decision.to_dict()
+        # Which trusted ceilings applied and which one bound the scope (P0-02).
+        response_body["effective_scope"] = action_request.get("scope_ceilings")
+        if delegation_summary:
+            response_body["delegation"] = delegation_summary
+        if delegation_error:
+            response_body["delegation_error"] = delegation_error
         if created_approval_id:
             response_body["approval_id"] = created_approval_id
         if canary_tokens:

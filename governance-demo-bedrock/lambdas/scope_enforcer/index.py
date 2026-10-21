@@ -146,6 +146,15 @@ def find_authority_changing_fields(event):
     return sorted(k for k in event.keys() if k in AUTHORITY_CHANGING_FIELDS)
 
 
+# Delegation fields forwarded to the governance engine, which verifies them
+# against server-side receipts (P0-11). None of them is trusted here.
+DELEGATION_FIELDS = (
+    "delegation_receipt_id", "delegate_to_agent_id", "delegated_operations",
+    "delegation_ttl_seconds", "delegation_max_uses",
+    "calling_agent_id", "delegation_chain", "calling_agent_scope",
+)
+
+
 # ---------------------------------------------------------------------------
 # Task 6.1 -- Requirements 8.1, 8.7: Read scope and filter action groups
 # ---------------------------------------------------------------------------
@@ -370,7 +379,8 @@ def _derive_action_group(input_text):
 
 
 def invoke_governance_engine(agent_id, input_text, scope_level, target_resource="",
-                             operation_id="", tool_parameters=None, session_id=""):
+                             operation_id="", tool_parameters=None, session_id="",
+                             delegation=None):
     """Invoke the Governance Engine Lambda synchronously.
 
     Args:
@@ -411,6 +421,13 @@ def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=
         payload["tool_parameters"] = tool_parameters or {}
     if session_id:
         payload["session_id"] = session_id
+    # Delegation (P0-11): receipts, delegation requests and any delegation
+    # claims go to the governance engine, which verifies them. Dropping a
+    # claim here would let a child run with its own authority and ignore the
+    # parent's cap.
+    for key, value in (delegation or {}).items():
+        if value not in (None, "", []):
+            payload[key] = value
 
     # Invoke governance pipeline (mode-dependent)
     if GOVERNANCE_MODE == "step_functions" and GOVERNANCE_PIPELINE_ARN:
@@ -443,7 +460,7 @@ def invoke_governance_engine(agent_id, input_text, scope_level, target_resource=
     # Validate the response contains a verdict
     if "verdict" not in response_payload:
         raise Exception(
-            f"Governance Engine returned invalid response: missing 'verdict' field"
+            "Governance Engine returned invalid response: missing 'verdict' field"
         )
 
     return response_payload
@@ -544,6 +561,7 @@ def handler(event, context):
                 operation_id=operation_id,
                 tool_parameters=tool_parameters,
                 session_id=session_id,
+                delegation={key: event.get(key) for key in DELEGATION_FIELDS},
             )
         except Exception as gov_exc:
             # Fail-safe: deny on Governance Engine failure (Req 18.2)
