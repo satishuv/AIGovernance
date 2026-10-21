@@ -431,6 +431,16 @@ class SeedDataConstruct(Construct):
                             "updated_at": "2025-01-15T10:30:00Z",
                         },
                         {
+                            "pk": "RULE#StagingDeployment",
+                            "sk": "CONFIG",
+                            "tool_name": "StagingDeployment",
+                            "rate_limit": 5,
+                            "rate_window_seconds": 3600,
+                            "allowed_agents": ["demo-agent"],
+                            "min_scope": 3,
+                            "updated_at": "2026-10-14T00:00:00Z",
+                        },
+                        {
                             "pk": "RULE#ProductionDeployment",
                             "sk": "CONFIG",
                             "tool_name": "ProductionDeployment",

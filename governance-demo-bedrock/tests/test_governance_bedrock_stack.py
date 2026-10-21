@@ -251,3 +251,49 @@ class TestAuditResources:
             "IsLogging": True,
             "TrailName": "governance-demo-bedrock-trail",
         })
+
+
+
+# --- Delegated authority (hall pass) resources ---
+
+class TestDelegatedAuthorityResources:
+    """Grant store, signing key, per-grant execution role and IAM-only routes."""
+
+    def test_grant_table_has_ttl_and_agent_index(self, template):
+        template.has_resource_properties("AWS::DynamoDB::Table", {
+            "KeySchema": [{"AttributeName": "grant_id", "KeyType": "HASH"}],
+            "TimeToLiveSpecification": {"AttributeName": "ttl_expiry", "Enabled": True},
+            "GlobalSecondaryIndexes": [Match.object_like({"IndexName": "ByAgentId"})],
+        })
+
+    def test_spend_ledger_table_exists(self, template):
+        template.has_resource_properties("AWS::DynamoDB::Table", {
+            "KeySchema": [{"AttributeName": "ledger_key", "KeyType": "HASH"}],
+        })
+
+    def test_grant_signing_key_is_asymmetric_and_separate(self, template):
+        keys = template.find_resources("AWS::KMS::Key", {
+            "Properties": {"KeySpec": "ECC_NIST_P256", "KeyUsage": "SIGN_VERIFY"}})
+        assert len(keys) == 2  # evidence signing key + grant signing key
+
+    def test_authority_lambda_is_dedicated(self, template):
+        template.has_resource_properties("AWS::Lambda::Function", {
+            "Handler": "authority_api.lambda_handler",
+            "Environment": {"Variables": Match.object_like({
+                "PROVIDER_MODE": "mock", "AWS_PROVIDER_MODE": "live",
+                "DELEGATED_EXECUTION_ROLE_ARN": Match.any_value(),
+                "GRANT_SIGNING_KEY_ID": Match.any_value(),
+            })},
+        })
+
+    def test_execution_role_trusts_only_the_authority_lambda(self, template):
+        roles = template.find_resources("AWS::IAM::Role", {
+            "Properties": {"Description": "Assumed per Delegated Authority Grant with a grant-derived session policy"}})
+        assert len(roles) == 1
+        statements = list(roles.values())[0]["Properties"]["AssumeRolePolicyDocument"]["Statement"]
+        principals = {str(s["Principal"]) for s in statements}
+        assert len(principals) == 1 and "DelegatedAuthorityLambdaServiceRole" in principals.pop()
+
+    def test_all_api_methods_require_iam(self, template):
+        methods = template.find_resources("AWS::ApiGateway::Method")
+        assert methods and all(m["Properties"]["AuthorizationType"] == "AWS_IAM" for m in methods.values())

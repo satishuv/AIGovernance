@@ -94,6 +94,50 @@ class StorageConstruct(Construct):
             removal_policy=RemovalPolicy.RETAIN,
         )
 
+        # --- Delegated authority (hall pass) ---
+        # Separate asymmetric key for Delegated Authority Grants (key
+        # separation from evidence signing). RETAIN so grants and evidence that
+        # reference it stay verifiable after a teardown.
+        self.grant_signing_key = kms.Key(
+            self,
+            "GrantSigningKey",
+            description="Delegated Authority Grant signing key (ECDSA P-256)",
+            key_spec=kms.KeySpec.ECC_NIST_P256,
+            key_usage=kms.KeyUsage.SIGN_VERIFY,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # Grants: one item per hall pass. State transitions are conditional
+        # writes; TTL only cleans up finished grants (enforcement never relies
+        # on TTL timing).
+        self.authority_grant_table = dynamodb.Table(
+            self,
+            "AuthorityGrantTable",
+            partition_key=dynamodb.Attribute(
+                name="grant_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute="ttl_expiry",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        self.authority_grant_table.add_global_secondary_index(
+            index_name="ByAgentId",
+            partition_key=dynamodb.Attribute(
+                name="agent_id", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # Server-side running spend totals per agent session and per agent day.
+        self.spend_ledger_table = dynamodb.Table(
+            self,
+            "SpendLedgerTable",
+            partition_key=dynamodb.Attribute(
+                name="ledger_key", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         # --- DynamoDB Tables ---
 
         self.scope_table = dynamodb.Table(

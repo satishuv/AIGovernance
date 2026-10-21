@@ -141,9 +141,11 @@ def handler(event, context):
             )
             return result
 
-    # 5. Tool Execution Authorization (per-tool params + rate + chain)
+    # 5. Tool Execution Authorization (per-tool params + rate + chain).
+    # Fail closed: an empty or unregistered tool name is denied by
+    # authorize_tool rather than skipped.
     tool_auth_table = _get_dynamodb_table(TOOL_AUTH_TABLE_NAME)
-    if tool_auth_table and tool_name:
+    if tool_auth_table:
         tool_auth = ToolExecutionAuthManager()
         auth_result = tool_auth.authorize_tool(agent_id, tool_name, tool_parameters, tool_auth_table)
         if not auth_result.authorized:

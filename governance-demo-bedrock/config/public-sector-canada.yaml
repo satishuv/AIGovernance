@@ -1,0 +1,24 @@
+# Public-sector delegated-authority demo profile: Canada (Central) only.
+#
+# Select with:  npx cdk deploy -c profile=public-sector-canada
+# The region guard in deployment_profile.py refuses to synthesize this profile
+# for any other region unless -c allow_region_override=true is passed.
+environment: public-sector-demo
+region: ca-central-1
+region_locked: true
+allowed_regions: [ca-central-1]
+
+delegated_authority:
+  provider_mode: mock          # Entra, ServiceNow and Google adapters (no outside dependencies)
+  aws_provider_mode: live      # STS AssumeRole with a grant-derived inline session policy
+  grant_ttl_seconds: 300
+  approval_timeout_seconds: 3600
+  escalation_threshold: 70
+  agentcore: optional          # an implementation option, never a dependency
+
+data_residency:
+  note: >-
+    This profile deploys every stack resource to ca-central-1. Confirm each
+    service used in a customer deployment against that customer's residency
+    requirements and the current CCCS assessment at the time of use. This file
+    makes no compliance or authorization claim.

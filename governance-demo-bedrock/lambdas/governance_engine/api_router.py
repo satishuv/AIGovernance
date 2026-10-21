@@ -22,6 +22,13 @@ import boto3
 
 from agent_registry import AgentRegistry
 from approval_workflow import ApprovalWorkflow
+from authority_identity import (
+    RoleDirectory,
+    check_approver_eligibility,
+    check_body_identity,
+    principal_from_api_event,
+    resolve_caller,
+)
 from decision_history import DecisionHistory
 
 logger = logging.getLogger()
@@ -63,7 +70,7 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
         dynamodb = boto3.resource("dynamodb")
 
         if "/approvals/" in resource:
-            return _handle_approvals(dynamodb, resource, http_method, path_params, body)
+            return _handle_approvals(dynamodb, resource, http_method, path_params, body, event)
 
         if "/decisions/" in resource and resource.endswith("/trace") and http_method == "GET":
             return _handle_decision_trace(dynamodb, path_params)
@@ -94,7 +101,36 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
         return _api_response(500, {"error": f"Internal error: {type(exc).__name__}"})
 
 
-def _handle_approvals(dynamodb, resource, http_method, path_params, body):
+def _resolve_api_caller(event, dynamodb):
+    """Authenticated caller for an API request, or (None, error_response).
+
+    Identity comes only from the API Gateway request context. Roles come from
+    the GovernanceRolesTable; a principal registered as an agent runtime in
+    the agent registry is classified as an agent and can never act in the
+    approval or administration planes.
+    """
+    principal_id, source = principal_from_api_event(event)
+    if not principal_id:
+        return None, _api_response(401, {"error": "request is not authenticated"})
+    roles_table_name = os.environ.get("GOVERNANCE_ROLES_TABLE_NAME", "")
+    role_directory = RoleDirectory.from_table(
+        dynamodb.Table(roles_table_name) if roles_table_name else None)
+    agent_principals = {}
+    if AGENT_REGISTRY_TABLE_NAME:
+        try:
+            for entry in AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME)).query_agents({}):
+                if entry.runtime_principal:
+                    agent_principals[entry.runtime_principal] = entry.agent_id
+        except Exception as exc:
+            # Fail closed: if agent principals cannot be enumerated we cannot
+            # prove the caller is human.
+            logger.error(json.dumps({"event": "agent_principal_load_failed", "error": str(exc)}))
+            return None, _api_response(503, {"error": "caller classification unavailable"})
+    return resolve_caller(principal_id, source, role_directory, agent_principals), None
+
+
+def _handle_approvals(dynamodb, resource, http_method, path_params, body, event=None):
+    event = event or {}
     if not PENDING_APPROVAL_TABLE_NAME:
         return _api_response(503, {"error": "Approval table not configured"})
 
@@ -121,19 +157,38 @@ def _handle_approvals(dynamodb, resource, http_method, path_params, body):
     approval_id = path_params.get("approval_id", "")
 
     if resource.endswith("/approve") and http_method == "POST":
-        approver_id = body.get("approver_id", "")
+        caller, error_response = _resolve_api_caller(event, dynamodb)
+        if error_response is not None:
+            return error_response
+        ok, reason = check_body_identity(caller, body.get("approver_id", ""))
+        if not ok:
+            return _api_response(403, {"error": reason})
         conditions = body.get("conditions", "")
 
-        agent_owner_id = ""
-        if AGENT_REGISTRY_TABLE_NAME:
-            approval_record = aw._get_approval(approval_id)
-            if approval_record:
-                ar = AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME))
-                reg_entry = ar.get_agent(approval_record.agent_id)
-                if reg_entry:
-                    agent_owner_id = reg_entry.owner
+        item = (dynamodb.Table(PENDING_APPROVAL_TABLE_NAME)
+                .get_item(Key={"approval_id": approval_id}).get("Item"))
+        if not item:
+            return _api_response(404, {"error": f"Approval not found: {approval_id}"})
 
-        result = aw.approve(approval_id, approver_id, agent_owner_id, conditions)
+        reg_entry = None
+        if AGENT_REGISTRY_TABLE_NAME:
+            ar = AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME))
+            reg_entry = ar.get_agent(item.get("agent_id", ""))
+
+        ok, reason = check_approver_eligibility(caller, item, reg_entry)
+        if not ok:
+            logger.warning(json.dumps({
+                "audit_event": "approval_rejected_ineligible_approver",
+                "approval_id": approval_id,
+                "principal_id": caller.principal_id,
+                "principal_type": caller.principal_type,
+                "reason": reason,
+                "timestamp": _iso_now(),
+            }))
+            return _api_response(403, {"error": reason})
+
+        agent_owner_id = reg_entry.owner if reg_entry else ""
+        result = aw.approve(approval_id, caller.principal_id, agent_owner_id, conditions)
 
         evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
         if evidence_bucket and result:
@@ -146,10 +201,22 @@ def _handle_approvals(dynamodb, resource, http_method, path_params, body):
         return _api_response(200, result.to_dict() if result else {})
 
     if resource.endswith("/deny") and http_method == "POST":
-        approver_id = body.get("approver_id", "")
+        caller, error_response = _resolve_api_caller(event, dynamodb)
+        if error_response is not None:
+            return error_response
+        ok, reason = check_body_identity(caller, body.get("approver_id", ""))
+        if not ok:
+            return _api_response(403, {"error": reason})
+        item = (dynamodb.Table(PENDING_APPROVAL_TABLE_NAME)
+                .get_item(Key={"approval_id": approval_id}).get("Item"))
+        if not item:
+            return _api_response(404, {"error": f"Approval not found: {approval_id}"})
+        ok, reason = check_approver_eligibility(caller, item, None)
+        if not ok:
+            return _api_response(403, {"error": reason})
         denial_reason = body.get("denial_reason", "")
 
-        result = aw.deny(approval_id, approver_id, denial_reason)
+        result = aw.deny(approval_id, caller.principal_id, denial_reason)
 
         evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
         if evidence_bucket and result:

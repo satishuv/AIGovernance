@@ -1,0 +1,47 @@
+[
+  {
+    "rule_name": "deny-hard-gate-failed",
+    "outcome": "deny",
+    "priority": 10,
+    "description": "A mandatory gate (identity, kill switch, registry, operation, role boundary, scope, environment, resource, data class, parameters, tool authorization) failed. Human approval cannot override this.",
+    "conditions": [{"field": "input.hard_gate_failed", "op": "==", "value": true}]
+  },
+  {
+    "rule_name": "deny-budget-hard-limit",
+    "outcome": "deny",
+    "priority": 20,
+    "description": "The financial request breaks a limit that no approval can lift.",
+    "conditions": [{"field": "input.budget_outcome", "op": "==", "value": "deny"}]
+  },
+  {
+    "rule_name": "step-up-budget",
+    "outcome": "escalate",
+    "priority": 30,
+    "description": "The amount exceeds the agent's autonomous spending limits; a human must approve this exact transaction.",
+    "conditions": [{"field": "input.budget_outcome", "op": "==", "value": "step_up"}]
+  },
+  {
+    "rule_name": "step-up-human-required",
+    "outcome": "escalate",
+    "priority": 40,
+    "description": "The operation, or the agent's registry entry, requires human approval for this operation.",
+    "conditions": [{"field": "input.human_required", "op": "==", "value": true}]
+  },
+  {
+    "rule_name": "step-up-high-risk",
+    "outcome": "escalate",
+    "priority": 50,
+    "description": "The risk score meets or exceeds the escalation threshold.",
+    "conditions": [{"field": "input.risk_exceeds_threshold", "op": "==", "value": true}]
+  },
+  {
+    "rule_name": "allow-within-delegated-boundary",
+    "outcome": "allow",
+    "priority": 100,
+    "description": "Every gate passed; the request is inside the boundary humans approved for this agent.",
+    "conditions": [
+      {"field": "input.operation_registered", "op": "==", "value": true},
+      {"field": "input.within_boundary", "op": "==", "value": true}
+    ]
+  }
+]

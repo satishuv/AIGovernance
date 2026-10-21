@@ -104,28 +104,79 @@ class ToolExecutionAuthManager:
         timestamp = now.isoformat()
         checks_performed: Dict[str, str] = {}
 
-        # Step 1: Load rule
-        rule = self._load_rule(tool_name, tool_auth_table)
-        if rule is None:
-            # No rule means tool is not registered; deny by default
+        # Step 0: An execution request must name the tool it wants to run.
+        # An empty name cannot be matched to any rule, so it is denied rather
+        # than skipped.
+        if not tool_name or not str(tool_name).strip():
             logger.warning(json.dumps({
                 "event": "tool_auth_denied",
-                "reason": "no_rule_found",
+                "reason": "empty_tool_name",
+                "agent_id": agent_id,
+                "timestamp": timestamp,
+            }))
+            checks_performed["rule_exists"] = "fail"
+            return ToolAuthResult(
+                authorized=False,
+                tool_name=tool_name or "",
+                agent_id=agent_id,
+                denial_reason="Tool execution requested without a tool name",
+                checks_performed=checks_performed,
+                rate_limit_remaining=-1,
+                timestamp=timestamp,
+            )
+
+        # Step 1: Load rule. Fail closed: an unregistered tool, or a rule that
+        # cannot be loaded (table error), is never authorized.
+        rule, load_error = self._load_rule_checked(tool_name, tool_auth_table)
+        if rule is None:
+            reason_code = "rule_load_failed" if load_error else "no_rule_found"
+            logger.warning(json.dumps({
+                "event": "tool_auth_denied",
+                "reason": reason_code,
                 "agent_id": agent_id,
                 "tool_name": tool_name,
                 "timestamp": timestamp,
             }))
-            checks_performed["rule_exists"] = "skip"
+            checks_performed["rule_exists"] = "fail"
+            denial_reason = (
+                f"Authorization rule for tool {tool_name} could not be loaded; failing closed"
+                if load_error
+                else f"No authorization rule exists for tool: {tool_name}"
+            )
             return ToolAuthResult(
-                authorized=True,
+                authorized=False,
                 tool_name=tool_name,
                 agent_id=agent_id,
-                denial_reason="",
+                denial_reason=denial_reason,
                 checks_performed=checks_performed,
                 rate_limit_remaining=-1,
                 timestamp=timestamp,
             )
         checks_performed["rule_exists"] = "pass"
+
+        # Step 1b: A registered tool can be blocked or revoked without deleting
+        # its rule. Revoked/blocked/disabled registrations are denied.
+        inactive_reason = self._rule_inactive_reason(rule)
+        if inactive_reason:
+            logger.warning(json.dumps({
+                "event": "tool_auth_denied",
+                "reason": "rule_inactive",
+                "agent_id": agent_id,
+                "tool_name": tool_name,
+                "detail": inactive_reason,
+                "timestamp": timestamp,
+            }))
+            checks_performed["rule_active"] = "fail"
+            return ToolAuthResult(
+                authorized=False,
+                tool_name=tool_name,
+                agent_id=agent_id,
+                denial_reason=f"Tool {tool_name} registration is not active: {inactive_reason}",
+                checks_performed=checks_performed,
+                rate_limit_remaining=-1,
+                timestamp=timestamp,
+            )
+        checks_performed["rule_active"] = "pass"
 
         # Step 2: Check agent authorization
         allowed_agents = rule.get("allowed_agents", [])
@@ -574,6 +625,41 @@ class ToolExecutionAuthManager:
                     f"'{tool_name}' (potential exfiltration chain).")
         return True, ""
 
+    # Registration states that must never authorize execution.
+    _INACTIVE_STATUSES = frozenset({"revoked", "disabled", "suspended", "blocked", "retired"})
+
+    def _rule_inactive_reason(self, rule: Dict[str, Any]) -> str:
+        """Return a reason string if the rule's registration is not active."""
+        if rule.get("blocked") is True:
+            return rule.get("block_reason") or "tool is blocked"
+        if rule.get("revoked") is True:
+            return rule.get("revoke_reason") or "tool registration revoked"
+        status = str(rule.get("status", "")).strip().lower()
+        if status in self._INACTIVE_STATUSES:
+            return f"registration status is {status}"
+        return ""
+
+    def _load_rule_checked(
+        self, tool_name: str, tool_auth_table
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """Load a rule and report whether a load error occurred.
+
+        Returns (rule_or_None, load_error). Callers treat both a missing rule and
+        a load error as a denial; the flag only changes the denial reason.
+        """
+        if tool_auth_table is None:
+            return None, True
+        try:
+            return self._load_rule_raw(tool_name, tool_auth_table), False
+        except Exception as exc:
+            logger.error(json.dumps({
+                "event": "load_rule_failed",
+                "tool_name": tool_name,
+                "error": str(exc),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            return None, True
+
     def _load_rule(
         self, tool_name: str, tool_auth_table
     ) -> Optional[Dict[str, Any]]:
@@ -583,45 +669,43 @@ class ToolExecutionAuthManager:
         Checks both wildcard (*) and specific agent rules.
 
         Returns:
-            Rule dict or None if not found.
+            Rule dict or None if not found (or if the load failed).
         """
+        rule, _ = self._load_rule_checked(tool_name, tool_auth_table)
+        return rule
+
+    def _load_rule_raw(
+        self, tool_name: str, tool_auth_table
+    ) -> Optional[Dict[str, Any]]:
+        """Query and merge rule items. Raises on table errors."""
         from boto3.dynamodb.conditions import Key
 
         pk = f"RULE#{tool_name}"
-        try:
-            response = tool_auth_table.query(
-                KeyConditionExpression=Key("pk").eq(pk)
-            )
-            items = response.get("Items", [])
-            if not items:
-                return None
-
-            # Merge rules: wildcard provides defaults, specific overrides
-            merged_rule: Dict[str, Any] = {}
-            for item in items:
-                if item.get("sk") == "*":
-                    # Base rule (wildcard)
-                    merged_rule = {**item, **merged_rule}
-                else:
-                    # Agent-specific override
-                    merged_rule.update(item)
-
-            # Ensure allowed_agents includes wildcard if present
-            if any(item.get("sk") == "*" for item in items):
-                allowed = merged_rule.get("allowed_agents", [])
-                if "*" not in allowed:
-                    allowed.append("*")
-                merged_rule["allowed_agents"] = allowed
-
-            return merged_rule if merged_rule else None
-        except Exception as exc:
-            logger.error(json.dumps({
-                "event": "load_rule_failed",
-                "tool_name": tool_name,
-                "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }))
+        response = tool_auth_table.query(
+            KeyConditionExpression=Key("pk").eq(pk)
+        )
+        items = response.get("Items", [])
+        if not items:
             return None
+
+        # Merge rules: wildcard provides defaults, specific overrides
+        merged_rule: Dict[str, Any] = {}
+        for item in items:
+            if item.get("sk") == "*":
+                # Base rule (wildcard)
+                merged_rule = {**item, **merged_rule}
+            else:
+                # Agent-specific override
+                merged_rule.update(item)
+
+        # Ensure allowed_agents includes wildcard if present
+        if any(item.get("sk") == "*" for item in items):
+            allowed = merged_rule.get("allowed_agents", [])
+            if "*" not in allowed:
+                allowed.append("*")
+            merged_rule["allowed_agents"] = allowed
+
+        return merged_rule if merged_rule else None
 
     def _load_chains(self, tool_auth_table) -> List[Dict[str, Any]]:
         """Load all tool chain definitions from the table.

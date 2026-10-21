@@ -1,1 +1,1 @@
-{"agent_id":"demo-agent","input_text":"Show me the build status","new_scope":1}
+{"agent_id":"demo-agent","input_text":"Show me the build status","operation_id":"ReadPipelineStatus","target_resource":"pipeline/build-47","tool_parameters":{"build_id":"build-47"}}

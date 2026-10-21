@@ -17,6 +17,11 @@ from typing import Any, Dict, List, Optional
 import boto3
 
 from models import GovernanceDecision, PolicyEvaluationResult, RiskAssessment
+from request_canonicalization import (
+    CanonicalizationError,
+    canonicalize_action_request,
+    compute_action_request_digest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +69,7 @@ class DecisionEngine:
         agent_id: str,
         modification_applied: bool = False,
         context_sufficient: bool = True,
+        policy_version_hash: str = "",
     ) -> GovernanceDecision:
         """Produce a GovernanceDecision from policy and risk inputs.
 
@@ -79,6 +85,9 @@ class DecisionEngine:
                 per R3, or accumulated context per R2) is ambiguous or missing.
                 On an otherwise-allow path this yields the AARM DEFER verdict
                 (suspend pending more context; timeout -> deny).
+            policy_version_hash: Hash of the policy inputs in force. Bound into
+                the decision's request digest so a later policy change voids
+                approvals created from this decision.
 
         Returns:
             A fully populated GovernanceDecision.
@@ -107,6 +116,27 @@ class DecisionEngine:
             framework_mapping=framework_mapping,
             timestamp=_iso_now(),
         )
+
+        # Bind the decision to the exact request it evaluated. The canonical
+        # request is a copy taken now; later mutation of the caller's dict
+        # cannot change what this decision (and any approval created from it)
+        # authorizes.
+        canonical_input = dict(action_request)
+        canonical_input.setdefault("agent_id", agent_id)
+        try:
+            decision.action_request = canonicalize_action_request(canonical_input)
+        except CanonicalizationError as exc:
+            # A request that cannot be represented canonically cannot be bound
+            # to an approval or a grant, so it cannot execute.
+            decision.verdict = "deny"
+            decision.explanation = (
+                f"Action '{action_requested}' denied: request could not be "
+                f"canonicalized for binding ({exc})."
+            )
+            decision.action_request = {"agent_id": agent_id, "operation_id": action_requested}
+        decision.policy_version_hash = policy_version_hash or ""
+        decision.request_digest = compute_action_request_digest(
+            decision.action_request, decision.policy_version_hash)
 
         return decision
 

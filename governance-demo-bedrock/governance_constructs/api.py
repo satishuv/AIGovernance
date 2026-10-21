@@ -95,3 +95,30 @@ class ApiConstruct(Construct):
             governance_integration,
             authorization_type=apigw.AuthorizationType.IAM,
         )
+
+        # --- Delegated authority (hall pass) endpoints, IAM (SigV4) only ---
+        # Served by the dedicated authority Lambda (its own least-privilege
+        # role). Identity is taken from the request context; bodies never name
+        # the caller. Agent runtimes call the agent-plane routes with their own
+        # role; humans call the admin-plane routes.
+        authority_integration = apigw.LambdaIntegration(governance_engine.authority_lambda)
+        authority = self.approval_api.root.add_resource("authority")
+        authority.add_resource("requests").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+
+        grants = self.approval_api.root.add_resource("authority-grants")
+        grants.add_resource("mint").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+        grant = grants.add_resource("{grant_id}")
+        grant.add_method("GET", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+        grant.add_resource("execute").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+        grant.add_resource("revoke").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+
+        admin_agent = self.approval_api.root.add_resource("admin").add_resource(
+            "agents").add_resource("{agent_id}")
+        admin_agent.add_resource("scope").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
+        admin_agent.add_resource("kill-switch").add_method(
+            "POST", authority_integration, authorization_type=apigw.AuthorizationType.IAM)
