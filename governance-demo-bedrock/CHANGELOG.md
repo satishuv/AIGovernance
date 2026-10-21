@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased: atomic approval consumption
+
+### Security fixes
+- Consuming a human approval and writing its hall pass are now one DynamoDB transaction. Before, the approval was consumed by one write and the grant written by a second; if the second failed, the approval was used up and no grant existed. Now a failed grant write leaves the approval unused, and a replay or an expired approval cancels both writes.
+- The approval record stores the ID of the grant it produced.
+
 ## Unreleased: policy lifecycle and fail-closed defaults
 
 ### Security fixes

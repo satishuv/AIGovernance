@@ -318,6 +318,27 @@ class ApprovalWorkflow:
         item["consumed"] = True
         return True, "approved request verified and consumed", item
 
+    def consume_transact_item(self, approval_id: str, grant_id: str = "") -> Dict[str, Any]:
+        """Update for a DynamoDB transaction that consumes the approval once.
+
+        Same condition as verify_and_consume: approved, unconsumed, unexpired.
+        Put it in the same transaction as the grant write, so the approval is
+        consumed exactly when its grant exists. Call check_binding first; this
+        item does not re-check the request digest. Values are plain Python
+        types: the client of a boto3 DynamoDB resource table converts them.
+        """
+        now = datetime.now(timezone.utc)
+        return {"Update": {
+            "TableName": self._table.name,
+            "Key": {"approval_id": approval_id},
+            "UpdateExpression": "SET #c = :t, consumed_at = :r, grant_id = :g",
+            "ConditionExpression": "#c = :f AND #s = :approved AND expires_at_epoch > :now",
+            "ExpressionAttributeNames": {"#s": "status", "#c": "consumed"},
+            "ExpressionAttributeValues": {":t": True, ":f": False, ":approved": "approved",
+                                          ":now": int(now.timestamp()), ":r": now.isoformat(),
+                                          ":g": grant_id},
+        }}
+
     def notify_approvers(
         self,
         approval: PendingApproval,
