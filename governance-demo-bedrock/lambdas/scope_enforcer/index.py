@@ -91,6 +91,10 @@ def _validate_agent_output(response_text, canary_tokens=None):
 # ---------------------------------------------------------------------------
 AGENT_ID = os.environ.get("AGENT_ID", "")
 AGENT_ALIAS_ID = os.environ.get("AGENT_ALIAS_ID", "")
+# P0-10: the governance agent this deployment serves. Lambda invoke
+# permission controls who can call this function, and the function is bound to
+# one agent, so this value, not the request's agent_id, is the identity.
+GOVERNANCE_AGENT_ID = os.environ.get("GOVERNANCE_AGENT_ID", "")
 SCOPE_TABLE_NAME = os.environ.get("SCOPE_TABLE_NAME", "")
 ACTION_GROUP_LAMBDA_ROLE_NAME = os.environ.get("ACTION_GROUP_LAMBDA_ROLE_NAME", "")
 SCOPE_BOUNDARY_ARNS = json.loads(os.environ.get("SCOPE_BOUNDARY_ARNS", "{}"))
@@ -513,12 +517,34 @@ def handler(event, context):
     Scope changes are NOT accepted here. Use the governance-administration
     plane (human-authenticated) to change an agent's scope.
     """
-    agent_id = event.get("agent_id", AGENT_ID)
+    claimed_agent_id = event.get("agent_id", "") or ""
+    agent_id = GOVERNANCE_AGENT_ID
     input_text = event.get("input_text", "")
     operation_id = event.get("operation_id", "") or ""
     tool_parameters = event.get("tool_parameters") or {}
     target_resource = event.get("target_resource", "") or ""
     session_id = event.get("session_id", "") or ""
+
+    # P0-10: identity comes from the deployment binding. A request may name
+    # the agent (for display and as a cross-check) but cannot choose it.
+    if not GOVERNANCE_AGENT_ID:
+        logger.error(json.dumps({"event": "agent_identity_unbound", "claimed_agent_id": claimed_agent_id,
+                                 "timestamp": datetime.now(timezone.utc).isoformat()}))
+        return {
+            "status": "denied",
+            "error": "agent_identity_unbound",
+            "message": "This scope enforcer has no bound agent identity (GOVERNANCE_AGENT_ID).",
+        }
+    if claimed_agent_id and claimed_agent_id != GOVERNANCE_AGENT_ID:
+        logger.warning(json.dumps({"event": "agent_identity_mismatch", "claimed_agent_id": claimed_agent_id,
+                                   "bound_agent_id": GOVERNANCE_AGENT_ID,
+                                   "timestamp": datetime.now(timezone.utc).isoformat()}))
+        return {
+            "status": "denied",
+            "error": "agent_identity_mismatch",
+            "message": (f"agent_id '{claimed_agent_id}' does not match the agent this enforcer serves; "
+                        "identity is not taken from the request."),
+        }
 
     try:
         # Step 1: The agent plane never changes authority. Deny and log any
@@ -689,6 +715,12 @@ def handler(event, context):
             session_attributes = {
                 "scope_level": str(scope_level),
                 "permitted_action_groups": ",".join(permitted_groups),
+                # P0-04: the action group Lambda executes only the operation
+                # governance evaluated. A conversational request evaluated as
+                # ReadPipelineStatus cannot go on to deploy, whatever the model
+                # decides; natural language never widens what runs.
+                "governed_action_groups": operation_id or _derive_action_group(input_text),
+                "governance_decision_id": governance_decision.get("decision_id", ""),
             }
 
             # Step 7: Invoke Bedrock Agent (Task 6.3 -- Requirements 9.1-9.4)

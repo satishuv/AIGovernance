@@ -215,6 +215,10 @@ class BedrockAgentConstruct(Construct):
             environment={
                 "AGENT_ID": self.bedrock_agent.attr_agent_id,
                 "AGENT_ALIAS_ID": self.bedrock_agent_alias.attr_agent_alias_id,
+                # The governance identity this deployment serves (P0-10). The
+                # handler uses it as the agent identity and denies any request
+                # whose agent_id names a different agent.
+                "GOVERNANCE_AGENT_ID": self.node.try_get_context("governance_agent_id") or "demo-agent",
                 "SCOPE_TABLE_NAME": storage.scope_table.table_name,
                 "ACTION_GROUP_LAMBDA_ROLE_NAME": self.action_group_lambda_role.role_name,
                 "SCOPE_BOUNDARY_ARNS": scope_boundary_arns,

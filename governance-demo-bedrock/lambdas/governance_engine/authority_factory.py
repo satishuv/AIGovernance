@@ -164,6 +164,7 @@ def seed_demo(tables: Dict[str, Any], operations: OperationRegistry) -> List[Age
 def load_policy_engine(path: str = POLICY_BUNDLE_PATH) -> OPAEngine:
     import json
     engine = OPAEngine()
+    engine.bundle_id = "file:" + os.path.basename(path)
     with open(path, "r", encoding="utf-8") as fh:
         engine.load_policies_from_json(json.load(fh))
     return engine

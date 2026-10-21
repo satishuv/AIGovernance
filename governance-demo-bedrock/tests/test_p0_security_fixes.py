@@ -141,6 +141,7 @@ _SE_PATH = os.path.join(_LAMBDAS, "scope_enforcer", "index.py")
 _SE_ENV = {
     "AGENT_ID": "TEST_AGENT_ID",
     "AGENT_ALIAS_ID": "TEST_ALIAS_ID",
+    "GOVERNANCE_AGENT_ID": "demo-agent",
     "SCOPE_TABLE_NAME": "test-scope-table",
     "ACTION_GROUP_LAMBDA_ROLE_NAME": "test-action-group-role",
     "SCOPE_BOUNDARY_ARNS": json.dumps({str(i): f"arn:aws:iam::111122223333:policy/S{i}" for i in range(1, 5)}),
@@ -207,6 +208,66 @@ class TestAgentCannotChangeAuthority:
             se.handler({"agent_id": "demo-agent", "input_text": "deploy", "scope_level": 4}, None)
         sent = json.loads(gov.invoke.call_args.kwargs["Payload"])
         assert sent["scope_level"] == 1
+
+
+class TestBoundAgentIdentity:
+    """P0-10: the scope enforcer's identity is its deployment binding."""
+
+    def test_request_naming_another_agent_is_denied_before_governance(self):
+        ddb, _ = _scope_ddb(4)
+        gov = _governance({"verdict": "allow", "decision_id": "d"})
+        with patch.object(se, "dynamodb", ddb), patch.object(se, "lambda_client", gov):
+            result = se.handler({"agent_id": "payments-agent", "input_text": "show build status"}, None)
+        assert (result["status"], result["error"]) == ("denied", "agent_identity_mismatch")
+        gov.invoke.assert_not_called()
+
+    def test_identity_is_the_bound_agent_when_the_request_omits_it(self):
+        ddb, table = _scope_ddb(1)
+        gov = _governance({"verdict": "deny", "decision_id": "d", "explanation": "no"})
+        with patch.object(se, "dynamodb", ddb), patch.object(se, "lambda_client", gov):
+            se.handler({"input_text": "show build status"}, None)
+        assert json.loads(gov.invoke.call_args.kwargs["Payload"])["agent_id"] == "demo-agent"
+        assert table.get_item.call_args.kwargs["Key"] == {"agent_id": "demo-agent"}
+
+    def test_unbound_enforcer_denies_everything(self):
+        gov = _governance({"verdict": "allow", "decision_id": "d"})
+        with patch.object(se, "GOVERNANCE_AGENT_ID", ""), patch.object(se, "lambda_client", gov):
+            result = se.handler({"agent_id": "demo-agent", "input_text": "show build status"}, None)
+        assert (result["status"], result["error"]) == ("denied", "agent_identity_unbound")
+        gov.invoke.assert_not_called()
+
+
+class TestGovernedSession:
+    """P0-04: the session carries the operation governance evaluated."""
+
+    def _allow_run(self, event):
+        ddb, _ = _scope_ddb(4)
+        gov = _governance({"verdict": "allow", "decision_id": "dec-9"})
+        captured = {}
+
+        def fake_invoke(text, attrs):
+            captured.update(attrs)
+            return "ok"
+
+        with patch.object(se, "dynamodb", ddb), patch.object(se, "lambda_client", gov), \
+             patch.object(se, "acquire_boundary_lease", return_value=True), \
+             patch.object(se, "release_boundary_lease"), \
+             patch.object(se, "swap_permission_boundary"), \
+             patch.object(se, "verify_boundary", return_value=True), \
+             patch.object(se, "invoke_bedrock_agent", side_effect=fake_invoke):
+            se.handler(event, None)
+        return captured
+
+    def test_conversational_request_is_bound_to_the_evaluated_group(self):
+        attrs = self._allow_run({"input_text": "show me the build status"})
+        assert attrs["governed_action_groups"] == "ReadPipelineStatus"
+        assert attrs["governance_decision_id"] == "dec-9"
+        # Scope 4 still permits more groups; the governed set is what binds.
+        assert "ProductionDeployment" in attrs["permitted_action_groups"]
+
+    def test_structured_request_is_bound_to_its_operation(self):
+        attrs = self._allow_run({"input_text": "do it", "operation_id": "StagingDeployment"})
+        assert attrs["governed_action_groups"] == "StagingDeployment"
 
 
 class TestSingleApprovalRelay:

@@ -70,6 +70,8 @@ class DecisionEngine:
         modification_applied: bool = False,
         context_sufficient: bool = True,
         policy_version_hash: str = "",
+        policy_bundle_id: str = "",
+        policy_version: str = "",
     ) -> GovernanceDecision:
         """Produce a GovernanceDecision from policy and risk inputs.
 
@@ -135,6 +137,8 @@ class DecisionEngine:
             )
             decision.action_request = {"agent_id": agent_id, "operation_id": action_requested}
         decision.policy_version_hash = policy_version_hash or ""
+        decision.policy_bundle_id = policy_bundle_id or ""
+        decision.policy_version = policy_version or ""
         decision.request_digest = compute_action_request_digest(
             decision.action_request, decision.policy_version_hash)
 

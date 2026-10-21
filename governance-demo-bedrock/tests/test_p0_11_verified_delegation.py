@@ -197,6 +197,9 @@ def test_caller_scope_cannot_raise_the_trusted_scope(pipeline):
     assert out["verdict"] == "allow"
     assert out["effective_scope"]["effective_scope"] == 1
     assert out["effective_scope"]["binding_ceiling"] == "operator_authorized_scope"
+    # P0-05: the decision names the bundle in force and its policies.
+    assert out["policy_bundle_id"] == "s3://policies/policies/"
+    assert "allow_read_pipeline@unversioned" in out["policy_version"]
 
 
 def test_agent_without_operator_scope_is_denied(pipeline):

@@ -207,6 +207,11 @@ class GovernanceDecision:
             what an approval and a delegated authority grant bind to.
         policy_version_hash: Hash of every policy input that shaped the verdict.
         request_digest: SHA-256 over action_request + policy_version_hash.
+        policy_bundle_id: Where the policy bundle in force came from, e.g.
+            s3://bucket/policies/ (P0-05).
+        policy_version: Readable version of that bundle: each policy id with
+            its declared version, so a reviewer can name the policy versions
+            a decision ran under (P0-05).
     """
 
     decision_id: str
@@ -222,6 +227,8 @@ class GovernanceDecision:
     action_request: Dict[str, Any] = field(default_factory=dict)
     policy_version_hash: str = ""
     request_digest: str = ""
+    policy_bundle_id: str = ""
+    policy_version: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -238,6 +245,8 @@ class GovernanceDecision:
             "action_request": _decimalize(self.action_request),
             "policy_version_hash": self.policy_version_hash,
             "request_digest": self.request_digest,
+            "policy_bundle_id": self.policy_bundle_id,
+            "policy_version": self.policy_version,
         }
 
     @classmethod
@@ -256,6 +265,8 @@ class GovernanceDecision:
             action_request=data.get("action_request", {}) or {},
             policy_version_hash=data.get("policy_version_hash", "") or "",
             request_digest=data.get("request_digest", "") or "",
+            policy_bundle_id=data.get("policy_bundle_id", "") or "",
+            policy_version=data.get("policy_version", "") or "",
         )
 
 
