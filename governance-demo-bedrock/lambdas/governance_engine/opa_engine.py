@@ -19,11 +19,12 @@ import os
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 from policy_lifecycle import is_enforceable_policy_key, is_lifecycle_active_key, lifecycle_first
+from policy_bindings import BindingIndex, applies, fingerprint_fields, resolve_binding
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,18 @@ class RegoRule:
         self.description = description
         # The policy's declared version, for the decision's policy_version.
         self.version = str(version or "")
+        # Attribute binding (P0-17): None applies to every agent.
+        self.binding = None
+        self.applies_to_none = False
+        self.binding_error = ""
+
+    def set_binding(self, raw: Any) -> None:
+        self.binding, self.applies_to_none, self.binding_error = resolve_binding(raw, self.outcome)
+        if self.binding_error:
+            logger.error(json.dumps({"event": "policy_binding_invalid", "rule": self.name,
+                                     "error": self.binding_error,
+                                     "effect": "applies to no agent" if self.applies_to_none
+                                     else "deny applies to every agent"}))
 
     def evaluate(self, input_data: Dict[str, Any]) -> bool:
         """Evaluate all conditions against input. All must be True (AND logic)."""
@@ -133,6 +146,18 @@ class OPAEngine:
         self._prefix = ""
         # Where the loaded bundle came from (P0-05).
         self.bundle_id = ""
+        # Rules grouped by the bundle their binding names (P0-17).
+        self._index = BindingIndex()
+
+    def _rebuild_index(self) -> None:
+        index = BindingIndex()
+        for rule in self._rules:
+            index.add(rule)
+        self._index = index
+
+    def binding_summary(self) -> Dict[str, int]:
+        """Rule count per bundle bucket ("*" holds unbound and attribute-only rules)."""
+        return self._index.bundles()
 
     def load_policies_from_s3(self, s3_client, bucket: str, prefix: str = "policies/") -> None:
         """Load .rego policy files from S3 and parse them."""
@@ -167,7 +192,7 @@ class OPAEngine:
         canonical = json.dumps(
             [
                 {"name": r.name, "outcome": r.outcome, "priority": r.priority,
-                 "conditions": r.conditions}
+                 "conditions": r.conditions, **fingerprint_fields(r)}
                 for r in sorted(self._rules, key=lambda r: (r.priority, r.name))
             ],
             sort_keys=True, default=str,
@@ -194,14 +219,20 @@ class OPAEngine:
                 description=policy.get("description", ""),
                 version=policy.get("version", ""),
             )
+            rule.set_binding(policy.get("binding"))
             self._rules.append(rule)
         if not self.bundle_id:
             self.bundle_id = "inline"
+        self._rebuild_index()
         self._last_load_time = time.time()
         logger.info(f"Loaded {len(self._rules)} OPA rules from JSON definitions")
 
-    def evaluate(self, input_data: Dict[str, Any]) -> OPADecision:
-        """Evaluate input against all loaded policies.
+    def evaluate(self, input_data: Dict[str, Any], agent_attrs: Optional[Dict[str, str]] = None) -> OPADecision:
+        """Evaluate input against the policies that apply to the agent.
+
+        agent_attrs are the trusted registry attributes policy bindings select
+        on (policy_bindings.agent_attributes). Without them only global rules
+        and deny rules apply.
 
         Uses OPA_MODE to determine evaluation path:
         - embedded: evaluate locally using parsed rules
@@ -212,11 +243,20 @@ class OPAEngine:
         start = time.time()
 
         if OPA_MODE == "external" and OPA_ENDPOINT:
+            if agent_attrs is not None:
+                input_data = {**input_data, "agent": dict(agent_attrs)}
             return self._evaluate_external(input_data, start)
 
-        return self._evaluate_embedded(input_data, start)
+        return self._evaluate_embedded(input_data, start, agent_attrs)
 
-    def _evaluate_embedded(self, input_data: Dict[str, Any], start: float) -> OPADecision:
+    def rules_for(self, agent_attrs: Optional[Dict[str, str]]) -> List["RegoRule"]:
+        """The rules that apply to an agent (P0-17): index lookup by bundle."""
+        if agent_attrs is None:
+            return [r for r in self._rules if applies(r, None)]
+        return self._index.candidates(agent_attrs)
+
+    def _evaluate_embedded(self, input_data: Dict[str, Any], start: float,
+                           agent_attrs: Optional[Dict[str, str]] = None) -> OPADecision:
         """Evaluate policies using embedded Rego-subset engine.
 
         Resolution: lowest priority number wins (highest precedence).
@@ -226,7 +266,7 @@ class OPAEngine:
 
         wrapped_input = {"input": input_data}
 
-        for rule in self._rules:
+        for rule in self.rules_for(agent_attrs):
             if rule.evaluate(wrapped_input):
                 matched_rules.append(rule.name)
                 all_matched.append(rule)
@@ -350,6 +390,7 @@ class OPAEngine:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
 
+        self._rebuild_index()
         self._last_load_time = time.time()
         logger.info(f"OPA engine loaded {len(self._rules)} rules from s3://{self._bucket}/{self._prefix}")
 
@@ -403,6 +444,7 @@ class OPAEngine:
         shares either.
         """
         identities = {rule.name} | ({str(body["policy_id"])} if body.get("policy_id") else set())
+        rule.set_binding(body.get("binding"))
         if active_names is not None:
             if lifecycle_active:
                 active_names.update(identities)

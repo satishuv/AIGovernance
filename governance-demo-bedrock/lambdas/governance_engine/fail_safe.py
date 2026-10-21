@@ -68,6 +68,7 @@ def _log_failure_record(
 def safe_evaluate_policy(
     policy_engine: Any,
     action_request: Dict[str, Any],
+    agent_attrs: Any = None,
 ) -> PolicyEvaluationResult:
     """Wrap PolicyEngine.evaluate() with fail-safe deny on error.
 
@@ -83,7 +84,9 @@ def safe_evaluate_policy(
         fail-safe deny result.
     """
     try:
-        return policy_engine.evaluate(action_request)
+        if agent_attrs is None:
+            return policy_engine.evaluate(action_request)
+        return policy_engine.evaluate(action_request, agent_attrs=agent_attrs)
     except Exception as exc:
         _log_failure_record(
             component_name="PolicyEngine",
@@ -102,7 +105,7 @@ def safe_evaluate_policy(
 # safe_evaluate_opa  (Req 18.1, 18.5, 18.6) -- fail-closed OPA wrapper
 # ------------------------------------------------------------------
 
-def safe_evaluate_opa(opa_engine: Any, opa_input: Dict[str, Any]) -> Any:
+def safe_evaluate_opa(opa_engine: Any, opa_input: Dict[str, Any], agent_attrs: Any = None) -> Any:
     """Wrap OPAEngine.evaluate() with fail-safe deny on error.
 
     If the OPA engine raises any exception, returns an OPADecision that
@@ -113,12 +116,15 @@ def safe_evaluate_opa(opa_engine: Any, opa_input: Dict[str, Any]) -> Any:
     Args:
         opa_engine: An OPAEngine instance.
         opa_input: The evaluation input dict.
+        agent_attrs: Trusted registry attributes for policy bindings (P0-17).
 
     Returns:
         An OPADecision -- either the real result or a fail-safe deny.
     """
     try:
-        return opa_engine.evaluate(opa_input)
+        if agent_attrs is None:
+            return opa_engine.evaluate(opa_input)
+        return opa_engine.evaluate(opa_input, agent_attrs=agent_attrs)
     except Exception as exc:
         _log_failure_record(
             component_name="OPAEngine",

@@ -19,6 +19,7 @@ except ImportError:
 
 from models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
 from policy_lifecycle import is_enforceable_policy_key, is_lifecycle_active_key, lifecycle_first
+from policy_bindings import applies, resolve_binding
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,11 @@ class PolicyEngine:
 
         try:
             policy = PolicyDefinition.from_dict(policy_dict)
+            policy.binding, policy.applies_to_none, binding_error = resolve_binding(
+                policy_dict.get("binding"), policy.outcome)
+            if binding_error:
+                logger.error(json.dumps({"event": "policy_binding_invalid", "policy_id": policy.policy_id,
+                                         "error": binding_error}))
             if active_ids is not None:
                 if lifecycle_active:
                     active_ids.add(policy.policy_id)
@@ -228,8 +234,12 @@ class PolicyEngine:
     # Evaluation
     # ------------------------------------------------------------------
 
-    def evaluate(self, action_request: Dict[str, Any]) -> PolicyEvaluationResult:
-        """Evaluate an action request against all loaded policies.
+    def evaluate(self, action_request: Dict[str, Any],
+                 agent_attrs: Optional[Dict[str, str]] = None) -> PolicyEvaluationResult:
+        """Evaluate an action request against the policies that apply to the agent.
+
+        agent_attrs are the trusted registry attributes policy bindings select
+        on (P0-17); without them only global and deny policies apply.
 
         Matches the request attributes (scope_level, action_group,
         target_resource, time_of_day) against each policy's conditions.
@@ -248,6 +258,8 @@ class PolicyEngine:
         matched: list = []
 
         for policy in self._policies.values():
+            if not applies(policy, agent_attrs):
+                continue
             matching_conditions = self._matches_policy(policy, action_request)
             if matching_conditions is not None:
                 matched.append((policy, matching_conditions))

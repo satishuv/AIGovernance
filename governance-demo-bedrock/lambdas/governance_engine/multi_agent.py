@@ -45,31 +45,23 @@ class MultiAgentManager:
             return None
 
     def get_agent_policy_bindings(
-        self, agent_id: str, agent_registry_table,
-        policy_metadata_table,
+        self, agent_id: str, agent_registry_table, opa_engine,
     ) -> List[str]:
-        """Resolve agent-specific policy bindings from registry attributes."""
+        """Names of the policies bound to an agent (P0-17).
+
+        One registry GetItem for the agent's attributes, then the engine's
+        binding index; no policy table scan. Before, this scanned the policy
+        table and returned every approved policy for any registered agent.
+        """
+        from policy_bindings import agent_attributes
+
         try:
-            reg_response = agent_registry_table.get_item(
-                Key={"agent_id": agent_id}
-            )
-            registry = reg_response.get("Item")
+            registry = agent_registry_table.get_item(Key={"agent_id": agent_id}).get("Item")
             if not registry:
                 return []
-
-            pol_response = policy_metadata_table.scan()
-            policies = pol_response.get("Items", [])
-            while "LastEvaluatedKey" in pol_response:
-                pol_response = policy_metadata_table.scan(
-                    ExclusiveStartKey=pol_response["LastEvaluatedKey"]
-                )
-                policies.extend(pol_response.get("Items", []))
-
-            return [
-                p.get("policy_id", "")
-                for p in policies
-                if p.get("approval_status") == "approved" and p.get("policy_id")
-            ]
+            from models import AgentRegistryEntry
+            attrs = agent_attributes(AgentRegistryEntry.from_dict(registry), agent_id)
+            return sorted({rule.name for rule in opa_engine.rules_for(attrs)})
         except Exception as exc:
             logger.error(json.dumps({
                 "event": "get_agent_policy_bindings_failed",
