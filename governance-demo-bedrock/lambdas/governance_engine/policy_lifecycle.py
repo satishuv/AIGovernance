@@ -17,6 +17,31 @@ from models import PolicyVersion
 
 logger = logging.getLogger(__name__)
 
+# Storage layout. Every submitted version is kept under VERSIONS_PREFIX, which
+# the policy engines never load. Only approve_policy and rollback_policy copy a
+# version to the active key, inside the policies/ prefix the engines read.
+VERSIONS_PREFIX = "policy-versions"
+ACTIVE_PREFIX = "policies/active"
+
+# Earlier versions of this module wrote archived copies under policies/archive/.
+# Copies like these must never take effect, wherever they appear.
+_NON_ENFORCEABLE_SEGMENTS = ("/archive/", "/pending/")
+
+
+def version_key(policy_id: str, version: int) -> str:
+    """S3 key that holds one submitted version, outside the loaded prefix."""
+    return f"{VERSIONS_PREFIX}/{policy_id}/v{int(version)}.json"
+
+
+def active_key(policy_id: str) -> str:
+    """S3 key of the version currently in force."""
+    return f"{ACTIVE_PREFIX}/{policy_id}.json"
+
+
+def is_enforceable_policy_key(key: str) -> bool:
+    """False for archived or pending policy copies, which the engines must skip."""
+    return not any(segment in key for segment in _NON_ENFORCEABLE_SEGMENTS)
+
 
 class PolicyLifecycle:
     """Manages policy definition versioning, approval, and rollback."""
@@ -31,6 +56,9 @@ class PolicyLifecycle:
         dynamodb_table,
     ) -> PolicyVersion:
         """Create a new version of a policy definition.
+
+        The version is stored as pending and has no effect until
+        approve_policy activates it.
 
         Args:
             policy_id: Identifier of the policy to update.
@@ -49,34 +77,14 @@ class PolicyLifecycle:
         history = self.get_policy_history(policy_id, dynamodb_table)
         next_version = 1
         if history:
-            next_version = max(v.version for v in history) + 1
+            next_version = max(int(v.version) for v in history) + 1
 
-        # Archive current active version if it exists
-        if next_version > 1:
-            archive_key = f"policies/archive/{policy_id}/v{next_version - 1}.json"
-            try:
-                active_key = f"policies/active/{policy_id}.json"
-                s3_client.copy_object(
-                    Bucket=bucket,
-                    Key=archive_key,
-                    CopySource={"Bucket": bucket, "Key": active_key},
-                )
-            except Exception as exc:
-                logger.warning(
-                    json.dumps({
-                        "audit_event": "policy_archive_failed",
-                        "policy_id": policy_id,
-                        "version": next_version - 1,
-                        "error": str(exc),
-                        "timestamp": now,
-                    })
-                )
-
-        # Store new version as active
-        active_key = f"policies/active/{policy_id}.json"
+        # Store the submitted version outside the loaded prefix. It has no
+        # effect until approve_policy copies it to the active key.
+        key = version_key(policy_id, next_version)
         s3_client.put_object(
             Bucket=bucket,
-            Key=active_key,
+            Key=key,
             Body=json.dumps(policy_content, default=str),
             ContentType="application/json",
         )
@@ -89,7 +97,7 @@ class PolicyLifecycle:
             approval_status="pending",
             approver="",
             timestamp=now,
-            s3_key=active_key,
+            s3_key=key,
         )
         dynamodb_table.put_item(Item=version_record.to_dict())
 
@@ -125,11 +133,16 @@ class PolicyLifecycle:
         approver_id: str,
         approver_roles: List[str],
         author_id: str,
+        s3_client=None,
+        bucket: str = "",
+        dynamodb_table=None,
     ) -> Dict[str, Any]:
-        """Approve a policy version with SoD enforcement.
+        """Approve a pending policy version and make it the active version.
 
         The approver must have the "policy_approver" role and must not be
-        the same person as the author.
+        the author, checked against both author_id and the stored record.
+        Approval copies the stored version to the active key; other approved
+        versions become "superseded".
 
         Args:
             policy_id: Identifier of the policy.
@@ -137,12 +150,16 @@ class PolicyLifecycle:
             approver_id: Identity of the approver.
             approver_roles: List of governance roles held by the approver.
             author_id: Identity of the policy author.
+            s3_client: boto3 S3 client.
+            bucket: S3 bucket name for policy storage.
+            dynamodb_table: boto3 DynamoDB Table for PolicyMetadataTable.
 
         Returns:
             Dict with approval details.
 
         Raises:
-            ValueError: If SoD constraints are violated or role is missing.
+            ValueError: If SoD constraints are violated, the role is missing,
+                the store is not supplied, or the version is not pending.
         """
         if "policy_approver" not in approver_roles:
             raise ValueError(
@@ -156,7 +173,55 @@ class PolicyLifecycle:
                 f"cannot be the same as author '{author_id}'."
             )
 
+        if s3_client is None or not bucket or dynamodb_table is None:
+            raise ValueError("Approving a policy needs the policy bucket and metadata table.")
+
+        version = int(version)
+        key = {"policy_id": policy_id, "version": version}
+        item = dynamodb_table.get_item(Key=key).get("Item")
+        if not item:
+            raise ValueError(f"Policy '{policy_id}' version {version} does not exist.")
+        record = PolicyVersion.from_dict(item)
+        if record.approval_status != "pending":
+            raise ValueError(
+                f"Policy '{policy_id}' version {version} is "
+                f"'{record.approval_status}', not pending."
+            )
+        if approver_id == record.author:
+            raise ValueError(
+                f"Separation of duties violation: approver '{approver_id}' "
+                f"authored version {version}."
+            )
+
+        previous = [int(v.version) for v in self.get_policy_history(policy_id, dynamodb_table)
+                    if v.approval_status == "approved" and int(v.version) != version]
         now = datetime.now(timezone.utc).isoformat()
+
+        # Conditional write: of two concurrent approvals, only one succeeds.
+        dynamodb_table.update_item(
+            Key=key,
+            UpdateExpression="SET #s = :approved, #a = :approver, #t = :now",
+            ConditionExpression="#s = :pending",
+            ExpressionAttributeNames={"#s": "approval_status", "#a": "approver", "#t": "approved_at"},
+            ExpressionAttributeValues={":approved": "approved", ":approver": approver_id,
+                                       ":now": now, ":pending": "pending"},
+        )
+        try:
+            s3_client.copy_object(
+                Bucket=bucket,
+                Key=active_key(policy_id),
+                CopySource={"Bucket": bucket, "Key": record.s3_key},
+            )
+        except Exception:
+            # Not active means not approved: return the record to pending.
+            dynamodb_table.update_item(
+                Key=key,
+                UpdateExpression="SET #s = :pending, #a = :empty",
+                ExpressionAttributeNames={"#s": "approval_status", "#a": "approver"},
+                ExpressionAttributeValues={":pending": "pending", ":empty": ""},
+            )
+            raise
+        self._supersede_others(policy_id, version, dynamodb_table)
 
         logger.info(
             json.dumps({
@@ -164,9 +229,19 @@ class PolicyLifecycle:
                 "policy_id": policy_id,
                 "version": version,
                 "approver_id": approver_id,
-                "author_id": author_id,
+                "author_id": record.author,
                 "timestamp": now,
             })
+        )
+        self._log_policy_change(
+            policy_id=policy_id,
+            previous_version=str(max(previous)) if previous else "0",
+            new_version=str(version),
+            author_id=record.author,
+            approver_id=approver_id,
+            change_type_detail="approve",
+            s3_client=s3_client,
+            bucket=bucket,
         )
 
         return {
@@ -174,8 +249,20 @@ class PolicyLifecycle:
             "version": version,
             "approval_status": "approved",
             "approver": approver_id,
+            "active_key": active_key(policy_id),
             "timestamp": now,
         }
+
+    def _supersede_others(self, policy_id: str, keep_version: int, dynamodb_table) -> None:
+        """Mark every other approved version of the policy as superseded."""
+        for v in self.get_policy_history(policy_id, dynamodb_table):
+            if int(v.version) != int(keep_version) and v.approval_status == "approved":
+                dynamodb_table.update_item(
+                    Key={"policy_id": policy_id, "version": int(v.version)},
+                    UpdateExpression="SET #s = :superseded",
+                    ExpressionAttributeNames={"#s": "approval_status"},
+                    ExpressionAttributeValues={":superseded": "superseded"},
+                )
 
     def rollback_policy(
         self,
@@ -200,28 +287,36 @@ class PolicyLifecycle:
             The new PolicyVersion record created by the rollback.
 
         Raises:
-            ValueError: If the target version archive is not found.
+            ValueError: If the target version was never approved or cannot be restored.
         """
         now = datetime.now(timezone.utc).isoformat()
         history = self.get_policy_history(policy_id, dynamodb_table)
-        current_version = max(v.version for v in history) if history else 0
+        current_version = max((int(v.version) for v in history), default=0)
 
-        archive_key = f"policies/archive/{policy_id}/v{target_version}.json"
-        active_key = f"policies/active/{policy_id}.json"
-
-        try:
-            s3_client.copy_object(
-                Bucket=bucket,
-                Key=active_key,
-                CopySource={"Bucket": bucket, "Key": archive_key},
-            )
-        except Exception as exc:
+        # Only content that was approved before may be restored; otherwise a
+        # rollback would activate a version nobody approved.
+        target = next((v for v in history if int(v.version) == int(target_version)), None)
+        if target is None or target.approval_status not in ("approved", "superseded"):
             raise ValueError(
-                f"Failed to restore policy '{policy_id}' version "
-                f"{target_version} from archive: {exc}"
+                f"Policy '{policy_id}' version {target_version} was never approved; "
+                "rollback restores only previously approved versions."
             )
 
         new_version = current_version + 1
+        new_key = version_key(policy_id, new_version)
+        try:
+            for key in (new_key, active_key(policy_id)):
+                s3_client.copy_object(
+                    Bucket=bucket,
+                    Key=key,
+                    CopySource={"Bucket": bucket, "Key": target.s3_key},
+                )
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to restore policy '{policy_id}' version "
+                f"{target_version}: {exc}"
+            )
+
         version_record = PolicyVersion(
             policy_id=policy_id,
             version=new_version,
@@ -229,9 +324,10 @@ class PolicyLifecycle:
             approval_status="approved",
             approver=requester_id,
             timestamp=now,
-            s3_key=active_key,
+            s3_key=new_key,
         )
         dynamodb_table.put_item(Item=version_record.to_dict())
+        self._supersede_others(policy_id, new_version, dynamodb_table)
 
         logger.info(
             json.dumps({

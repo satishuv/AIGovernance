@@ -18,6 +18,7 @@ except ImportError:
     HAS_JSONSCHEMA = False
 
 from models import PolicyConditions, PolicyDefinition, PolicyEvaluationResult
+from policy_lifecycle import is_enforceable_policy_key
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class PolicyEngine:
             for page in pages:
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
-                    if not key.endswith(".json"):
+                    if not key.endswith(".json") or not is_enforceable_policy_key(key):
                         continue
                     self._load_single_policy(key, new_policies)
 

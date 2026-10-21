@@ -198,7 +198,9 @@ forbid (
             CedarDecision with Allow or Deny
         """
         if not self._enabled:
-            return CedarDecision(decision="Allow", diagnostics={"reason": "Cedar disabled"})
+            # Fail closed: an engine that did not evaluate must not authorize.
+            return CedarDecision(decision="Deny",
+                                 diagnostics={"reason": "Cedar disabled; no authorization decision was made"})
 
         agent_attrs = agent_attrs or {"scope_level": 1, "status": "active", "environment": "dev"}
         resource_attrs = resource_attrs or {"environment": "default"}
@@ -338,7 +340,8 @@ forbid (
         prove policies are consistent and complete.
         """
         if not self._enabled:
-            return {"valid": True, "reason": "Cedar disabled, skipping validation"}
+            return {"valid": False, "skipped": True,
+                    "reason": "Cedar disabled; policies were not validated"}
 
         try:
             # Cedar's validator checks for:

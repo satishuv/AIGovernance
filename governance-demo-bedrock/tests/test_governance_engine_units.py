@@ -531,20 +531,24 @@ class TestPolicyLifecycle:
         with patch.dict(os.environ,{"CHANGE_LOG_TABLE_NAME":"","EVIDENCE_BUCKET_NAME":""}):
             assert pl.update_policy("p1",{},"a",s3,"b",t).version == 1
             assert pl.update_policy("p1",{},"a",s3,"b",t).version == 2
-    def test_archive(self):
+    def test_submit_writes_version_store_not_active(self):
         s3 = MagicMock(); s3.copy_object.return_value={}; s3.put_object.return_value={}
         t = MockTable("policy_id"); pl = PolicyLifecycle()
         with patch.dict(os.environ,{"CHANGE_LOG_TABLE_NAME":"","EVIDENCE_BUCKET_NAME":""}):
             pl.update_policy("p1",{},"a",s3,"b",t); pl.update_policy("p1",{},"a",s3,"b",t)
-        assert s3.copy_object.called
+        keys = [c.kwargs["Key"] for c in s3.put_object.call_args_list]
+        assert keys == ["policy-versions/p1/v1.json", "policy-versions/p1/v2.json"]
+        assert not s3.copy_object.called
     def test_sod(self):
         with pytest.raises(ValueError): PolicyLifecycle().approve_policy("p1",1,"same",["policy_approver"],"same")
-    def test_rollback(self):
+    def test_rollback_refuses_never_approved_version(self):
         s3 = MagicMock(); s3.copy_object.return_value={}; s3.put_object.return_value={}
         t = MockTable("policy_id"); pl = PolicyLifecycle()
         with patch.dict(os.environ,{"CHANGE_LOG_TABLE_NAME":"","EVIDENCE_BUCKET_NAME":""}):
-            pl.update_policy("p1",{},"a",s3,"b",t); pl.update_policy("p1",{},"a",s3,"b",t)
-            assert pl.rollback_policy("p1",1,"r",s3,"b",t).version == 3
+            pl.update_policy("p1",{},"a",s3,"b",t)
+            with pytest.raises(ValueError, match="never approved"):
+                pl.rollback_policy("p1",1,"r",s3,"b",t)
+        assert not s3.copy_object.called
     def test_history(self):
         s3 = MagicMock(); s3.copy_object.return_value={}; s3.put_object.return_value={}
         t = MockTable("policy_id"); pl = PolicyLifecycle()

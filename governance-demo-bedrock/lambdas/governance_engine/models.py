@@ -883,7 +883,7 @@ class PolicyVersion:
     def from_dict(cls, data: Dict[str, Any]) -> "PolicyVersion":
         return cls(
             policy_id=data["policy_id"],
-            version=data["version"],
+            version=int(data["version"]),
             author=data["author"],
             approval_status=data["approval_status"],
             approver=data["approver"],

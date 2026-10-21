@@ -230,13 +230,22 @@ class TestAgentRoleBoxing:
         assert eng.authorize_agent_role_boxed("agent-1", "IssueAttestation", "r").decision == "Deny"
         assert eng.authorize_agent_role_boxed("agent-1", "OverrideDecision", "r").decision == "Deny"
 
-    def test_agent_allowed_evidence_action(self):
-        # A non-human-only (evidence/tool) action is NOT blocked by the boundary;
-        # it proceeds to normal authorize (which allows when Cedar is disabled).
+    def test_agent_evidence_action_passes_box_then_fails_closed(self):
+        # A non-human-only (evidence/tool) action is NOT blocked by the role box;
+        # it reaches normal authorize, which denies when Cedar is disabled.
         from cedar_engine import CedarEngine
         eng = CedarEngine()
+        eng._enabled = False
         d = eng.authorize_agent_role_boxed("agent-1", "ReadPipelineStatus", "pipeline::main")
-        assert d.decision == "Allow"
+        assert d.decision == "Deny"
+        assert "Cedar disabled" in d.diagnostics["reason"]
+
+    def test_disabled_cedar_does_not_report_policies_valid(self):
+        from cedar_engine import CedarEngine
+        eng = CedarEngine()
+        eng._enabled = False
+        result = eng.validate_policies()
+        assert result["valid"] is False and result["skipped"] is True
 
     def test_human_only_set_is_inspectable(self):
         from cedar_engine import CedarEngine
