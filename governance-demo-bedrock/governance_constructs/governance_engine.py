@@ -82,6 +82,7 @@ class GovernanceEngineConstruct(Construct):
                 "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
                 "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
                 "DECISION_TRACE_TABLE_NAME": storage.decision_trace_table.table_name,
+                "DELEGATION_RECEIPT_TABLE_NAME": storage.delegation_receipt_table.table_name,
             },
         )
 
@@ -111,6 +112,7 @@ class GovernanceEngineConstruct(Construct):
         storage.runtime_drift_table.grant_read_write_data(self.governance_engine_lambda)
         storage.agent_health_table.grant_read_write_data(self.governance_engine_lambda)
         storage.tool_auth_table.grant_read_write_data(self.governance_engine_lambda)
+        storage.delegation_receipt_table.grant_read_write_data(self.governance_engine_lambda)
 
         # AARM R5/R6: allow the engine to sign evidence receipts.
         storage.evidence_signing_key.grant(self.governance_engine_lambda, "kms:Sign")
