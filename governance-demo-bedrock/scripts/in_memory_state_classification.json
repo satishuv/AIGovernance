@@ -28,6 +28,7 @@
   "operator_rbac:OperatorRBAC._operators": {"class": "CACHE", "note": "Loaded from the GovernanceRolesTable; register_operator is for tests. Request paths use RoleDirectory key queries."},
   "pipeline_integrity:PipelineIntegrityVerifier._known_hashes": {"class": "CACHE", "note": "Known-good hashes loaded from and written to the integrity table."},
   "policy_engine:PolicyEngine._policies": {"class": "CACHE", "note": "Policies loaded from S3."},
+  "policy_bindings:BindingIndex._by_bundle": {"class": "CACHE", "note": "Index over rules loaded from S3 or a versioned file; rebuilt on every load."},
   "proactive_engine:PolicyValidationResult.coverage_report": {"class": "REQUEST_SCOPED", "note": "Fields of one validation result."},
   "proactive_engine:PolicyValidationResult.errors": {"class": "REQUEST_SCOPED", "note": "Fields of one validation result."},
   "proactive_engine:PolicyValidationResult.warnings": {"class": "REQUEST_SCOPED", "note": "Fields of one validation result."},

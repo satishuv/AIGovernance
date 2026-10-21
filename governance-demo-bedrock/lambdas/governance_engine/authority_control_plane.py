@@ -36,6 +36,7 @@ from credential_broker import BrokerRefusal
 from decision_engine import DecisionEngine
 from models import PolicyEvaluationResult, RiskAssessment
 from operation_registry import validate_against_schema
+from policy_bindings import agent_attributes
 from request_canonicalization import (
     CanonicalizationError,
     canonical_json,
@@ -419,7 +420,7 @@ class DelegatedAuthorityControlPlane:
             "environment": env, "risk_category": spec.risk_category,
         }
         try:
-            decision = self.opa.evaluate(facts)
+            decision = self.opa.evaluate(facts, agent_attrs=agent_attributes(ev.agent))
             verdict = decision.verdict if decision.verdict in ("allow", "escalate", "deny") else "deny"
             ev.policy_rule = (decision.matched_rules or ["default-deny"])[0]
             detail = decision.explanation

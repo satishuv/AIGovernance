@@ -51,6 +51,7 @@ from decision_trace import DecisionTraceBuilder, DecisionTraceManager, RESULT_BL
 from trust_chain import TrustChainValidator
 from delegation_receipts import DelegationError, DelegationReceiptStore
 from effective_scope import ceilings_for, read_operator_scope
+from policy_bindings import agent_attributes
 from egress_governor import EgressGovernor
 
 logger = logging.getLogger()
@@ -732,11 +733,14 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         with tracker.track("policy_evaluation"):
             opa_engine = _get_cached_opa_engine()
+            # P0-17: policies apply to the agents their bindings select, by
+            # attributes of the trusted registry entry read above.
+            _agent_attrs = agent_attributes(registry_entry, agent_id) if registry_entry is not None else None
 
             if opa_engine.rule_count > 0:
                 now_utc = datetime.now(timezone.utc)
                 opa_input = {**action_request, "hour": now_utc.hour, "day_of_week": now_utc.strftime("%A").lower()}
-                opa_decision = safe_evaluate_opa(opa_engine, opa_input)
+                opa_decision = safe_evaluate_opa(opa_engine, opa_input, _agent_attrs)
                 policy_result = PolicyEvaluationResult(
                     policy_id=opa_decision.matched_rules[0] if opa_decision.matched_rules else "default-deny",
                     outcome=opa_decision.verdict,
@@ -744,7 +748,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     evaluation_timestamp=opa_decision.timestamp,
                 )
             else:
-                policy_result = safe_evaluate_policy(policy_engine, action_request)
+                policy_result = safe_evaluate_policy(policy_engine, action_request, _agent_attrs)
 
         # Risk scoring
         with tracker.track("risk_scoring"):

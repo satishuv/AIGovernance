@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased: redeploys keep approved policy changes (F-4)
+## Unreleased: policy bindings by agent attribute (P0-17)
+
+### Security fixes
+- Policies can carry a `binding` that selects the agents they apply to by trusted registry attributes: `policy_bundles`, `risk_tiers`, `agent_types`, `environments`, `agent_ids`. Every dimension present must match. A policy without a binding applies to every agent, as before. Bindings select by attribute rather than listing agents, so one engine serves 2,000 or more agents.
+- The pipeline and the authority plane evaluate only the policies bound to the calling agent, using attributes of its registry entry, never of the request. Without attributes only global and deny policies apply.
+- A malformed binding can only restrict: a deny policy with a bad binding applies to every agent, an allow or escalate policy with a bad binding applies to none.
+- The OPA engine indexes rules by bundle, so selecting the rules for one decision reads the global rules plus the agent's bundle. `MultiAgentManager.get_agent_policy_bindings` used to scan the policy table and return every approved policy for any registered agent; it now uses this index.
+- A binding is part of the policy fingerprint, so changing who a policy applies to voids approvals bound to the old version. Bundles without bindings keep their fingerprint.
+- The policy definition schema accepts the `binding` block.
 
 ### Security fixes
 - Source of truth for policies: the deployment owns the baseline under `policies/`, and the policy lifecycle owns `policies/active/`. The policy `BucketDeployment` now excludes `active/*`, `archive/*` and `pending/*` from its sync. Before, it pruned every object not in the source folder on each deploy, which deleted approved versions and put the sample policies back in force. Prune stays on for the baseline, so a baseline file removed from source is still removed.
