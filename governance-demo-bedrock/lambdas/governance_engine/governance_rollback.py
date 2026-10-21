@@ -24,9 +24,11 @@ NOT versioned (infrastructure state, not governance logic):
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from durable_state import require_durable
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,9 @@ class GovernanceRollbackManager:
     """
 
     def __init__(self, version_table=None):
+        # Versions are written through to version_table; without it they live
+        # only in this process, which is refused in a deployed function (P0-12).
+        require_durable("GovernanceRollbackManager", version_table)
         self._version_table = version_table
         self._current_version: Optional[GovernanceVersion] = None
         self._version_history: List[GovernanceVersion] = []

@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased: legacy entry point identity and action binding (P0-10, P0-04), policy bundle in decisions (P0-05)
+## Unreleased: no authoritative state only in process memory (P0-12)
+
+### Security fixes
+- `scripts/inventory_in_memory_state.py` finds every in-memory container in the engine (45 today) and checks it against a reviewed classification (`scripts/in_memory_state_classification.json`): 6 authoritative, 20 caches, 7 request-scoped, 7 research-only, 3 test-only, 2 configuration. An unclassified container, or an authoritative one without a named durable backing, fails the check, and a test runs it.
+- `AIAssetRegistry`, `CostGovernance`, `GovernanceChangeManagement` and `AgentLifecycleManager` accept a DynamoDB table. With one, the table is the source of truth: a revocation, a budget total or an approval made by one Lambda instance is seen by the others. Daily spend is an atomic counter whose returned total decides the budget check. Change-request and lifecycle status changes are conditional writes on the expected current status, so two instances cannot both approve one request, and a stale instance cannot overwrite a suspension.
+- These classes, `AgentMemoryManager` and `GovernanceRollbackManager` refuse to start memory-only inside a deployed Lambda function. `AgentTokenExchange` refuses to start in a deployed function at all; it is legacy-only and the hall pass is `delegated_authority`.
+- Agent memory recall no longer falls back to the process's local cache when the table read fails. The cache holds only what this process wrote, so it presented a partial history as complete.
+- `AgentLifecycleManager.transition` reported the new state as `from_state`; it now reports the previous state.
+
+None of these classes is used by a deployed component today, so this closes latent risk rather than a live one.
 
 ### Security fixes
 - The scope enforcer takes the agent identity from its deployment binding, the new `GOVERNANCE_AGENT_ID` setting (CDK context `governance_agent_id`, default `demo-agent`), instead of the request's `agent_id`. A request naming another agent is denied (`agent_identity_mismatch`) before governance runs; an enforcer with no binding denies everything (`agent_identity_unbound`).

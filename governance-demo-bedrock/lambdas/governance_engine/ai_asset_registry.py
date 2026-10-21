@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from durable_state import from_item, require_durable, scan_all, to_item
+
 logger = logging.getLogger(__name__)
 
 ASSET_TYPES = [
@@ -102,6 +104,11 @@ class AIAsset:
             "metadata": self.metadata,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AIAsset":
+        known = {f for f in cls.__dataclass_fields__}
+        return cls(**{k: v for k, v in data.items() if k in known})
+
 
 @dataclass
 class RegistryQuery:
@@ -118,13 +125,44 @@ class RegistryQuery:
 
 
 class AIAssetRegistry:
-    """Unified registry for all AI assets in the enterprise."""
+    """Unified registry for all AI assets in the enterprise.
 
-    def __init__(self):
+    With a DynamoDB table (partition key asset_id) the table is the source of
+    truth: every mutation is written through and reads come from the table,
+    so a revocation in one Lambda instance is seen by every other. Without a
+    table the registry lives in memory, which is refused inside a deployed
+    Lambda function (P0-12).
+    """
+
+    def __init__(self, table=None):
+        require_durable("AIAssetRegistry", table)
+        self._table = table
+        # Memory-only store when there is no table; a read cache otherwise.
         self._assets: Dict[str, AIAsset] = {}
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def _save(self, asset: AIAsset) -> None:
+        self._assets[asset.asset_id] = asset
+        if self._table is not None:
+            self._table.put_item(Item=to_item(asset.to_dict()))
+
+    def _fetch(self, asset_id: str) -> Optional[AIAsset]:
+        if self._table is None:
+            return self._assets.get(asset_id)
+        item = self._table.get_item(Key={"asset_id": asset_id}, ConsistentRead=True).get("Item")
+        if item is None:
+            self._assets.pop(asset_id, None)
+            return None
+        asset = AIAsset.from_dict(from_item(item))
+        self._assets[asset_id] = asset
+        return asset
+
+    def _all(self) -> List[AIAsset]:
+        if self._table is not None:
+            self.load_from_table(self._table)
+        return list(self._assets.values())
 
     def register(self, asset: AIAsset) -> AIAsset:
         """Register a new AI asset (starts in 'draft' status)."""
@@ -136,7 +174,7 @@ class AIAssetRegistry:
         asset.created_at = self._now()
         asset.updated_at = self._now()
         asset.approval_status = "draft"
-        self._assets[asset.asset_id] = asset
+        self._save(asset)
 
         logger.info(json.dumps({
             "event": "ai_asset_registered",
@@ -150,11 +188,11 @@ class AIAssetRegistry:
 
     def get(self, asset_id: str) -> Optional[AIAsset]:
         """Get an asset by ID."""
-        return self._assets.get(asset_id)
+        return self._fetch(asset_id)
 
     def update(self, asset_id: str, updates: Dict[str, Any]) -> Optional[AIAsset]:
         """Update asset fields (triggers change management if approved)."""
-        asset = self._assets.get(asset_id)
+        asset = self._fetch(asset_id)
         if asset is None:
             return None
 
@@ -163,6 +201,7 @@ class AIAssetRegistry:
                 setattr(asset, key, value)
 
         asset.updated_at = self._now()
+        self._save(asset)
 
         logger.info(json.dumps({
             "event": "ai_asset_updated",
@@ -173,7 +212,7 @@ class AIAssetRegistry:
 
     def revoke(self, asset_id: str, revoked_by: str, reason: str) -> Optional[AIAsset]:
         """Revoke an asset (prevents further use)."""
-        asset = self._assets.get(asset_id)
+        asset = self._fetch(asset_id)
         if asset is None:
             return None
 
@@ -182,6 +221,7 @@ class AIAssetRegistry:
         asset.metadata["revoked_by"] = revoked_by
         asset.metadata["revocation_reason"] = reason
         asset.metadata["revoked_at"] = self._now()
+        self._save(asset)
 
         logger.warning(json.dumps({
             "event": "ai_asset_revoked",
@@ -192,8 +232,8 @@ class AIAssetRegistry:
         return asset
 
     def query(self, q: RegistryQuery) -> List[AIAsset]:
-        """Search the registry with filters."""
-        results = list(self._assets.values())
+        """Search the registry with filters (an inventory read, not a request-path check)."""
+        results = self._all()
 
         if q.asset_type:
             results = [a for a in results if a.asset_type == q.asset_type]
@@ -219,7 +259,7 @@ class AIAssetRegistry:
 
     def get_inventory_summary(self) -> Dict[str, Any]:
         """Get a summary of all assets by type, risk, and status."""
-        assets = list(self._assets.values())
+        assets = self._all()
         return {
             "total_assets": len(assets),
             "by_type": self._count_by(assets, "asset_type"),
@@ -232,8 +272,16 @@ class AIAssetRegistry:
         }
 
     def check_access(self, asset_id: str, consumer_id: str) -> bool:
-        """Check if a consumer (agent/user) is allowed to use this asset."""
-        asset = self._assets.get(asset_id)
+        """Check if a consumer (agent/user) is allowed to use this asset.
+
+        Reads the table when there is one, so a revocation made by another
+        instance applies immediately. A read error denies.
+        """
+        try:
+            asset = self._fetch(asset_id)
+        except Exception as exc:
+            logger.error(json.dumps({"event": "ai_asset_read_failed", "asset_id": asset_id, "error": str(exc)}))
+            return False
         if asset is None:
             return False
         if asset.approval_status != "approved":
@@ -251,27 +299,16 @@ class AIAssetRegistry:
         return counts
 
     def load_from_table(self, table) -> None:
-        """Load assets from DynamoDB."""
+        """Load every asset from DynamoDB (inventory and reporting; paginated)."""
         try:
-            response = table.scan()
-            for item in response.get("Items", []):
-                asset = AIAsset(
-                    asset_id=item["asset_id"],
-                    asset_type=item.get("asset_type", "unknown"),
-                    name=item.get("name", ""),
-                    description=item.get("description", ""),
-                    owner=item.get("owner", ""),
-                    business_unit=item.get("business_unit", ""),
-                    risk_tier=item.get("risk_tier", "medium"),
-                    approval_status=item.get("approval_status", "draft"),
-                    data_classes=item.get("data_classes", []),
-                    allowed_consumers=item.get("allowed_consumers", []),
-                    environment=item.get("environment", "dev"),
-                    version=item.get("version", "1.0"),
-                )
-                self._assets[asset.asset_id] = asset
+            loaded = {}
+            for item in scan_all(table):
+                asset = AIAsset.from_dict(from_item(item))
+                loaded[asset.asset_id] = asset
+            self._assets = loaded
         except Exception as e:
             logger.error(json.dumps({
                 "event": "ai_asset_registry_load_failed",
                 "error": str(e),
             }))
+            raise

@@ -24,6 +24,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from durable_state import MemoryOnlyStateError, running_in_lambda
+
 logger = logging.getLogger(__name__)
 
 # EXPERIMENTAL research module. Tokens and the access log live in process
@@ -121,6 +123,14 @@ class AgentTokenExchange:
     """
 
     def __init__(self, secret: str = None, ttl: int = None):
+        # Legacy-only (P0-13): issued tokens and the access log live in this
+        # process, and without AGENT_TOKEN_SECRET each process signs with its
+        # own random secret. That cannot be authoritative in a deployed
+        # function (P0-12); the hall pass is delegated_authority.
+        if running_in_lambda():
+            raise MemoryOnlyStateError(
+                "AgentTokenExchange is legacy-only and keeps tokens in process memory; use "
+                "delegated_authority grants in deployed functions")
         self._secret = (secret or TOKEN_SECRET or secrets.token_hex(32)).encode("utf-8")
         self._ttl = ttl or TOKEN_TTL_SECONDS
         self._active_tokens: Dict[str, AgentToken] = {}
