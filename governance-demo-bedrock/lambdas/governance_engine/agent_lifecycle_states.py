@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
+from durable_state import conditional_failed, from_item, require_durable, scan_all, to_item
+
 logger = logging.getLogger(__name__)
 
 LIFECYCLE_STATES = [
@@ -115,13 +117,47 @@ class TransitionResult:
 
 
 class AgentLifecycleManager:
-    """Manages agent lifecycle state transitions with enforcement."""
+    """Manages agent lifecycle state transitions with enforcement.
 
-    def __init__(self):
+    With a DynamoDB table (partition key agent_id) the table is the source of
+    truth and each transition is a conditional write on the state it read,
+    so a suspension by one instance cannot be overwritten by another
+    instance's stale state. Without a table state lives in memory, which is
+    refused inside a deployed Lambda function (P0-12).
+    """
+
+    def __init__(self, table=None):
+        require_durable("AgentLifecycleManager", table)
+        self._table = table
         self._states: Dict[str, LifecycleState] = {}
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def _load(self, agent_id: str) -> Optional[LifecycleState]:
+        if self._table is None:
+            return self._states.get(agent_id)
+        item = self._table.get_item(Key={"agent_id": agent_id}, ConsistentRead=True).get("Item")
+        if item is None:
+            self._states.pop(agent_id, None)
+            return None
+        known = {f for f in LifecycleState.__dataclass_fields__}
+        state = LifecycleState(**{k: v for k, v in from_item(item).items() if k in known})
+        self._states[agent_id] = state
+        return state
+
+    def _store(self, state: LifecycleState, expected_state: Optional[str]) -> None:
+        self._states[state.agent_id] = state
+        if self._table is None:
+            return
+        known = {f for f in LifecycleState.__dataclass_fields__}
+        item = to_item({k: getattr(state, k) for k in known})
+        if expected_state is None:
+            self._table.put_item(Item=item, ConditionExpression="attribute_not_exists(agent_id)")
+        else:
+            self._table.put_item(Item=item, ConditionExpression="#state = :expected",
+                                 ExpressionAttributeNames={"#state": "state"},
+                                 ExpressionAttributeValues={":expected": expected_state})
 
     def initialize_agent(self, agent_id: str, created_by: str) -> LifecycleState:
         """Create a new agent in draft state."""
@@ -131,7 +167,7 @@ class AgentLifecycleManager:
             entered_at=self._now(),
             transitioned_by=created_by,
         )
-        self._states[agent_id] = state
+        self._store(state, expected_state=None)
         logger.info(json.dumps({
             "event": "agent_lifecycle_initialized",
             "agent_id": agent_id,
@@ -143,7 +179,7 @@ class AgentLifecycleManager:
     def transition(self, agent_id: str, target_state: str, transitioned_by: str, reason: str = "") -> TransitionResult:
         """Attempt a lifecycle state transition."""
         now = self._now()
-        current = self._states.get(agent_id)
+        current = self._load(agent_id)
 
         if current is None:
             return TransitionResult(
@@ -161,6 +197,7 @@ class AgentLifecycleManager:
                 timestamp=now,
             )
 
+        previous_state = current.state
         current.state = target_state
         current.entered_at = now
         current.transitioned_by = transitioned_by
@@ -179,30 +216,45 @@ class AgentLifecycleManager:
         if target_state == "retired":
             current.retirement_reason = reason
 
+        try:
+            self._store(current, expected_state=previous_state)
+        except Exception as exc:
+            if not conditional_failed(exc):
+                raise
+            self._states.pop(agent_id, None)
+            return TransitionResult(
+                success=False, agent_id=agent_id, from_state=previous_state, to_state=target_state,
+                reason="Lifecycle state changed concurrently; re-read and retry", timestamp=now,
+            )
+
         logger.info(json.dumps({
             "event": "agent_lifecycle_transition",
             "agent_id": agent_id,
-            "from_state": current.state,
+            "from_state": previous_state,
             "to_state": target_state,
             "transitioned_by": transitioned_by,
             "reason": reason,
         }))
 
         return TransitionResult(
-            success=True, agent_id=agent_id, from_state=current.state,
+            success=True, agent_id=agent_id, from_state=previous_state,
             to_state=target_state, reason=reason, timestamp=now,
         )
 
     def check_operational(self, agent_id: str) -> bool:
-        """Check if agent is in an operational state (can invoke tools)."""
-        state = self._states.get(agent_id)
+        """Check if agent is in an operational state (can invoke tools). Read errors deny."""
+        try:
+            state = self._load(agent_id)
+        except Exception as exc:
+            logger.error(json.dumps({"event": "lifecycle_read_failed", "agent_id": agent_id, "error": str(exc)}))
+            return False
         if state is None:
             return False
         return state.state in OPERATIONAL_STATES
 
     def check_certification_expiry(self, agent_id: str) -> Optional[str]:
         """Check if certification is expired. Returns reason if expired."""
-        state = self._states.get(agent_id)
+        state = self._load(agent_id)
         if state is None:
             return None
         if not state.certification_expiry:
@@ -215,10 +267,15 @@ class AgentLifecycleManager:
         return None
 
     def get_state(self, agent_id: str) -> Optional[LifecycleState]:
-        return self._states.get(agent_id)
+        return self._load(agent_id)
 
     def get_all_agents_by_state(self) -> Dict[str, List[str]]:
-        """Group all agents by their current lifecycle state."""
+        """Group all agents by their current lifecycle state (reporting)."""
+        if self._table is not None:
+            known = {f for f in LifecycleState.__dataclass_fields__}
+            self._states = {
+                str(i["agent_id"]): LifecycleState(**{k: v for k, v in from_item(i).items() if k in known})
+                for i in scan_all(self._table)}
         by_state: Dict[str, List[str]] = {s: [] for s in LIFECYCLE_STATES}
         for agent_id, state in self._states.items():
             by_state[state.state].append(agent_id)

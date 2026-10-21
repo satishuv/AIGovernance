@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from durable_state import conditional_failed, from_item, require_durable, scan_all, to_item
+
 logger = logging.getLogger(__name__)
 
 CHANGE_TYPES = [
@@ -103,7 +105,13 @@ class ChangeRequest:
             "created_at": self.created_at,
             "reviewed_at": self.reviewed_at,
             "applied_at": self.applied_at,
+            "rolled_back_at": self.rolled_back_at,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChangeRequest":
+        known = {f for f in cls.__dataclass_fields__}
+        return cls(**{k: v for k, v in data.items() if k in known})
 
 
 def _assess_risk_impact(change_type: str, proposed_changes: Dict[str, Any]) -> str:
@@ -123,14 +131,56 @@ def _assess_risk_impact(change_type: str, proposed_changes: Dict[str, Any]) -> s
 
 
 class GovernanceChangeManagement:
-    """Manages approval workflows for all governance registry mutations."""
+    """Manages approval workflows for all governance registry mutations.
 
-    def __init__(self):
+    With a DynamoDB table (partition key request_id) every change request is
+    stored there and each status change is a conditional write on the
+    expected current status, so two instances cannot both approve the same
+    request. Without a table requests live in memory, which is refused inside
+    a deployed Lambda function (P0-12). Apply callbacks are code registered
+    at start-up, not state.
+    """
+
+    def __init__(self, table=None):
+        require_durable("GovernanceChangeManagement", table)
+        self._table = table
         self._requests: Dict[str, ChangeRequest] = {}
         self._apply_callbacks: Dict[str, Callable] = {}
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def _get(self, request_id: str) -> Optional[ChangeRequest]:
+        if self._table is None:
+            return self._requests.get(request_id)
+        item = self._table.get_item(Key={"request_id": request_id}, ConsistentRead=True).get("Item")
+        if item is None:
+            return None
+        request = ChangeRequest.from_dict(from_item(item))
+        self._requests[request_id] = request
+        return request
+
+    def _all(self) -> List[ChangeRequest]:
+        if self._table is not None:
+            self._requests = {r.request_id: r for r in
+                              (ChangeRequest.from_dict(from_item(i)) for i in scan_all(self._table))}
+        return list(self._requests.values())
+
+    def _transition(self, request: ChangeRequest, expected_status: str) -> None:
+        """Persist request with its new status, only if the stored status is still expected_status."""
+        self._requests[request.request_id] = request
+        if self._table is None:
+            return
+        try:
+            self._table.put_item(Item=to_item(request.to_dict()),
+                                 ConditionExpression="#status = :expected",
+                                 ExpressionAttributeNames={"#status": "status"},
+                                 ExpressionAttributeValues={":expected": expected_status})
+        except Exception as exc:
+            if conditional_failed(exc):
+                raise ValueError(f"Change request {request.request_id} is no longer {expected_status} "
+                                 "(changed concurrently)") from exc
+            raise
 
     def register_apply_callback(self, change_type: str, callback: Callable) -> None:
         """Register a function to call when a change of this type is approved."""
@@ -167,6 +217,9 @@ class GovernanceChangeManagement:
         )
 
         self._requests[request.request_id] = request
+        if self._table is not None:
+            self._table.put_item(Item=to_item(request.to_dict()),
+                                 ConditionExpression="attribute_not_exists(request_id)")
 
         logger.info(json.dumps({
             "event": "change_request_created",
@@ -181,7 +234,7 @@ class GovernanceChangeManagement:
 
     def approve(self, request_id: str, reviewer: str, comment: str = "") -> ChangeRequest:
         """Approve a change request and apply the change."""
-        request = self._requests.get(request_id)
+        request = self._get(request_id)
         if request is None:
             raise ValueError(f"Change request {request_id} not found")
         if request.status != "pending":
@@ -193,6 +246,9 @@ class GovernanceChangeManagement:
         request.reviewer = reviewer
         request.review_comment = comment
         request.reviewed_at = self._now()
+        # Claim the approval before applying anything: a concurrent approver
+        # fails here, so a change is applied at most once.
+        self._transition(request, "pending")
 
         # Apply the change if callback registered
         callback = self._apply_callbacks.get(request.change_type)
@@ -211,6 +267,8 @@ class GovernanceChangeManagement:
         else:
             request.status = "applied"
             request.applied_at = self._now()
+        if request.status == "applied":
+            self._transition(request, "approved")
 
         logger.info(json.dumps({
             "event": "change_request_approved",
@@ -225,7 +283,7 @@ class GovernanceChangeManagement:
 
     def reject(self, request_id: str, reviewer: str, reason: str) -> ChangeRequest:
         """Reject a change request."""
-        request = self._requests.get(request_id)
+        request = self._get(request_id)
         if request is None:
             raise ValueError(f"Change request {request_id} not found")
         if request.status != "pending":
@@ -235,6 +293,7 @@ class GovernanceChangeManagement:
         request.reviewer = reviewer
         request.review_comment = reason
         request.reviewed_at = self._now()
+        self._transition(request, "pending")
 
         logger.info(json.dumps({
             "event": "change_request_rejected",
@@ -249,7 +308,7 @@ class GovernanceChangeManagement:
 
     def rollback(self, request_id: str, rolled_back_by: str) -> ChangeRequest:
         """Rollback an applied change to its previous state."""
-        request = self._requests.get(request_id)
+        request = self._get(request_id)
         if request is None:
             raise ValueError(f"Change request {request_id} not found")
         if request.status != "applied":
@@ -271,6 +330,7 @@ class GovernanceChangeManagement:
 
         request.status = "rolled_back"
         request.rolled_back_at = self._now()
+        self._transition(request, "applied")
 
         logger.warning(json.dumps({
             "event": "change_rolled_back",
@@ -284,18 +344,18 @@ class GovernanceChangeManagement:
 
     def get_pending(self) -> List[ChangeRequest]:
         """Get all pending change requests."""
-        return [r for r in self._requests.values() if r.status == "pending"]
+        return [r for r in self._all() if r.status == "pending"]
 
     def get_history(self, target_asset_id: str = None) -> List[Dict[str, Any]]:
         """Get change history, optionally filtered by asset."""
-        requests = list(self._requests.values())
+        requests = self._all()
         if target_asset_id:
             requests = [r for r in requests if r.target_asset_id == target_asset_id]
         return [r.to_dict() for r in sorted(requests, key=lambda r: r.created_at, reverse=True)]
 
     def get_summary(self) -> Dict[str, Any]:
         """Get change management summary stats."""
-        requests = list(self._requests.values())
+        requests = self._all()
         return {
             "total_requests": len(requests),
             "pending": sum(1 for r in requests if r.status == "pending"),

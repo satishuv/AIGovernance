@@ -17,9 +17,10 @@ import hashlib
 import json
 import logging
 import os
-import time
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from durable_state import require_durable
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class AgentMemoryManager:
     """
 
     def __init__(self, table=None):
+        require_durable("AgentMemoryManager", table)
         self._table = table
         self._local_cache: Dict[str, List[MemoryEntry]] = {}
 
@@ -197,8 +199,12 @@ class AgentMemoryManager:
                     "agent_id": agent_id,
                     "error": str(exc)[:80],
                 }))
+                # Fail closed (P0-12): this process's cache holds only the
+                # memories it wrote, so serving it would present a partial
+                # history (for example fewer past denials) as the whole one.
+                raise
 
-        # Fallback to local cache
+        # No table configured: the local store is the only store.
         memories = self._local_cache.get(agent_id, [])
         if memory_type:
             memories = [m for m in memories if m.memory_type == memory_type]
