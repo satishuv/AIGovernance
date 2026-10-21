@@ -894,14 +894,19 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Decision
         with tracker.track("decision_engine"):
             try:
-                _policy_version_hash = _get_cached_opa_engine().policy_fingerprint()
+                _bundle_engine = _get_cached_opa_engine()
+                _policy_version_hash = _bundle_engine.policy_fingerprint()
+                _policy_bundle_id = _bundle_engine.bundle_id
+                _policy_version = _bundle_engine.bundle_version()
             except Exception:
-                _policy_version_hash = ""
+                _policy_version_hash = _policy_bundle_id = _policy_version = ""
             decision = decision_engine.decide(
                 policy_result, risk_assessment, action_request, agent_id,
                 modification_applied=modification_applied,
                 context_sufficient=context_sufficient,
                 policy_version_hash=_policy_version_hash,
+                policy_bundle_id=_policy_bundle_id,
+                policy_version=_policy_version,
             )
 
         # DEFER dependent-action cascade bound (AARM R4). A deferred action

@@ -58,12 +58,14 @@ class RegoRule:
     """A parsed Rego rule with conditions."""
 
     def __init__(self, name: str, outcome: str, conditions: List[Dict[str, Any]],
-                 priority: int = 100, description: str = ""):
+                 priority: int = 100, description: str = "", version: str = ""):
         self.name = name
         self.outcome = outcome  # "allow", "deny", "escalate"
         self.conditions = conditions
         self.priority = priority
         self.description = description
+        # The policy's declared version, for the decision's policy_version.
+        self.version = str(version or "")
 
     def evaluate(self, input_data: Dict[str, Any]) -> bool:
         """Evaluate all conditions against input. All must be True (AND logic)."""
@@ -129,13 +131,31 @@ class OPAEngine:
         self._s3_client = None
         self._bucket = ""
         self._prefix = ""
+        # Where the loaded bundle came from (P0-05).
+        self.bundle_id = ""
 
     def load_policies_from_s3(self, s3_client, bucket: str, prefix: str = "policies/") -> None:
         """Load .rego policy files from S3 and parse them."""
         self._s3_client = s3_client
         self._bucket = bucket
         self._prefix = prefix
+        self.bundle_id = f"s3://{bucket}/{prefix}"
         self._fetch_and_parse_policies()
+
+    # Above this many rules the version string lists a count instead of ids.
+    _VERSION_LIST_LIMIT = 50
+
+    def bundle_version(self) -> str:
+        """Readable version of the loaded bundle (P0-05).
+
+        Each rule as name@version, sorted, so a reviewer can name the policy
+        versions a decision ran under. policy_fingerprint() remains the exact
+        identity an approval binds to.
+        """
+        entries = sorted(f"{r.name}@{r.version or 'unversioned'}" for r in self._rules)
+        if len(entries) > self._VERSION_LIST_LIMIT:
+            return f"{len(entries)} rules; fingerprint {self.policy_fingerprint()[:16]}"
+        return ",".join(entries)
 
     def policy_fingerprint(self) -> str:
         """SHA-256 over the loaded rules (name, outcome, priority, conditions).
@@ -172,8 +192,11 @@ class OPAEngine:
                 conditions=policy.get("conditions", []),
                 priority=policy.get("priority", 100),
                 description=policy.get("description", ""),
+                version=policy.get("version", ""),
             )
             self._rules.append(rule)
+        if not self.bundle_id:
+            self.bundle_id = "inline"
         self._last_load_time = time.time()
         logger.info(f"Loaded {len(self._rules)} OPA rules from JSON definitions")
 
@@ -337,6 +360,7 @@ class OPAEngine:
                     conditions=body["conditions"],
                     priority=body.get("priority", 100),
                     description=body.get("description", ""),
+                    version=body.get("version", ""),
                 )
                 self._rules.append(rule)
             elif "conditions" in body and isinstance(body["conditions"], dict):
@@ -351,6 +375,7 @@ class OPAEngine:
                     conditions=conditions,
                     priority=body.get("priority", 100),
                     description=body.get("description", body.get("name", "")),
+                    version=body.get("version", ""),
                 )
                 self._rules.append(rule)
 

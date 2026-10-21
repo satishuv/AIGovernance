@@ -22,8 +22,6 @@ import sys
 import importlib.util
 from unittest.mock import patch, MagicMock
 
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Module loading
@@ -68,6 +66,7 @@ _SCOPE_BOUNDARY_ARNS = json.dumps({
 _SE_ENV = {
     "AGENT_ID": "TEST_AGENT_ID",
     "AGENT_ALIAS_ID": "TEST_ALIAS_ID",
+    "GOVERNANCE_AGENT_ID": "demo-agent",
     "SCOPE_TABLE_NAME": "test-scope-table",
     "ACTION_GROUP_LAMBDA_ROLE_NAME": "test-action-group-role",
     "SCOPE_BOUNDARY_ARNS": _SCOPE_BOUNDARY_ARNS,
@@ -93,6 +92,12 @@ _AG_ENV = {
 scope_enforcer = _load_module("se_prod", _SE_PATH, _SE_ENV)
 kill_switch = _load_module("ks_prod", _KS_PATH, _KS_ENV)
 action_group = _load_module("ag_prod", _AG_PATH, _AG_ENV)
+
+
+def _governed(action_group_name, scope):
+    """Session attributes the scope enforcer sets after a governance allow."""
+    return {"scope_level": str(scope), "governed_action_groups": action_group_name,
+            "governance_decision_id": "decision-test"}
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +297,6 @@ class TestExcessiveAgencyPrevention:
         mock_bedrock = _mock_bedrock_agent()
         call_order = []
 
-        original_invoke = mock_lambda.invoke.side_effect
         mock_lambda.invoke.side_effect = lambda **kw: (
             call_order.append("governance") or mock_lambda.invoke.return_value
         )
@@ -320,6 +324,42 @@ class TestExcessiveAgencyPrevention:
 class TestInsecurePluginDesign:
     """Action group Lambda must use env vars for resource names, never accept them from input."""
 
+    def test_tool_call_outside_the_governed_operation_is_refused(self):
+        """P0-04: a session governed for a read cannot run a deployment."""
+        mock_s3 = MagicMock()
+        with patch.object(action_group, "s3", mock_s3):
+            result = action_group.handler(
+                {
+                    "actionGroup": "ProductionDeployment",
+                    "apiPath": "/deployToProduction",
+                    "httpMethod": "POST",
+                    "parameters": [{"name": "buildId", "value": "build-47"}],
+                    "agent": {"id": "demo-agent"},
+                    # Scope 4 permits production; governance evaluated a read.
+                    "sessionAttributes": _governed("ReadPipelineStatus", scope=4),
+                },
+                None,
+            )
+        assert result["response"]["httpStatusCode"] == 403
+        body = json.loads(result["response"]["responseBody"]["application/json"]["body"])
+        assert "not the operation governance evaluated" in body["error"]
+        mock_s3.put_object.assert_not_called()
+
+    def test_session_without_governance_is_refused(self):
+        """P0-04: no governance decision, no execution (even at a high scope)."""
+        result = action_group.handler(
+            {
+                "actionGroup": "ReadPipelineStatus",
+                "apiPath": "/getBuildStatus",
+                "httpMethod": "GET",
+                "parameters": [{"name": "buildId", "value": "build-47"}],
+                "agent": {"id": "demo-agent"},
+                "sessionAttributes": {"scope_level": "4"},
+            },
+            None,
+        )
+        assert result["response"]["httpStatusCode"] == 403
+
     def test_s3_read_uses_env_bucket(self):
         """LLM07: getBuildStatus reads from DATA_BUCKET_NAME env var, not from event."""
         mock_s3 = MagicMock()
@@ -335,6 +375,7 @@ class TestInsecurePluginDesign:
                     "httpMethod": "GET",
                     "parameters": [{"name": "buildId", "value": "build-47"}],
                     "agent": {"id": "demo-agent"},
+                    "sessionAttributes": _governed("ReadPipelineStatus", scope=1),
                 },
                 None,
             )
@@ -353,6 +394,7 @@ class TestInsecurePluginDesign:
                     "httpMethod": "POST",
                     "parameters": [{"name": "buildId", "value": "build-47"}],
                     "agent": {"id": "demo-agent"},
+                    "sessionAttributes": _governed("StagingDeployment", scope=1),
                 },
                 None,
             )
@@ -385,6 +427,7 @@ class TestInsecurePluginDesign:
                 "httpMethod": "GET",
                 "parameters": [],
                 "agent": {"id": "demo-agent"},
+                "sessionAttributes": _governed("ReadPipelineStatus", scope=1),
             },
             None,
         )

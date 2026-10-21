@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import uuid
+import re as _re
 from datetime import datetime, timezone
 
 import boto3
@@ -521,7 +522,6 @@ def _resolve_route(action_group, api_path):
 #
 # These are FAST inline checks (~15ms total), not another Lambda invocation.
 # ---------------------------------------------------------------------------
-import re as _re
 
 # ---------------------------------------------------------------------------
 # Enum-based allowlisting (industry standard: reject unknown values at parse)
@@ -638,6 +638,25 @@ def _check_scope_permits_action(scope_level, action_group):
     return action_group in permitted
 
 
+def _check_governed_action(session_attributes, action_group):
+    """P0-04: run only the operation the governance decision evaluated.
+
+    The scope enforcer records the action group governance evaluated in the
+    session attributes, which the application sets and the model cannot
+    change. A tool call for any other action group, or a session with no
+    governance decision at all, is refused: the operation actually invoked,
+    not the conversation, defines what is authorized.
+    """
+    governed = [g.strip() for g in str(session_attributes.get("governed_action_groups", "")).split(",")
+                if g.strip()]
+    if not governed:
+        return False, "no governance decision covers this session"
+    if action_group not in governed:
+        return False, (f"action group '{action_group}' is not the operation governance evaluated "
+                       f"({', '.join(governed)})")
+    return True, ""
+
+
 def _check_parameter_safety(params_dict):
     """Scan all parameter values for injection attacks. Returns (safe, violation)."""
     for name, value in params_dict.items():
@@ -681,8 +700,12 @@ def handler(event, context):
     http_method = event.get("httpMethod", "GET")
     parameters = _extract_parameters(event)
     agent_id = event.get("agent", {}).get("id", "unknown")
-    session_attributes = event.get("sessionAttributes", {})
-    scope_level = int(session_attributes.get("scope_level", "1"))
+    session_attributes = event.get("sessionAttributes", {}) or {}
+    # A missing scope is no scope, not scope 1 (fail closed).
+    try:
+        scope_level = int(session_attributes.get("scope_level", "0"))
+    except (TypeError, ValueError):
+        scope_level = 0
 
     params_dict = _params_to_dict(parameters)
     outcome = "success"
@@ -746,6 +769,26 @@ def handler(event, context):
             return _build_response(
                 action_group, api_path, http_method, 403,
                 {"error": f"Recursion depth {depth} exceeds maximum {MAX_RECURSION_DEPTH}"},
+            )
+
+        # -----------------------------------------------------------------
+        # CHECK 0d: The tool call is the operation governance evaluated (P0-04)
+        # -----------------------------------------------------------------
+        governed_ok, governed_reason = _check_governed_action(session_attributes, action_group)
+        if not governed_ok:
+            outcome = "ungoverned_action"
+            logger.warning(json.dumps({
+                "audit_event": "ungoverned_action_rejected",
+                "agent_id": agent_id,
+                "action_group": action_group,
+                "reason": governed_reason,
+                "governance_decision_id": session_attributes.get("governance_decision_id", ""),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            _audit_log(agent_id, action_group, api_path, params_dict, outcome)
+            return _build_response(
+                action_group, api_path, http_method, 403,
+                {"error": f"Not authorized by governance: {governed_reason}"},
             )
 
         # -----------------------------------------------------------------

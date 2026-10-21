@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased: verified delegation (P0-11) and trusted effective scope (P0-02)
+## Unreleased: legacy entry point identity and action binding (P0-10, P0-04), policy bundle in decisions (P0-05)
+
+### Security fixes
+- The scope enforcer takes the agent identity from its deployment binding, the new `GOVERNANCE_AGENT_ID` setting (CDK context `governance_agent_id`, default `demo-agent`), instead of the request's `agent_id`. A request naming another agent is denied (`agent_identity_mismatch`) before governance runs; an enforcer with no binding denies everything (`agent_identity_unbound`).
+- The action group Lambda runs only the operation governance evaluated. The scope enforcer records it in the session attributes (`governed_action_groups`, `governance_decision_id`), which the application sets and the model cannot change. A tool call for another action group, or a session with no governance decision, is refused with 403. Before, a conversational request whose keywords classified it as a read could go on to call any action group its scope permitted.
+- A session with no `scope_level` attribute now runs at scope 0 instead of scope 1.
+- Governance decisions record `policy_bundle_id` (for example `s3://bucket/policies/`) and `policy_version` (each policy id with its declared version) next to `policy_version_hash`. Authority-plane decisions name the agent's assigned bundle, and the signed decision trace and evidence carry both fields.
+
+### Deployment
+- Set `-c governance_agent_id=<agent>` when the scope enforcer serves an agent other than `demo-agent`.
 
 ### Security fixes
 - Agent-to-agent delegation is verified. An allowed request that names `delegate_to_agent_id` gets a delegation receipt, stored server-side in the new `DelegationReceiptTable`. The child presents only `delegation_receipt_id`; its parent, delegation chain and scope cap come from the receipt. A receipt is bound to one child, optionally to a list of operations, expires (15 minutes by default, 1 hour at most) and is single-use by default, enforced with a conditional write. Delegation to self, cycles and chains at the depth limit are refused at issue.

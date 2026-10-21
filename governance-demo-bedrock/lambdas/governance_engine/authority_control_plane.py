@@ -166,6 +166,13 @@ class DelegatedAuthorityControlPlane:
             self._on_event(event_type, rec)
         return rec
 
+    def _policy_bundle_id(self, agent) -> str:
+        """The policy bundle a decision ran under (P0-05): the agent's assigned
+        bundle name when the registry declares one, plus the engine's source."""
+        source = getattr(self.opa, "bundle_id", "") or "unknown"
+        assigned = getattr(agent, "policy_bundle", "") if agent is not None else ""
+        return f"{assigned}@{source}" if assigned else source
+
     def _store_decision(self, decision, evaluation: Evaluation) -> None:
         if self.decision_table is None:
             return
@@ -175,6 +182,8 @@ class DelegatedAuthorityControlPlane:
                 "verdict": decision.verdict, "risk_score": evaluation.risk_score,
                 "timestamp": decision.timestamp, "request_digest": decision.request_digest,
                 "policy_version_hash": decision.policy_version_hash,
+                "policy_bundle_id": decision.policy_bundle_id,
+                "policy_version": decision.policy_version,
                 "decisive_stage": (evaluation.hard_failures or evaluation.step_ups or [Stage("opa_policy", PASS, "")])[0].name,
                 "stages": [s.to_dict() for s in evaluation.stages]}
         canonical = canonical_json(to_json_safe(body))
@@ -432,7 +441,9 @@ class DelegatedAuthorityControlPlane:
                               risk_category=ev.spec.risk_category if ev.spec else "unknown")
         decision = DecisionEngine(escalation_threshold=self.config.escalation_threshold).decide(
             policy_result, risk, dict(ev.canonical), ev.canonical.get("agent_id", ""),
-            policy_version_hash=ev.policy_version_hash)
+            policy_version_hash=ev.policy_version_hash,
+            policy_bundle_id=self._policy_bundle_id(ev.agent),
+            policy_version=self.opa.bundle_version())
         if ev.hard_failures:
             decision.verdict = "deny"
             decision.explanation = "; ".join(f"{s.name}: {s.detail}" for s in ev.hard_failures)
@@ -481,6 +492,7 @@ class DelegatedAuthorityControlPlane:
                      verdict=decision.verdict, operation_id=ev.canonical.get("operation_id"),
                      provider=ev.canonical.get("provider"), target_resource=ev.canonical.get("target_resource"),
                      request_digest=decision.request_digest, policy_version_hash=decision.policy_version_hash,
+                     policy_bundle_id=decision.policy_bundle_id, policy_version=decision.policy_version,
                      risk_score=ev.risk_score, stages=[s.to_dict() for s in ev.stages],
                      principal=caller.principal_id if caller else "")
         response = {"verdict": decision.verdict, "aarm_decision": AARM.get(decision.verdict, "DENY"),
@@ -488,6 +500,7 @@ class DelegatedAuthorityControlPlane:
                     "risk_score": ev.risk_score, "risk_factors": ev.risk_factors,
                     "stages": [s.to_dict() for s in ev.stages], "request_digest": decision.request_digest,
                     "policy_version_hash": decision.policy_version_hash,
+                    "policy_bundle_id": decision.policy_bundle_id, "policy_version": decision.policy_version,
                     "budget": ev.budget.to_dict() if ev.budget else None}
         if decision.verdict == "escalate":
             approval_id = self.approvals.create_pending_approval(
