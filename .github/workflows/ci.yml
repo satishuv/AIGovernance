@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['governance-demo-bedrock/**']
+    paths: ['governance-demo-bedrock/**', '.github/workflows/**']
   pull_request:
     branches: [main]
-    paths: ['governance-demo-bedrock/**']
+    paths: ['governance-demo-bedrock/**', '.github/workflows/**']
 
 defaults:
   run:
@@ -48,7 +48,12 @@ jobs:
           node-version: '22'
       - run: pip install -r requirements.txt pytest pytest-cov
       - run: npm install -g aws-cdk
-      - run: python -m pytest tests/test_governance_bedrock_stack.py -v
+      # The whole suite: security regressions (P0 fixes, delegation, durable
+      # state, bindings), the 12 demo scenarios and the stack assertions.
+      # The live AWS test skips unless LIVE_AWS is set.
+      - run: python -m pytest tests -q
+      - name: In-memory state inventory (P0-12)
+        run: python scripts/inventory_in_memory_state.py
 
   security:
     runs-on: ubuntu-latest

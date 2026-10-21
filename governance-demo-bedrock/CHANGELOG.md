@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased: policy bindings by agent attribute (P0-17)
+## Unreleased: CI runs the whole test suite
+
+### Build
+- CI ran only `tests/test_governance_bedrock_stack.py`. It now runs every test file, including the security regression tests, the 12 public-sector demo scenarios and the stack assertions, plus the in-memory state inventory. The live AWS test still skips unless `LIVE_AWS` is set.
+- `requirements.txt` lists `hypothesis` and `jsonschema`, which the property-based and schema tests need.
+- CI also runs when a workflow file changes.
 
 ### Security fixes
 - Policies can carry a `binding` that selects the agents they apply to by trusted registry attributes: `policy_bundles`, `risk_tiers`, `agent_types`, `environments`, `agent_ids`. Every dimension present must match. A policy without a binding applies to every agent, as before. Bindings select by attribute rather than listing agents, so one engine serves 2,000 or more agents.
