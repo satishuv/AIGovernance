@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased: no authoritative state only in process memory (P0-12)
+## Unreleased: redeploys keep approved policy changes (F-4)
+
+### Security fixes
+- Source of truth for policies: the deployment owns the baseline under `policies/`, and the policy lifecycle owns `policies/active/`. The policy `BucketDeployment` now excludes `active/*`, `archive/*` and `pending/*` from its sync. Before, it pruned every object not in the source folder on each deploy, which deleted approved versions and put the sample policies back in force. Prune stays on for the baseline, so a baseline file removed from source is still removed.
+- Both policy engines load approved lifecycle versions before the baseline, and drop a baseline policy with the same identity. Before, the JSON engine kept whichever copy S3 listed last, so a baseline file named after `active/` replaced an approved version; the OPA engine loaded both rules, so a baseline allow stayed in force next to an approved deny.
 
 ### Security fixes
 - `scripts/inventory_in_memory_state.py` finds every in-memory container in the engine (45 today) and checks it against a reviewed classification (`scripts/in_memory_state_classification.json`): 6 authoritative, 20 caches, 7 request-scoped, 7 research-only, 3 test-only, 2 configuration. An unclassified container, or an authoritative one without a named durable backing, fails the check, and a test runs it.

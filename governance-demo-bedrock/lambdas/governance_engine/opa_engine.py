@@ -23,7 +23,7 @@ from typing import Any, Dict, List
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from policy_lifecycle import is_enforceable_policy_key
+from policy_lifecycle import is_enforceable_policy_key, is_lifecycle_active_key, lifecycle_first
 
 logger = logging.getLogger(__name__)
 
@@ -323,15 +323,23 @@ class OPAEngine:
             paginator = self._s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=self._bucket, Prefix=self._prefix)
 
+            keys = []
             for page in pages:
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
-                    if not is_enforceable_policy_key(key):
-                        continue
-                    if key.endswith(".json"):
-                        self._load_json_policy(key)
-                    elif key.endswith(".rego"):
-                        self._load_rego_policy(key)
+                    if is_enforceable_policy_key(key):
+                        keys.append(key)
+            # F-4: rules are additive here, so a deployed baseline rule and an
+            # approved lifecycle version with the same name would both be in
+            # force. Approved versions load first; a baseline rule they
+            # override is skipped.
+            active_names: set = set()
+            for key in lifecycle_first(keys):
+                if key.endswith(".json"):
+                    self._load_json_policy(key, active_names=active_names,
+                                           lifecycle_active=is_lifecycle_active_key(key))
+                elif key.endswith(".rego"):
+                    self._load_rego_policy(key)
 
         except Exception as exc:
             logger.error(json.dumps({
@@ -345,7 +353,7 @@ class OPAEngine:
         self._last_load_time = time.time()
         logger.info(f"OPA engine loaded {len(self._rules)} rules from s3://{self._bucket}/{self._prefix}")
 
-    def _load_json_policy(self, key: str) -> None:
+    def _load_json_policy(self, key: str, active_names: Any = None, lifecycle_active: bool = False) -> None:
         """Load a JSON policy file and convert to RegoRule."""
         try:
             response = self._s3_client.get_object(Bucket=self._bucket, Key=key)
@@ -362,7 +370,7 @@ class OPAEngine:
                     description=body.get("description", ""),
                     version=body.get("version", ""),
                 )
-                self._rules.append(rule)
+                self._add_rule(rule, body, key, active_names, lifecycle_active)
             elif "conditions" in body and isinstance(body["conditions"], dict):
                 # Legacy format: convert {scope_level: 2, action_group: "X"} to condition list
                 conditions = []
@@ -377,7 +385,7 @@ class OPAEngine:
                     description=body.get("description", body.get("name", "")),
                     version=body.get("version", ""),
                 )
-                self._rules.append(rule)
+                self._add_rule(rule, body, key, active_names, lifecycle_active)
 
         except Exception as exc:
             logger.error(json.dumps({
@@ -385,6 +393,23 @@ class OPAEngine:
                 "key": key,
                 "error": str(exc),
             }))
+
+    def _add_rule(self, rule: "RegoRule", body: Dict[str, Any], key: str,
+                  active_names: Any, lifecycle_active: bool) -> None:
+        """Append a rule unless an approved lifecycle version overrides it (F-4).
+
+        A rule's identity is its name and, when present, its policy_id, so a
+        lifecycle version keyed by policy_id overrides a baseline rule that
+        shares either.
+        """
+        identities = {rule.name} | ({str(body["policy_id"])} if body.get("policy_id") else set())
+        if active_names is not None:
+            if lifecycle_active:
+                active_names.update(identities)
+            elif identities & active_names:
+                logger.info(json.dumps({"event": "baseline_rule_overridden", "rule": rule.name, "key": key}))
+                return
+        self._rules.append(rule)
 
     def _load_rego_policy(self, key: str) -> None:
         """Load a .rego file and store raw content for reference.

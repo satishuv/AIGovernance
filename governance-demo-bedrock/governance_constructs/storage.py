@@ -635,12 +635,19 @@ class StorageConstruct(Construct):
         )
 
         policies_dir = os.path.join(stack_dir, "sample_data", "policies")
+        # F-4: the deployment owns the baseline under policies/; the policy
+        # lifecycle owns policies/active/ (approved versions). Excluding the
+        # lifecycle keys from the sync keeps prune on for the baseline, so a
+        # baseline file removed from source is removed from the bucket, while a
+        # redeploy never deletes or rolls back an approved policy. The engines
+        # load approved versions ahead of the baseline policy they override.
         self.policy_deployment = s3deploy.BucketDeployment(
             self,
             "PolicyDeployment",
             sources=[s3deploy.Source.asset(policies_dir)],
             destination_bucket=self.policy_bucket,
             destination_key_prefix="policies/",
+            exclude=["active/*", "archive/*", "pending/*"],
         )
 
         compliance_dir = os.path.join(stack_dir, "sample_data", "compliance")

@@ -43,6 +43,22 @@ def is_enforceable_policy_key(key: str) -> bool:
     return not any(segment in key for segment in _NON_ENFORCEABLE_SEGMENTS)
 
 
+def is_lifecycle_active_key(key: str) -> bool:
+    """True for a version activated through approve_policy or rollback_policy.
+
+    Source of truth (F-4): the deployment writes the baseline under policies/
+    and never deletes policies/active/; an active lifecycle version overrides
+    the baseline policy with the same identity.
+    """
+    return f"/{ACTIVE_PREFIX.split('/', 1)[1]}/" in f"/{key}" and is_enforceable_policy_key(key)
+
+
+def lifecycle_first(keys) -> list:
+    """Order policy keys so lifecycle-active versions load before the baseline."""
+    keys = list(keys)
+    return [k for k in keys if is_lifecycle_active_key(k)] + [k for k in keys if not is_lifecycle_active_key(k)]
+
+
 class PolicyLifecycle:
     """Manages policy definition versioning, approval, and rollback."""
 
