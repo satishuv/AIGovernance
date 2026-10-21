@@ -203,7 +203,9 @@ source .venv/Scripts/activate        # Windows
 # source .venv/bin/activate          # Linux / macOS
 pip install -r requirements.txt
 
-# Deploy (requires AWS credentials with CDK permissions)
+# Deploy (requires AWS credentials with CDK permissions).
+# Add -c bedrock_guardrail_id=<id> to enable the Amazon Bedrock Guardrails layer;
+# without it, synth warns and that layer is skipped.
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate demo scenarios (must show 21/21 before any demo; needs a deployed stack)

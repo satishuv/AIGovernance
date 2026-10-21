@@ -182,7 +182,7 @@ All 20 steps run sequentially in one Governance Engine Lambda invocation. Same c
 
 ## Latency and performance
 
-Honest, measured numbers (deployed on Isengard, single-Lambda mode, warm,
+Honest, measured numbers (deployed on a test AWS account, single-Lambda mode, warm,
 us-east-1, 2026-07-24). These replace an earlier unbenchmarked "~200ms" design
 target that was off by roughly 10-17x.
 

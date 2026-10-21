@@ -263,7 +263,7 @@ Each level maps to a dedicated IAM Permission Boundary enforced at the AWS infra
 
 All numbers below are produced by running real payloads through the deployed code; a reproducible harness is in [`paper/bench/`](governance-demo-bedrock/paper/bench/).
 
-- **Public benchmarks (full pipeline, live on Isengard)**: across 7 public attack benchmarks (1,663 payloads) the preventive pipeline blocks 79-100%. Per-block *stage attribution* shows no single layer suffices - a pattern sanitizer blocks ~2% of GCG adversarial suffixes while the managed guardrail blocks ~88%, and the relationship inverts on injection sets - which is the empirical case for defense-in-depth.
+- **Public benchmarks (full pipeline, live on a test AWS account)**: across 7 public attack benchmarks (1,663 payloads) the preventive pipeline blocks 79-100%. Per-block *stage attribution* shows no single layer suffices - a pattern sanitizer blocks ~2% of GCG adversarial suffixes while the managed guardrail blocks ~88%, and the relationship inverts on injection sets - which is the empirical case for defense-in-depth.
 - **Perception gap (InjecAgent, 2,108 cases)**: the tool-response validator blocks 100% of marker-carrying injections but 0% of semantically embedded ones. We report both honestly; the 0% quantifies the boundary of pattern-based (non-semantic) detection.
 - **End-to-end (full 2,000 scenarios, live, no sampling)**: 86.0% correct verdict (1,719/2,000, 0 errors). 100% on every structurally-enforced category (scope, privilege escalation, kill switch, escalation, permitted actions); the misses concentrate in categories needing semantic inference (exfiltration 5%, parameter injection 24%). Mix: 610 allow, 50 escalate, 1,340 deny across 14 categories.
 - **False-positive rate**: 0% on a benign set representative of the agent's real traffic (build/pipeline/ops queries). This is scope-dependent - the same strict detectors block much open-domain roleplay, which is appropriate for a locked-down agent but not for a general chatbot.
@@ -283,7 +283,7 @@ python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
 
-# Deploy
+# Deploy (add -c bedrock_guardrail_id=<id> to enable the Amazon Bedrock Guardrails layer)
 npx cdk deploy -c skip_cloudtrail=true --require-approval never
 
 # Validate

@@ -68,7 +68,7 @@
                 "Type": "Task",
                 "Resource": "arn:aws:states:::lambda:invoke",
                 "Parameters": {
-                  "FunctionName": "arn:aws:lambda:us-east-1:917914785227:function:GovernanceBedrockStack-InputDefenseLambda4E8E7CC3-zLuAVQGtwbUw",
+                  "FunctionName": "arn:aws:lambda:us-east-1:111122223333:function:GovernanceBedrockStack-InputDefenseLambda4E8E7CC3-zLuAVQGtwbUw",
                   "Payload.$": "$"
                 },
                 "ResultSelector": {
@@ -90,7 +90,7 @@
                 "Type": "Task",
                 "Resource": "arn:aws:states:::lambda:invoke",
                 "Parameters": {
-                  "FunctionName": "arn:aws:lambda:us-east-1:917914785227:function:GovernanceBedrockStack-AuthorizationLambda1CEF3A13-WVRdOJ9BkbVn",
+                  "FunctionName": "arn:aws:lambda:us-east-1:111122223333:function:GovernanceBedrockStack-AuthorizationLambda1CEF3A13-WVRdOJ9BkbVn",
                   "Payload.$": "$"
                 },
                 "ResultSelector": {
@@ -148,7 +148,7 @@
         "Type": "Task",
         "Resource": "arn:aws:states:::lambda:invoke",
         "Parameters": {
-          "FunctionName": "arn:aws:lambda:us-east-1:917914785227:function:GovernanceBedrockStack-PolicyRiskLambda1F0C8F21-GkyD1nBHFVFv",
+          "FunctionName": "arn:aws:lambda:us-east-1:111122223333:function:GovernanceBedrockStack-PolicyRiskLambda1F0C8F21-GkyD1nBHFVFv",
           "Payload": {
             "agent_id.$": "$.agent_id",
             "action_group.$": "$.action_group",
@@ -214,7 +214,7 @@
       }
     }
   },
-  "role_arn": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-GovernancePipelineRole51D7BF-ftsCJZpoeth2",
+  "role_arn": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-GovernancePipelineRole51D7BF-ftsCJZpoeth2",
   "tracing": {
     "enabled": true
   }

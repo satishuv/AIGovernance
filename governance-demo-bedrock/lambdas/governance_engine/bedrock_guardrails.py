@@ -13,7 +13,7 @@ Integration points:
 - Output validation: called before returning response to user
 
 Environment variables:
-    BEDROCK_GUARDRAIL_ID: The guardrail identifier (e.g., 'v7p76l8t3ix9')
+    BEDROCK_GUARDRAIL_ID: The guardrail identifier (e.g., '<guardrail-id>')
     BEDROCK_GUARDRAIL_VERSION: Version to use ('DRAFT' or version number)
 """
 

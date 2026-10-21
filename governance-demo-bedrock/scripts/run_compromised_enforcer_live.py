@@ -1,6 +1,6 @@
 """Live compromised-enforcer containment measurement — INTERCEPT / AARM Paper 1.
 
-Runs Tiers 0-3 against real IAM on Isengard 917914785227, computes
+Runs Tiers 0-3 against real IAM in the AWS account that holds the stack, computes
 RCR / BU / UA / ASR with 95% Wilson confidence intervals across N_SEEDS
 independent seeds, and writes results to paper/bench/compromised_enforcer_results.json.
 
@@ -8,11 +8,12 @@ Usage:
     python scripts/run_compromised_enforcer_live.py
 
 Requires:
-    ada credentials update --account 917914785227 --provider isengard --role Admin --once
+    AWS credentials for the account that holds the stack (for example `aws sso login`)
+    GOVERNANCE_ACCOUNT_ID set to that account's 12-digit ID
     pip install boto3
 
 The script calls iam:PutRolePermissionsBoundary and iam:GetRole directly
-against the live Isengard account; no Bedrock invocations are made.
+against the live account; no Bedrock invocations are made.
 Boundary mutations are idempotent and self-correcting (we restore the
 Scope1 baseline after every seed).
 """
@@ -26,7 +27,9 @@ import uuid
 import boto3
 
 REGION = "us-east-1"
-ACCT = "917914785227"
+ACCT = os.environ.get("GOVERNANCE_ACCOUNT_ID", "")
+if __name__ == "__main__" and not ACCT:
+    sys.exit("Set GOVERNANCE_ACCOUNT_ID to the account that holds the stack.")
 
 ACTION_GROUP_ROLE = "GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid"
 ENFORCER_ROLE = "GovernanceBedrockStack-ScopeEnforcerLambdaServiceRo-gJCeuvTtWsMf"

@@ -1,20 +1,18 @@
-"""Run 2000 test scenarios against live Isengard governance engine."""
+"""Run 2000 test scenarios against a live governance engine.
+
+Uses the standard AWS credential chain. Sign in first (for example
+`aws sso login`); boto3 refreshes temporary credentials on its own.
+"""
 import boto3
 import json
 import os
-import subprocess
 import sys
 import time
 
 
 def refresh_credentials():
-    """Refresh Isengard credentials."""
-    subprocess.run(
-        ["ada", "credentials", "update", "--account", "917914785227",
-         "--provider", "isengard", "--role", "Admin", "--once"],
-        capture_output=True,
-    )
-    return boto3.client("lambda", region_name="us-east-1")
+    """Return a fresh Lambda client from the standard AWS credential chain."""
+    return boto3.client("lambda", region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
 
 
 lambda_client = refresh_credentials()
@@ -26,7 +24,7 @@ GOV_ENGINE = next(f["FunctionName"] for f in all_fns if "GovernanceEngine" in f[
 with open("governance_test_scenarios_2000.json", encoding="utf-8") as f:
     scenarios = json.load(f)
 
-print(f"Running {len(scenarios)} scenarios against live Isengard...")
+print(f"Running {len(scenarios)} scenarios against the live governance engine...")
 print("=" * 70)
 
 passed = 0

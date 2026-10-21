@@ -10,7 +10,7 @@ Usage:
     python scripts/collect_evidence.py --scope incident --agent demo-agent --start 2026-07-07T10:00:00Z --end 2026-07-07T12:00:00Z
 
 Requirements:
-    - Active AWS credentials for account 917914785227
+    - Active AWS credentials for the account that holds the stack
     - boto3 installed
     - Access to DynamoDB, S3, CloudWatch, Lambda, StepFunctions, IAM
 """
@@ -571,7 +571,7 @@ def generate_summary(start_date, end_date):
         "report_generated": datetime.now(timezone.utc).isoformat(),
         "period": {"start": start_date, "end": end_date},
         "framework": "AIGovernance Runtime Framework",
-        "account": "917914785227",
+        "account": boto3.client("sts", region_name=REGION).get_caller_identity()["Account"],
         "region": REGION,
         "controls_implemented": 93,
         "domains": 12,

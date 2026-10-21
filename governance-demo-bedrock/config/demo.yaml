@@ -1,5 +1,5 @@
 environment: demo
-account_id: "917914785227"
+account_id: ""
 region: us-east-1
 
 retention:
@@ -10,7 +10,7 @@ retention:
 governance:
   mode: step_functions
   opa_mode: embedded
-  guardrail_id: xilmtxfq02om
+  guardrail_id: ""
   guardrail_version: DRAFT
   escalation_threshold: 70
   kill_switch_default: inactive

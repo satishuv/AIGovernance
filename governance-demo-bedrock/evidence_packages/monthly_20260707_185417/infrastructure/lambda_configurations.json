@@ -12,7 +12,7 @@
       "RUNTIME_DRIFT_TABLE_NAME": "GovernanceBedrockStack-RuntimeDriftTableA0FBBF87-1JNL90GD69HOP",
       "CONTROL_TRACE_TABLE_NAME": "GovernanceBedrockStack-ControlTraceTableCA8D478E-1M9DOUI6GJSEX"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-PostDecisionLambdaServiceRol-ii5Xwj4Lz3VV",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-PostDecisionLambdaServiceRol-ii5Xwj4Lz3VV",
     "tracing": {
       "Mode": "Active"
     }
@@ -27,7 +27,7 @@
       "IMMUTABLE_EVIDENCE_BUCKET_NAME": "governancebedrockstack-immutableevidencebucket880f-f1d6ivsceao2",
       "EVIDENCE_BUCKET_NAME": "governancebedrockstack-evidencebucketfba44255-wkjepiyz2csi"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-ComplianceRefreshLambdaServi-FBTfePdqc2Pn",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-ComplianceRefreshLambdaServi-FBTfePdqc2Pn",
     "tracing": {
       "Mode": "Active"
     }
@@ -40,7 +40,7 @@
     "environment": {
       "THREAT_PATTERNS_TABLE_NAME": "GovernanceBedrockStack-ThreatPatternsTable419183E5-SFGHTBXQVZ6L"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-InputDefenseLambdaServiceRol-jsBtCdPCtQD5",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-InputDefenseLambdaServiceRol-jsBtCdPCtQD5",
     "tracing": {
       "Mode": "Active"
     }
@@ -56,7 +56,7 @@
       "AGENT_REGISTRY_TABLE_NAME": "GovernanceBedrockStack-AgentRegistryTableC52CC594-BNZ49TF2VRF4",
       "SCOPE_TABLE_NAME": "GovernanceBedrockStack-ScopeTableA04A8CF8-3RBNRHY229WG"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-AuthorizationLambdaServiceRo-tvSOxblKcCaE",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-AuthorizationLambdaServiceRo-tvSOxblKcCaE",
     "tracing": {
       "Mode": "Active"
     }
@@ -67,7 +67,7 @@
     "timeout": 900,
     "memory_size": 128,
     "environment": {},
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-CustomS3AutoDeleteObjectsCus-4Oe4lEEB4jG6",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-CustomS3AutoDeleteObjectsCus-4Oe4lEEB4jG6",
     "tracing": {
       "Mode": "PassThrough"
     }
@@ -81,7 +81,7 @@
       "ACTION_GROUP_LAMBDA_ROLE_NAME": "GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid",
       "SCOPE_TABLE_NAME": "GovernanceBedrockStack-ScopeTableA04A8CF8-3RBNRHY229WG"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-KillSwitchLambdaServiceRole4-gbjj17SiwVDD",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-KillSwitchLambdaServiceRole4-gbjj17SiwVDD",
     "tracing": {
       "Mode": "Active"
     }
@@ -94,7 +94,7 @@
     "environment": {
       "AWS_CA_BUNDLE": "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-CustomCDKBucketDeployment869-XaQm4NXpIYIq",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-CustomCDKBucketDeployment869-XaQm4NXpIYIq",
     "tracing": {
       "Mode": "PassThrough"
     }
@@ -109,7 +109,7 @@
       "PENDING_TABLE_NAME": "GovernanceBedrockStack-PendingTable0A187476-Y5CPB12969F7",
       "LOG_GROUP_NAME": "/governance-demo-bedrock/agent-actions"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid",
     "tracing": {
       "Mode": "Active"
     }
@@ -121,11 +121,11 @@
     "memory_size": 256,
     "environment": {
       "GOVERNANCE_ROLES_TABLE_NAME": "GovernanceBedrockStack-GovernanceRolesTableAB4F24E4-VCZ08EK84CRL",
-      "OPERATOR_SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:917914785227:GovernanceBedrockStack-OperatorAlertsTopic4F0706C7-0tOMPfONHK4N",
+      "OPERATOR_SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:111122223333:GovernanceBedrockStack-OperatorAlertsTopic4F0706C7-0tOMPfONHK4N",
       "AGENT_REGISTRY_TABLE_NAME": "GovernanceBedrockStack-AgentRegistryTableC52CC594-BNZ49TF2VRF4",
       "SCOPE_TABLE_NAME": "GovernanceBedrockStack-ScopeTableA04A8CF8-3RBNRHY229WG"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-KillSwitchPhase1cLambdaServi-z7fulw0eHwMI",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-KillSwitchPhase1cLambdaServi-z7fulw0eHwMI",
     "tracing": {
       "Mode": "Active"
     }
@@ -137,15 +137,15 @@
     "memory_size": 256,
     "environment": {
       "ACTION_GROUP_LAMBDA_ROLE_NAME": "GovernanceBedrockStack-ActionGroupLambdaRole0015CF3-YSfgpYmNuFid",
-      "AGENT_ID": "0YHRUKKENP",
-      "GOVERNANCE_ENGINE_LAMBDA_ARN": "arn:aws:lambda:us-east-1:917914785227:function:GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y",
-      "SCOPE_BOUNDARY_ARNS": "{\"1\": \"arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope1BoundaryBA0533D7-SsNpTtsJwyTz\", \"2\": \"arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope2Boundary37BDACAA-5GVtWr5pCY4e\", \"3\": \"arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope3Boundary3B7E8EEC-WIVmfgrn5fhP\", \"4\": \"arn:aws:iam::917914785227:policy/GovernanceBedrockStack-Scope4BoundaryBE394DEE-FBjcvINywHlY\"}",
-      "GOVERNANCE_PIPELINE_ARN": "arn:aws:states:us-east-1:917914785227:stateMachine:governance-pipeline",
-      "AGENT_ALIAS_ID": "MK9HF5CSAK",
+      "AGENT_ID": "EXAMPLEAGT",
+      "GOVERNANCE_ENGINE_LAMBDA_ARN": "arn:aws:lambda:us-east-1:111122223333:function:GovernanceBedrockStack-GovernanceEngineLambda76BBC-BJrhSwyaE07y",
+      "SCOPE_BOUNDARY_ARNS": "{\"1\": \"arn:aws:iam::111122223333:policy/GovernanceBedrockStack-Scope1BoundaryBA0533D7-SsNpTtsJwyTz\", \"2\": \"arn:aws:iam::111122223333:policy/GovernanceBedrockStack-Scope2Boundary37BDACAA-5GVtWr5pCY4e\", \"3\": \"arn:aws:iam::111122223333:policy/GovernanceBedrockStack-Scope3Boundary3B7E8EEC-WIVmfgrn5fhP\", \"4\": \"arn:aws:iam::111122223333:policy/GovernanceBedrockStack-Scope4BoundaryBE394DEE-FBjcvINywHlY\"}",
+      "GOVERNANCE_PIPELINE_ARN": "arn:aws:states:us-east-1:111122223333:stateMachine:governance-pipeline",
+      "AGENT_ALIAS_ID": "EXAMPLEALS",
       "GOVERNANCE_MODE": "step_functions",
       "SCOPE_TABLE_NAME": "GovernanceBedrockStack-ScopeTableA04A8CF8-3RBNRHY229WG"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-ScopeEnforcerLambdaServiceRo-gJCeuvTtWsMf",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-ScopeEnforcerLambdaServiceRo-gJCeuvTtWsMf",
     "tracing": {
       "Mode": "Active"
     }
@@ -164,7 +164,7 @@
       "POLICY_PREFIX": "policies/",
       "RUNTIME_DRIFT_TABLE_NAME": "GovernanceBedrockStack-RuntimeDriftTableA0FBBF87-1JNL90GD69HOP"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-PolicyRiskLambdaServiceRole9-0oeYebJRG2C8",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-PolicyRiskLambdaServiceRole9-0oeYebJRG2C8",
     "tracing": {
       "Mode": "Active"
     }
@@ -175,7 +175,7 @@
     "timeout": 120,
     "memory_size": 256,
     "environment": {},
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-SeedTablesLambdaServiceRole3-k3K6Gb8VS5yI",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-SeedTablesLambdaServiceRole3-k3K6Gb8VS5yI",
     "tracing": {
       "Mode": "Active"
     }
@@ -186,7 +186,7 @@
     "timeout": 120,
     "memory_size": 128,
     "environment": {},
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-AWS679f53fac002430cb0da5b798-tkM9IFVYjvgV",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-AWS679f53fac002430cb0da5b798-tkM9IFVYjvgV",
     "tracing": {
       "Mode": "PassThrough"
     }
@@ -217,7 +217,7 @@
       "GOVERNANCE_ROLES_TABLE_NAME": "GovernanceBedrockStack-GovernanceRolesTableAB4F24E4-VCZ08EK84CRL",
       "DENIAL_PATTERN_TABLE_NAME": "GovernanceBedrockStack-DenialPatternTable3D3E2A67-KT6YOAI0WXPN",
       "POLICY_METADATA_TABLE_NAME": "GovernanceBedrockStack-PolicyMetadataTableE75806D6-1CSNP0NYIAIKV",
-      "OPERATOR_SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:917914785227:GovernanceBedrockStack-OperatorAlertsTopic4F0706C7-0tOMPfONHK4N",
+      "OPERATOR_SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:111122223333:GovernanceBedrockStack-OperatorAlertsTopic4F0706C7-0tOMPfONHK4N",
       "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
       "METRICS_THRESHOLD_TABLE_NAME": "GovernanceBedrockStack-MetricsThresholdTable5863860A-5VTDC4FATUJ3",
       "OPA_ENDPOINT": "",
@@ -228,7 +228,7 @@
       "CONTROL_TRACE_TABLE_NAME": "GovernanceBedrockStack-ControlTraceTableCA8D478E-1M9DOUI6GJSEX",
       "SCOPE_TABLE_NAME": "GovernanceBedrockStack-ScopeTableA04A8CF8-3RBNRHY229WG"
     },
-    "role": "arn:aws:iam::917914785227:role/GovernanceBedrockStack-GovernanceEngineLambdaServic-wIp0dmA91aUQ",
+    "role": "arn:aws:iam::111122223333:role/GovernanceBedrockStack-GovernanceEngineLambdaServic-wIp0dmA91aUQ",
     "tracing": {
       "Mode": "Active"
     }

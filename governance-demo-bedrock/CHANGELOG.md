@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: internal identifier removal
+
+### Repository hygiene
+- Removed the internal AWS account ID, the Bedrock agent, alias and guardrail IDs, and internal tool names from tracked files. Evidence packages, paper result files and test fixtures now use the AWS documentation placeholder account `111122223333`. Git history still contains the earlier values.
+- Live scripts read the account from `GOVERNANCE_ACCOUNT_ID` or from the current credentials instead of a hard-coded account. `test_datasets/run_2000_on_isengard.py` is now `test_datasets/run_2000_live.py` and uses the standard AWS credential chain.
+- The stack reads the Bedrock Guardrail ID from CDK context (`-c bedrock_guardrail_id=<id>`). Without it, synth prints a warning and the guardrail layer is skipped. Redeploying an existing stack without this value turns that layer off.
+- `scripts/pre_push_check.py` blocks any real account ID in an ARN or account field, reads internal-system patterns from an untracked `.pre-push-patterns` file instead of listing them, and now runs in CI.
+
 ## Unreleased: delegated authority ("hall pass") demo branch
 
 ### Security fixes
@@ -38,7 +46,7 @@ API surface is not yet stability-guaranteed (see Versioning below).
   role-separation proof. `FakeIam` + `FakeDynamo` stubs; live test uses direct
   IAM policy inspection (not `simulate_principal_policy`, which has a known
   limitation with role ARN inline policies). Role separation confirmed on live
-  Isengard infrastructure.
+  AWS test infrastructure.
 - **Cedar role-boxing** (`cedar_engine.py`): `HUMAN_ONLY_ACTIONS` frozenset
   prevents AI agents from calling `MakeComplianceDetermination`, `IssueAttestation`,
   `ApproveException`, `OverrideDecision`, and 5 others, regardless of policy content.
