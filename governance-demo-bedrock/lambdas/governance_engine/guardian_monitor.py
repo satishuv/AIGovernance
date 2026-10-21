@@ -24,7 +24,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,13 @@ class GuardianVerdict:
 
     def __init__(self, safe: bool, confidence: float, reason: str,
                  categories_flagged: List[str] = None,
-                 recommended_action: str = "allow"):
+                 recommended_action: str = "allow", evaluated: bool = True):
         self.safe = safe
         self.confidence = confidence  # 0.0 to 1.0
         self.reason = reason
         self.categories_flagged = categories_flagged or []
         self.recommended_action = recommended_action  # allow, block, redact, escalate
+        self.evaluated = evaluated  # False when the guardian did not actually check
         self.timestamp = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -52,6 +53,7 @@ class GuardianVerdict:
             "reason": self.reason,
             "categories_flagged": self.categories_flagged,
             "recommended_action": self.recommended_action,
+            "evaluated": self.evaluated,
             "timestamp": self.timestamp,
         }
 
@@ -79,7 +81,8 @@ Respond ONLY with a JSON object (no other text):
         self._client = None
 
     def evaluate(self, agent_response: str, user_input: str = "",
-                 agent_scope: int = 1, context: Dict[str, Any] = None) -> GuardianVerdict:
+                 agent_scope: int = 1, context: Dict[str, Any] = None,
+                 required: bool = False) -> GuardianVerdict:
         """Evaluate an agent response for safety.
 
         Args:
@@ -87,23 +90,40 @@ Respond ONLY with a JSON object (no other text):
             user_input: The original user request (for context).
             agent_scope: Current scope level of the agent.
             context: Additional context (action_group, target_resource, etc.)
+            required: True when policy makes this check mandatory, as for
+                high-risk actions. A required check that is disabled, fails or
+                returns an unreadable answer gives an unsafe verdict that
+                recommends escalation. The guardian is never the primary
+                authorization; it only adds this secondary signal.
 
         Returns:
             GuardianVerdict with safety assessment.
         """
         if self._mode == "disabled":
-            return GuardianVerdict(
-                safe=True, confidence=1.0, reason="Guardian disabled",
-                recommended_action="allow",
-            )
+            return self._not_evaluated("Guardian disabled", required)
 
         if self._mode == "mock":
             return self._mock_evaluate(agent_response, user_input)
 
-        return self._live_evaluate(agent_response, user_input, agent_scope, context)
+        return self._live_evaluate(agent_response, user_input, agent_scope, context, required)
+
+    @staticmethod
+    def _not_evaluated(reason: str, required: bool) -> GuardianVerdict:
+        """Verdict for a check that did not run. Required checks fail closed."""
+        if required:
+            return GuardianVerdict(
+                safe=False, confidence=0.0,
+                reason=f"{reason}; required guardian check failed closed",
+                recommended_action="escalate", evaluated=False,
+            )
+        return GuardianVerdict(
+            safe=True, confidence=0.0, reason=reason,
+            recommended_action="allow", evaluated=False,
+        )
 
     def _live_evaluate(self, agent_response: str, user_input: str,
-                       agent_scope: int, context: Dict[str, Any] = None) -> GuardianVerdict:
+                       agent_scope: int, context: Dict[str, Any] = None,
+                       required: bool = False) -> GuardianVerdict:
         """Invoke a separate Bedrock model to evaluate the response."""
         try:
             import boto3
@@ -125,7 +145,7 @@ Respond ONLY with a JSON object (no other text):
             )
 
             result_text = response["output"]["message"]["content"][0]["text"]
-            return self._parse_guardian_response(result_text)
+            return self._parse_guardian_response(result_text, required)
 
         except Exception as exc:
             logger.error(json.dumps({
@@ -133,13 +153,10 @@ Respond ONLY with a JSON object (no other text):
                 "error": str(exc),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
-            # Fail-open for guardian (it's a secondary check, not primary)
-            # Primary defenses (output_guardrails, scope enforcement) are still active
-            return GuardianVerdict(
-                safe=True, confidence=0.0,
-                reason=f"Guardian evaluation failed (fail-open): {str(exc)[:50]}",
-                recommended_action="allow",
-            )
+            # A secondary check passes through when optional and fails closed
+            # when required. Primary defenses (output_guardrails, scope
+            # enforcement) stay active either way.
+            return self._not_evaluated(f"Guardian evaluation failed: {str(exc)[:50]}", required)
 
     def _mock_evaluate(self, agent_response: str, user_input: str) -> GuardianVerdict:
         """Simulate guardian evaluation for testing without model access.
@@ -208,29 +225,32 @@ AGENT RESPONSE TO EVALUATE:
 
 Is this response safe to return to the user? Evaluate against all 7 safety categories."""
 
-    def _parse_guardian_response(self, response_text: str) -> GuardianVerdict:
-        """Parse the guardian model's JSON response."""
+    def _parse_guardian_response(self, response_text: str, required: bool = False) -> GuardianVerdict:
+        """Parse the guardian model's JSON response.
+
+        An answer without a boolean "safe" field is not a verdict; it is
+        treated like a failed check.
+        """
         try:
             # Find JSON in response (model might add text around it)
             start = response_text.index("{")
             end = response_text.rindex("}") + 1
             data = json.loads(response_text[start:end])
+            if not isinstance(data.get("safe"), bool):
+                raise ValueError("guardian response has no boolean 'safe' field")
+            safe = data["safe"]
 
             return GuardianVerdict(
-                safe=data.get("safe", True),
+                safe=safe,
                 confidence=float(data.get("confidence", 0.5)),
                 reason=data.get("reason", ""),
                 categories_flagged=data.get("categories_flagged", []),
-                recommended_action=data.get("recommended_action", "allow"),
+                recommended_action=data.get("recommended_action", "allow" if safe else "block"),
             )
-        except (ValueError, json.JSONDecodeError) as exc:
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
             logger.warning(json.dumps({
                 "event": "guardian_parse_failed",
                 "response_text": response_text[:200],
                 "error": str(exc),
             }))
-            return GuardianVerdict(
-                safe=True, confidence=0.0,
-                reason=f"Could not parse guardian response: {str(exc)[:50]}",
-                recommended_action="allow",
-            )
+            return self._not_evaluated(f"Could not parse guardian response: {str(exc)[:50]}", required)

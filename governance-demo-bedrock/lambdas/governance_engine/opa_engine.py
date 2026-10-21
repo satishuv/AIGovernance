@@ -19,9 +19,11 @@ import os
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+
+from policy_lifecycle import is_enforceable_policy_key
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +303,8 @@ class OPAEngine:
             for page in pages:
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
+                    if not is_enforceable_policy_key(key):
+                        continue
                     if key.endswith(".json"):
                         self._load_json_policy(key)
                     elif key.endswith(".rego"):

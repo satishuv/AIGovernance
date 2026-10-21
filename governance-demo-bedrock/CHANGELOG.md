@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased: policy lifecycle and fail-closed defaults
+
+### Security fixes
+- A submitted policy version no longer takes effect before approval. `update_policy` stores versions under `policy-versions/`, outside the prefix the engines load. `approve_policy` activates a pending version with a conditional write, checks separation of duties against the stored author, and marks older approved versions `superseded`.
+- Superseded versions no longer stay in force. Both policy loaders now skip archived and pending copies; before, an archived copy under `policies/archive/` replaced the current version in the JSON engine and added its rules to the OPA engine, so a policy tightened from allow to deny kept enforcing the allow.
+- `rollback_policy` restores only versions that were approved before, so it cannot activate content nobody approved.
+- Submitting a second version of a policy no longer crashes after the write: DynamoDB returns versions as `Decimal`, and the audit log could not serialize them, which also skipped the change-log entry.
+- A disabled Cedar engine now denies instead of allowing, and reports policies as not validated instead of valid.
+- A guardian check marked `required` fails closed: disabled, failed or unreadable checks return an unsafe verdict that recommends escalation. Every verdict now says whether the guardian actually evaluated.
+
 ## Unreleased: internal identifier removal
 
 ### Repository hygiene
