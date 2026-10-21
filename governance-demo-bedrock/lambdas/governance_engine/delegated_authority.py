@@ -276,12 +276,13 @@ class GrantStore:
         return self._signer
 
     # ------------------------------------------------------------- mint
-    def mint(self, *, agent_id: str, session_id: str, delegated_by: str, provider: str,
-             operation_id: str, target_resource: str, resource_patterns: List[str],
-             parameter_constraints: Dict[str, Any], data_classes: List[str],
-             spend_limit: Dict[str, Any], scope_level: int, environment: str, decision_id: str,
-             approval_id: str, policy_version_hash: str, request_digest: str,
-             ttl_seconds: int, max_uses: int = 1) -> DelegatedAuthorityGrant:
+    def build(self, *, agent_id: str, session_id: str, delegated_by: str, provider: str,
+              operation_id: str, target_resource: str, resource_patterns: List[str],
+              parameter_constraints: Dict[str, Any], data_classes: List[str],
+              spend_limit: Dict[str, Any], scope_level: int, environment: str, decision_id: str,
+              approval_id: str, policy_version_hash: str, request_digest: str,
+              ttl_seconds: int, max_uses: int = 1) -> DelegatedAuthorityGrant:
+        """Create and sign a grant without writing it."""
         if ttl_seconds <= 0 or max_uses <= 0:
             raise ValueError("ttl_seconds and max_uses must be positive")
         issued = self._clock().replace(microsecond=0)
@@ -300,12 +301,45 @@ class GrantStore:
             signing_key_id=self._signer.key_id, signature_algorithm=self._signer.algorithm,
         )
         grant.signature = self._signer.sign(grant.signing_digest())
-        self._table.put_item(Item=grant.to_item(), ConditionExpression="attribute_not_exists(grant_id)")
-        logger.info(json.dumps({"audit_event": "authority_grant_minted", "grant_id": grant.grant_id,
-                                "agent_id": agent_id, "operation_id": operation_id,
-                                "decision_id": decision_id, "approval_id": approval_id or None,
-                                "expires_at": grant.expires_at}))
         return grant
+
+    def mint(self, **fields) -> DelegatedAuthorityGrant:
+        """Create, sign and write a grant. Takes the same keyword arguments as build."""
+        grant = self.build(**fields)
+        self._table.put_item(Item=grant.to_item(), ConditionExpression="attribute_not_exists(grant_id)")
+        self._log_minted(grant)
+        return grant
+
+    def put_transact_item(self, grant: DelegatedAuthorityGrant) -> Dict[str, Any]:
+        """Put for a DynamoDB transaction that writes the grant once.
+
+        Values are plain Python types: the client of a boto3 DynamoDB resource
+        table converts them to DynamoDB attribute values itself.
+        """
+        return {"Put": {
+            "TableName": self._table.name,
+            "Item": grant.to_item(),
+            "ConditionExpression": "attribute_not_exists(grant_id)",
+        }}
+
+    def mint_in_transaction(self, grant: DelegatedAuthorityGrant,
+                            other_items: List[Dict[str, Any]]) -> DelegatedAuthorityGrant:
+        """Write the grant together with other_items: all of them or none.
+
+        Raises botocore ClientError with code TransactionCanceledException when
+        any condition fails; nothing is written in that case.
+        """
+        self._table.meta.client.transact_write_items(
+            TransactItems=[*other_items, self.put_transact_item(grant)])
+        self._log_minted(grant)
+        return grant
+
+    @staticmethod
+    def _log_minted(grant: DelegatedAuthorityGrant) -> None:
+        logger.info(json.dumps({"audit_event": "authority_grant_minted", "grant_id": grant.grant_id,
+                                "agent_id": grant.agent_id, "operation_id": grant.operation_id,
+                                "decision_id": grant.decision_id, "approval_id": grant.approval_id or None,
+                                "expires_at": grant.expires_at}))
 
     # -------------------------------------------------------------- get
     def get(self, grant_id: str) -> Optional[DelegatedAuthorityGrant]:

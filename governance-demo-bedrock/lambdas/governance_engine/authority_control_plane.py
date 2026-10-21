@@ -108,6 +108,12 @@ class ControlPlaneConfig:
     tool_auth_enabled: bool = True
 
 
+def _transaction_cancelled(exc: Exception) -> bool:
+    """True when DynamoDB cancelled a transaction because a condition failed."""
+    response = getattr(exc, "response", None) or {}
+    return response.get("Error", {}).get("Code") == "TransactionCanceledException"
+
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -436,15 +442,15 @@ class DelegatedAuthorityControlPlane:
             decision.explanation = "; ".join(f"{s.name}: {s.detail}" for s in ev.step_ups) or decision.explanation
         return decision
 
-    def _mint(self, ev: Evaluation, decision_id: str, approval_id: str, delegated_by: str,
-              spend_amount: Optional[Decimal]):
+    def _grant_fields(self, ev: Evaluation, decision_id: str, approval_id: str, delegated_by: str,
+                      spend_amount: Optional[Decimal]) -> Dict[str, Any]:
         spec, agent, canonical = ev.spec, ev.agent, ev.canonical
         spend_limit = {}
         if spec.financial_impact and ev.budget is not None:
             policy = SpendPolicy.from_registry(agent.spend_policy)
             limit = spend_amount if approval_id else policy.per_transaction_max
             spend_limit = {"currency": ev.budget.currency, "amount": limit}
-        return self.grants.mint(
+        return dict(
             agent_id=canonical["agent_id"], session_id=canonical["session_id"], delegated_by=delegated_by,
             provider=spec.provider, operation_id=spec.operation_id,
             target_resource=canonical["target_resource"], resource_patterns=[canonical["target_resource"]],
@@ -455,6 +461,10 @@ class DelegatedAuthorityControlPlane:
             request_digest=compute_action_request_digest(canonical, ev.policy_version_hash),
             ttl_seconds=min(int(agent.credential_ttl_seconds), int(spec.credential_ttl_seconds)),
             max_uses=spec.max_uses)
+
+    def _mint(self, ev: Evaluation, decision_id: str, approval_id: str, delegated_by: str,
+              spend_amount: Optional[Decimal]):
+        return self.grants.mint(**self._grant_fields(ev, decision_id, approval_id, delegated_by, spend_amount))
 
     def _grant_payload(self, grant) -> Dict[str, Any]:
         verified = self.grants.signer.verify(grant.signing_digest(), grant.signature)
@@ -516,16 +526,24 @@ class DelegatedAuthorityControlPlane:
             self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
             return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason,
                     "stages": [s.to_dict() for s in ev.stages]}
-        ok, reason, item = self.approvals.verify_and_consume(approval_id, ev.canonical, ev.policy_version_hash)
-        if not ok:
-            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
-            return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason, "approval_id": approval_id}
+        # `item` is the approval record check_binding returned above.
         decision_id = item.get("decision_id", "")
         approver = item.get("approver_id", "")
+        amount = ev.budget.transaction_amount if ev.budget is not None else None
+        grant = self.grants.build(**self._grant_fields(ev, decision_id, approval_id, approver, amount))
+        try:
+            # One transaction: the approval is consumed exactly when the grant is
+            # written. A replay or an expiry cancels both; a failed grant write
+            # leaves the approval unused.
+            self.grants.mint_in_transaction(
+                grant, [self.approvals.consume_transact_item(approval_id, grant.grant_id)])
+        except Exception as exc:
+            reason = ("approval consumed concurrently (replay attempt)" if _transaction_cancelled(exc)
+                      else f"approval could not be consumed: {type(exc).__name__}")
+            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
+            return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason, "approval_id": approval_id}
         self._record(agent_id, decision_id, "approval_consumed", approval_id=approval_id,
                      decision_id=decision_id, approver_id=approver)
-        amount = ev.budget.transaction_amount if ev.budget is not None else None
-        grant = self._mint(ev, decision_id, approval_id, approver, amount)
         self._record(agent_id, decision_id, "grant_minted", grant_id=grant.grant_id, approval_id=approval_id,
                      decision_id=decision_id, expires_at=grant.expires_at, request_digest=grant.request_digest)
         return to_json_safe({"verdict": "allow", "aarm_decision": "ALLOW", "approval_id": approval_id,
