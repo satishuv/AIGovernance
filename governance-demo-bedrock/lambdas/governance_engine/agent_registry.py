@@ -10,13 +10,40 @@ Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 19.1, 19.6
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+from authority_identity import AmbiguousAgentPrincipal, normalize_principal_arn
 from models import AgentRegistryEntry
 
 logger = logging.getLogger(__name__)
 
 VALID_ENVIRONMENTS = {"dev", "staging", "prod"}
+
+# Global secondary index on runtime_principal. Caller classification on every
+# authority request is one Query on this index instead of a registry scan.
+RUNTIME_PRINCIPAL_INDEX = "ByRuntimePrincipal"
+
+
+def registry_table_definition(table_name: str) -> Dict[str, Any]:
+    """create_table arguments matching the deployed AgentRegistryTable.
+
+    Kept next to the code that queries the index so tests and the offline demo
+    build the same key schema the CDK storage construct deploys.
+    """
+    return {
+        "TableName": table_name,
+        "KeySchema": [{"AttributeName": "agent_id", "KeyType": "HASH"}],
+        "AttributeDefinitions": [
+            {"AttributeName": "agent_id", "AttributeType": "S"},
+            {"AttributeName": "runtime_principal", "AttributeType": "S"},
+        ],
+        "GlobalSecondaryIndexes": [{
+            "IndexName": RUNTIME_PRINCIPAL_INDEX,
+            "KeySchema": [{"AttributeName": "runtime_principal", "KeyType": "HASH"}],
+            "Projection": {"ProjectionType": "ALL"},
+        }],
+        "BillingMode": "PAY_PER_REQUEST",
+    }
 
 
 class AgentRegistry:
@@ -126,22 +153,35 @@ class AgentRegistry:
             return None
 
         update_expressions = []
+        remove_names = []
         expression_attr_names = {}
         expression_attr_values = {}
 
         for idx, (key, value) in enumerate(updates.items()):
             attr_name = f"#k{idx}"
+            expression_attr_names[attr_name] = key
+            if key == "runtime_principal" and not value:
+                # An empty string cannot be an index key value: clearing the
+                # runtime principal removes the attribute instead.
+                remove_names.append(attr_name)
+                continue
             attr_value = f":v{idx}"
             update_expressions.append(f"{attr_name} = {attr_value}")
-            expression_attr_names[attr_name] = key
             expression_attr_values[attr_value] = value
 
-        self._table.update_item(
-            Key={"agent_id": agent_id},
-            UpdateExpression="SET " + ", ".join(update_expressions),
-            ExpressionAttributeNames=expression_attr_names,
-            ExpressionAttributeValues=expression_attr_values,
-        )
+        clauses = []
+        if update_expressions:
+            clauses.append("SET " + ", ".join(update_expressions))
+        if remove_names:
+            clauses.append("REMOVE " + ", ".join(remove_names))
+        update_kwargs = {
+            "Key": {"agent_id": agent_id},
+            "UpdateExpression": " ".join(clauses),
+            "ExpressionAttributeNames": expression_attr_names,
+        }
+        if expression_attr_values:
+            update_kwargs["ExpressionAttributeValues"] = expression_attr_values
+        self._table.update_item(**update_kwargs)
 
         now = datetime.now(timezone.utc).isoformat()
         logger.info(
@@ -174,11 +214,49 @@ class AgentRegistry:
             return False
         return data_class in agent.data_classes
 
+    def find_by_runtime_principal(self, principal_id: str) -> Optional[AgentRegistryEntry]:
+        """The agent whose runtime principal is principal_id, by index query.
+
+        An STS assumed-role session ARN is matched through its role ARN.
+        Raises AmbiguousAgentPrincipal when two agents declare the same runtime
+        principal: one authenticated principal must map to exactly one agent,
+        and guessing between them would let one agent act as another. Query
+        errors propagate so callers fail closed.
+        """
+        from boto3.dynamodb.conditions import Key
+
+        matches: Dict[str, Dict[str, Any]] = {}
+        for value in {principal_id, normalize_principal_arn(principal_id)} - {""}:
+            kwargs: Dict[str, Any] = {
+                "IndexName": RUNTIME_PRINCIPAL_INDEX,
+                "KeyConditionExpression": Key("runtime_principal").eq(value),
+            }
+            while True:
+                response = self._table.query(**kwargs)
+                for item in response.get("Items", []):
+                    matches[str(item["agent_id"])] = item
+                if "LastEvaluatedKey" not in response:
+                    break
+                kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        if len(matches) > 1:
+            raise AmbiguousAgentPrincipal(
+                f"runtime principal is declared by {len(matches)} agents: {sorted(matches)}")
+        if not matches:
+            return None
+        return AgentRegistryEntry.from_dict(next(iter(matches.values())))
+
+    def agent_id_for_principal(self, principal_id: str) -> str:
+        """Agent id for an authenticated principal, or "" when it is not an agent."""
+        entry = self.find_by_runtime_principal(principal_id)
+        return entry.agent_id if entry else ""
+
     def query_agents(self, filters: dict) -> List[AgentRegistryEntry]:
         """Query agents with in-memory filtering.
 
-        Scans the AgentRegistryTable and filters results in-memory.
-        Acceptable for MVP; production should use GSIs or query patterns.
+        Scans the AgentRegistryTable and filters results in-memory. This is
+        for inventory, reporting and administration only. Request-path code
+        must use get_agent or find_by_runtime_principal, which are key and
+        index reads (P0-18).
 
         Supported filter keys: owner, data_class, tool, scope_level, environment.
 

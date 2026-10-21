@@ -139,6 +139,52 @@ def _get_cached_opa_engine() -> "OPAEngine":
     return engine
 
 
+# Warm-container caches for configuration read on every decision (P0-18).
+# Before this, the risk config table was scanned and a new ThreatDetector and
+# ExfiltrationDetector were built on every request, so their own 60s caches
+# never hit and each decision scanned three tables. Configuration changes reach
+# a warm container within _REQUEST_PATH_CACHE_TTL_SECONDS, the same refresh
+# window the OPA policy cache uses. Failed loads are never cached.
+_REQUEST_PATH_CACHE_TTL_SECONDS = 60.0
+_RISK_ENGINE_CACHE = {"engine": None, "loaded_monotonic": 0.0}
+_DETECTORS = {"threat": None, "exfiltration": None}
+
+
+def _get_cached_risk_engine() -> "RiskScoringEngine":
+    now = time.monotonic()
+    cached = _RISK_ENGINE_CACHE["engine"]
+    if cached is not None and (now - _RISK_ENGINE_CACHE["loaded_monotonic"]) < _REQUEST_PATH_CACHE_TTL_SECONDS:
+        return cached
+    engine = RiskScoringEngine()
+    engine.load_config()
+    if engine.last_load_ok:
+        _RISK_ENGINE_CACHE["engine"] = engine
+        _RISK_ENGINE_CACHE["loaded_monotonic"] = now
+    return engine
+
+
+def _get_threat_detector() -> "ThreatDetector":
+    if _DETECTORS["threat"] is None:
+        _DETECTORS["threat"] = ThreatDetector()
+    return _DETECTORS["threat"]
+
+
+def _get_exfiltration_detector() -> "ExfiltrationDetector":
+    if _DETECTORS["exfiltration"] is None:
+        _DETECTORS["exfiltration"] = ExfiltrationDetector()
+    return _DETECTORS["exfiltration"]
+
+
+def reset_request_path_caches() -> None:
+    """Drop every warm-container cache (tests, and after an emergency config change)."""
+    _OPA_CACHE["engine"] = None
+    _OPA_CACHE["loaded_monotonic"] = 0.0
+    _RISK_ENGINE_CACHE["engine"] = None
+    _RISK_ENGINE_CACHE["loaded_monotonic"] = 0.0
+    _DETECTORS["threat"] = None
+    _DETECTORS["exfiltration"] = None
+
+
 # Request-start monotonic time, set per invocation in run_pipeline. Used to
 # apply the AARM T9 deny-timing floor so denials do not leak the stage of denial
 # via response latency. One request per Lambda container at a time makes a module
@@ -304,8 +350,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             dynamodb = boto3.resource("dynamodb")
             policy_engine = PolicyEngine()
-            risk_engine = RiskScoringEngine()
-            risk_engine.load_config()
+            risk_engine = _get_cached_risk_engine()
             decision_engine = DecisionEngine(escalation_threshold=risk_engine.escalation_threshold)
 
             identity_manager = AgentIdentityManager(dynamodb.Table(SCOPE_TABLE_NAME)) if SCOPE_TABLE_NAME else None
@@ -315,7 +360,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             kill_switch_manager = KillSwitchManager()
             scope_table_resource = dynamodb.Table(SCOPE_TABLE_NAME) if SCOPE_TABLE_NAME else None
 
-            threat_detector = ThreatDetector()
+            threat_detector = _get_threat_detector()
             if THREAT_PATTERNS_TABLE_NAME:
                 threat_detector.load_patterns(dynamodb.Table(THREAT_PATTERNS_TABLE_NAME))
 
@@ -329,7 +374,7 @@ def run_pipeline(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             cw_metrics_publisher = CloudWatchMetricsPublisher()
             cloudwatch_client = boto3.client("cloudwatch")
 
-            exfiltration_detector = ExfiltrationDetector()
+            exfiltration_detector = _get_exfiltration_detector()
             exfiltration_allowlist_table = dynamodb.Table(EXFILTRATION_ALLOWLIST_TABLE_NAME) if EXFILTRATION_ALLOWLIST_TABLE_NAME else None
 
             graduated_scope_reduction = GraduatedScopeReduction()

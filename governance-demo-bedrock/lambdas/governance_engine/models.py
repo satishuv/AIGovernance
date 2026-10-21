@@ -462,7 +462,7 @@ class AgentRegistryEntry:
         return errors
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        item = {
             "agent_id": self.agent_id,
             "purpose": self.purpose,
             "owner": self.owner,
@@ -490,6 +490,12 @@ class AgentRegistryEntry:
             "created_at": self.created_at,
             "last_attested_at": self.last_attested_at,
         }
+        # runtime_principal is the key of the registry's ByRuntimePrincipal
+        # index, and DynamoDB rejects an empty string as an index key value.
+        # An agent without a runtime principal is simply absent from the index.
+        if not item["runtime_principal"]:
+            del item["runtime_principal"]
+        return item
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AgentRegistryEntry":
@@ -523,6 +529,11 @@ class AgentRegistryEntry:
         )
 
 
+def tool_model_identity_key(category: str, name: str, version: str) -> str:
+    """category#name#version, the lookup key of an approved model, tool or data source."""
+    return f"{category}#{name}#{version}"
+
+
 @dataclass
 class ToolModelRegistryEntry:
     """Registry entry for an approved model, tool connector, or data source.
@@ -551,6 +562,9 @@ class ToolModelRegistryEntry:
             "category": self.category,
             "name": self.name,
             "version": self.version,
+            # Key of the ToolModelRegistryTable ByIdentity index, so the
+            # per-decision usage check is one Query, not a table scan (P0-18).
+            "identity_key": tool_model_identity_key(self.category, self.name, self.version),
             "approval_status": self.approval_status,
             "approver": self.approver,
             "approval_timestamp": self.approval_timestamp,

@@ -208,6 +208,15 @@ class StorageConstruct(Construct):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
+        # Caller classification on every authority request is one Query here
+        # instead of a registry scan (P0-18). Agents without a runtime
+        # principal omit the attribute and are not indexed.
+        self.agent_registry_table.add_global_secondary_index(
+            index_name="ByRuntimePrincipal",
+            partition_key=dynamodb.Attribute(
+                name="runtime_principal", type=dynamodb.AttributeType.STRING
+            ),
+        )
 
         self.tool_model_registry_table = dynamodb.Table(
             self,
@@ -217,6 +226,13 @@ class StorageConstruct(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
+        )
+        # identity_key = category#name#version, the per-decision usage check.
+        self.tool_model_registry_table.add_global_secondary_index(
+            index_name="ByIdentity",
+            partition_key=dynamodb.Attribute(
+                name="identity_key", type=dynamodb.AttributeType.STRING
+            ),
         )
 
         self.governance_roles_table = dynamodb.Table(
@@ -479,6 +495,18 @@ class StorageConstruct(Construct):
             ),
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl_expiry",
+        )
+        # One overloaded sparse index for chain definitions ("CHAIN", pk) and
+        # each agent's recent calls ("HISTORY#<agent_id>", timestamp). One
+        # index, not two: CloudFormation adds at most one per table update.
+        self.tool_auth_table.add_global_secondary_index(
+            index_name="ByLookupKey",
+            partition_key=dynamodb.Attribute(
+                name="lookup_pk", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="lookup_sk", type=dynamodb.AttributeType.STRING
+            ),
         )
 
         # --- IAM Permission Boundaries ---

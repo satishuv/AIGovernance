@@ -141,6 +141,9 @@ class RiskScoringEngine:
         self._table_name: str = os.environ.get("RISK_CONFIG_TABLE_NAME", "")
         self._dynamodb = dynamodb_resource
         self._config_loaded: bool = False
+        # True after a successful load_config, False after one that fell back
+        # to defaults. The pipeline caches only successful loads.
+        self.last_load_ok: bool = False
 
         # Parsed config values
         self._escalation_threshold: float = 70.0
@@ -172,6 +175,7 @@ class RiskScoringEngine:
             }
             self._apply_config(items)
             self._config_loaded = True
+            self.last_load_ok = True
 
             logger.info(
                 json.dumps(
@@ -197,6 +201,7 @@ class RiskScoringEngine:
             )
             self._apply_defaults()
             self._config_loaded = True
+            self.last_load_ok = False
 
     def _apply_config(self, items: Dict[str, Any]) -> None:
         """Parse DynamoDB items into typed config values."""

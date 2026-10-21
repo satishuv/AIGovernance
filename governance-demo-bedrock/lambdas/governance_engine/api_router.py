@@ -23,6 +23,8 @@ import boto3
 from agent_registry import AgentRegistry
 from approval_workflow import ApprovalWorkflow
 from authority_identity import (
+    AmbiguousAgentPrincipal,
+    AuthenticatedCaller,
     RoleDirectory,
     check_approver_eligibility,
     check_body_identity,
@@ -113,20 +115,27 @@ def _resolve_api_caller(event, dynamodb):
     if not principal_id:
         return None, _api_response(401, {"error": "request is not authenticated"})
     roles_table_name = os.environ.get("GOVERNANCE_ROLES_TABLE_NAME", "")
-    role_directory = RoleDirectory.from_table(
-        dynamodb.Table(roles_table_name) if roles_table_name else None)
-    agent_principals = {}
+    role_directory = RoleDirectory.for_principal(
+        dynamodb.Table(roles_table_name) if roles_table_name else None, principal_id)
+    agent_id = ""
     if AGENT_REGISTRY_TABLE_NAME:
         try:
-            for entry in AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME)).query_agents({}):
-                if entry.runtime_principal:
-                    agent_principals[entry.runtime_principal] = entry.agent_id
+            # One index query on runtime_principal, not a registry scan (P0-18).
+            agent_id = AgentRegistry(dynamodb.Table(AGENT_REGISTRY_TABLE_NAME)).agent_id_for_principal(
+                principal_id)
+        except AmbiguousAgentPrincipal as exc:
+            # Two agents claim this principal: neither human nor a resolvable
+            # agent, so every plane denies it.
+            logger.error(json.dumps({"event": "ambiguous_agent_principal", "error": str(exc)}))
+            return AuthenticatedCaller(principal_id=principal_id, principal_type="unknown",
+                                       source=source), None
         except Exception as exc:
-            # Fail closed: if agent principals cannot be enumerated we cannot
-            # prove the caller is human.
+            # Fail closed: if the registry cannot be read we cannot prove the
+            # caller is human.
             logger.error(json.dumps({"event": "agent_principal_load_failed", "error": str(exc)}))
             return None, _api_response(503, {"error": "caller classification unavailable"})
-    return resolve_caller(principal_id, source, role_directory, agent_principals), None
+    return resolve_caller(principal_id, source, role_directory,
+                          {principal_id: agent_id} if agent_id else {}), None
 
 
 def _handle_approvals(dynamodb, resource, http_method, path_params, body, event=None):
