@@ -212,6 +212,17 @@ class StorageConstruct(Construct):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
+        # Guardian inspection reads one agent's delegated-authority traces with a key query
+        # (authority_control_plane.decision_summaries) instead of scanning every agent's traces.
+        self.decision_trace_table.add_global_secondary_index(
+            index_name="ByTraceAgent",
+            partition_key=dynamodb.Attribute(
+                name="trace_agent_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+        )
 
         self.agent_registry_table = dynamodb.Table(
             self,

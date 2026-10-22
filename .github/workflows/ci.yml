@@ -8,19 +8,26 @@ on:
     branches: [main]
     paths: ['governance-demo-bedrock/**', '.github/workflows/**']
 
+# Least privilege for every job: the workflow only reads the repository.
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: governance-demo-bedrock
 
+# Actions are pinned to full commit SHAs (the tag each one resolved to on 2026-10-21 is in the
+# comment), and tools installed outside requirements.txt are pinned to exact versions, so a moved
+# tag or a new tool release cannot change what CI runs.
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
-      - run: pip install ruff
+      - run: pip install ruff==0.17.1
       - name: Lint core modules
         run: ruff check governance_constructs/ governance_bedrock_stack.py lambdas/governance_engine/index.py lambdas/governance_engine/api_router.py lambdas/governance_engine/pipeline_orchestrator.py
 
@@ -28,8 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
@@ -39,15 +46,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '22'
       - run: pip install -r requirements.txt pytest pytest-cov
-      - run: npm install -g aws-cdk
+      - run: npm install -g aws-cdk@2.1146.0
       # The whole suite: security regressions (P0 fixes, delegation, durable
       # state, bindings), the 12 demo scenarios and the stack assertions.
       # The live AWS test skips unless LIVE_AWS is set.
@@ -58,16 +65,17 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
-      - run: pip install bandit pip-audit detect-secrets
+      - run: pip install bandit==1.9.4 pip-audit==2.10.1 detect-secrets==1.5.0
       - name: Internal identifier and secret scan (blocking)
         working-directory: .
         run: python scripts/pre_push_check.py --all
       - name: Static security scan (high-severity only)
-        run: bandit -r lambdas/ -lll --skip B101,B105,B110,B603,B613
+        # B613 is no longer skipped: retrieval_validator writes its invisible characters as escapes.
+        run: bandit -r lambdas/ -lll --skip B101,B105,B110,B603
       - name: Dependency CVE scan (advisory)
         run: pip-audit -r requirements.txt || true
       - name: Secret scan (advisory)
@@ -76,13 +84,13 @@ jobs:
   cdk-synth:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '22'
       - run: pip install -r requirements.txt
-      - run: npm install -g aws-cdk
+      - run: npm install -g aws-cdk@2.1146.0
       - run: npx cdk synth -c skip_cloudtrail=true --quiet

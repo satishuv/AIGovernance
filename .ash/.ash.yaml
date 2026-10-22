@@ -1,0 +1,126 @@
+# ASH (Automated Security Helper) configuration for this repository.
+# Every suppression is scoped to a rule and the files it was reviewed in, with the reason. A new file
+# that triggers one of these rules is reported again. Reviewed 2026-10-21 against ASH 3.7.1.
+project_name: AIGovernance
+global_settings:
+  severity_threshold: MEDIUM
+  ignore_paths:
+  - path: governance-demo-bedrock/cdk.out/**
+    reason: Synthesized output; the CDK source is scanned instead
+  suppressions:
+  # Operation catalogs and Bedrock action-group schemas are not HTTP APIs: Bedrock Agents and the
+  # governance engine read them; callers authenticate with IAM before any operation runs.
+  - rule_id: CKV_OPENAPI_4
+    path: governance-demo-bedrock/lambdas/governance_engine/operation_catalog/public_sector_demo.openapi.json
+    reason: Operation catalog read by the engine, not a served API
+  - rule_id: CKV_OPENAPI_5
+    path: governance-demo-bedrock/lambdas/governance_engine/operation_catalog/public_sector_demo.openapi.json
+    reason: Operation catalog read by the engine, not a served API
+  - rule_id: CKV_OPENAPI_4
+    path: governance-demo-bedrock/schemas/*.json
+    reason: Bedrock Agents action-group schemas; Bedrock invokes the Lambda with IAM
+  - rule_id: CKV_OPENAPI_5
+    path: governance-demo-bedrock/schemas/*.json
+    reason: Bedrock Agents action-group schemas; Bedrock invokes the Lambda with IAM
+  # Test and research code.
+  - rule_id: B101
+    path: governance-demo-bedrock/tests/**
+    reason: pytest assertions
+  - rule_id: B101
+    path: governance-demo-bedrock/scripts/run_tier1_dataset_experiment.py
+    reason: Research script check, never deployed
+  - rule_id: B105
+    path: governance-demo-bedrock/tests/**
+    reason: Dummy values for moto and fixtures
+  - rule_id: B106
+    path: governance-demo-bedrock/tests/**
+    reason: Dummy values for moto and fixtures
+  - rule_id: B110
+    path: governance-demo-bedrock/tests/**
+    reason: Tests tolerate an expected exception before asserting the resulting state
+  - rule_id: B404
+    path: governance-demo-bedrock/tests/test_p0_12_durable_state.py
+    reason: Runs the repository's own inventory script with a fixed argument list
+  - rule_id: B603
+    path: governance-demo-bedrock/tests/test_p0_12_durable_state.py
+    reason: Runs the repository's own inventory script with a fixed argument list
+  - rule_id: B311
+    path: governance-demo-bedrock/test_datasets/generate_scenarios.py
+    reason: Generates test data; not a security use of randomness
+  # Constants named like passwords; none holds a secret.
+  - rule_id: B105
+    path: governance-demo-bedrock/lambdas/governance_engine/agent_role_boundaries.py
+    reason: PASS = "pass" verdict constant
+  - rule_id: B105
+    path: governance-demo-bedrock/lambdas/governance_engine/decision_trace.py
+    reason: RESULT_PASS = "pass" stage-result constant
+  - rule_id: B105
+    path: governance-demo-bedrock/lambdas/governance_engine/credential_broker/base.py
+    reason: Fixed "********" placeholder that replaces the secret in metadata
+  - rule_id: B105
+    path: governance-demo-bedrock/demo/public_sector_hallpass/api_client.py
+    reason: Dummy AWS credentials for moto in the offline demo
+  - rule_id: B311
+    path: governance-demo-bedrock/lambdas/governance_engine/threat_feed_integration.py
+    reason: Samples test payloads for evaluation; not a security use of randomness
+  # Best-effort side paths (metrics, telemetry, notifications, evidence retries) that must never
+  # change a verdict; each decision path fails closed and is covered by tests.
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/pipeline_orchestrator.py
+    reason: Best-effort metrics, evidence and notification calls around a decided verdict
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/api_router.py
+    reason: Best-effort approval evidence write after the approval is recorded
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/defer_cascade.py
+    reason: Best-effort cascade depth write
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/delegated_authority.py
+    reason: Best-effort expiry mark after verification already failed closed
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/evidence_pipeline.py
+    reason: Best-effort failure metric
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/formal_assurance.py
+    reason: Property checker skips inputs the model cannot evaluate
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/graduated_scope_reduction.py
+    reason: Best-effort scope reduction record; the caller treats it as not reduced
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/intent_alignment.py
+    reason: Best-effort intent capture never fails the pipeline
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/kill_switch.py
+    reason: Best-effort metric after the kill switch is set
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/retrieval_validator.py
+    reason: Best-effort decoding of an encoded segment during inspection
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/side_channel_defense.py
+    reason: Best-effort audit record
+  - rule_id: B110
+    path: governance-demo-bedrock/lambdas/governance_engine/telemetry_export.py
+    reason: Best-effort telemetry export
+  - rule_id: B110
+    path: governance-demo-bedrock/scripts/*.py
+    reason: Benchmark scripts fall back to defaults, never deployed
+  # Repository tooling.
+  - rule_id: B404
+    path: scripts/pre_push_check.py
+    reason: Runs git with a fixed argument list
+  - rule_id: B603
+    path: scripts/pre_push_check.py
+    reason: Runs git with a fixed argument list
+fail_on_findings: true
+# opengrep runs where semgrep cannot (ASH skips semgrep on Windows).
+scanners:
+  opengrep:
+    enabled: true
+# The AWS-internal ASH build adds reporters that send results off the machine (ash-telemetry posts the
+# aggregated results, including file paths and code snippets, to an external endpoint). Results of
+# this repository stay local.
+reporters:
+  ash-telemetry:
+    enabled: false
+  neolifter:
+    enabled: false
