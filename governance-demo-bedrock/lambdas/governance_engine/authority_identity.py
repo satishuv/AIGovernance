@@ -230,6 +230,24 @@ def _owners(registry_entry: Any) -> Iterable[str]:
     return [n for n in names if n]
 
 
+_IAM_USER_RE = re.compile(r"^arn:aws[a-z-]*:iam::\d{12}:user/(?:.*/)?([^/]+)$")
+
+
+def human_identity(principal: str) -> str:
+    """The person behind a principal, for separation-of-duties comparisons.
+
+    An STS assumed-role session ARN names its session (with IAM Identity Center the session
+    name is the user's sign-in name, set by AWS; for an IAM user assuming a role, the role's
+    trust policy can require the session name to be the user name). An IAM user ARN names the
+    user. Anything else (a role ARN, a team name) is returned as given. Compared casefolded.
+    """
+    value = principal or ""
+    match = _ASSUMED_ROLE_RE.match(value) or _IAM_USER_RE.match(value)
+    if match:
+        value = match.groups()[-1]
+    return value.casefold()
+
+
 def check_approver_eligibility(caller: AuthenticatedCaller, approval_item: Dict[str, Any],
                                registry_entry: Any) -> Tuple[bool, str]:
     """Separation of duties for approving an escalated request.
@@ -254,9 +272,16 @@ def check_approver_eligibility(caller: AuthenticatedCaller, approval_item: Dict[
     candidates = {caller.principal_id, normalize_principal_arn(caller.principal_id)}
     if agent_id and agent_id in candidates:
         return False, "an agent cannot approve its own request"
+    person = human_identity(caller.principal_id)
     for owner in _owners(registry_entry):
         if owner in candidates:
             return False, "separation of duties: the agent's owner cannot approve its requests"
+        # The same person under another role: an owner who also holds an approver role must not
+        # approve their own agent's requests (audit 2026-10-21, approval/sod-compares-iam-principal-
+        # strings-not-human-identity).
+        if person and human_identity(owner) == person:
+            return False, ("separation of duties: the approver is the same person as the agent's owner "
+                           "(same session or user name under another role)")
     return True, ""
 
 

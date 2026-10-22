@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased: fixes from the 2026-10-21 security audit
+
+### Security fixes
+- Separation of duties on approvals compared IAM principal strings only, so an agent's owner who also held an approver role could approve their own agent's requests under that role. `check_approver_eligibility` now also compares the person behind each principal (`human_identity`: the session name of an STS assumed-role session, the user name of an IAM user), casefolded, and refuses a match. With IAM Identity Center the session name is the user's sign-in name, set by AWS; for IAM users assuming a role, the role's trust policy must require the session name to be the user name.
+- Guardian inspection (`decision_summaries`) scanned the whole decision trace table on every call, so its cost grew with every agent's traffic. It now reads a sparse `ByTraceAgent` index (`trace_agent_id`, `timestamp`) newest first and stops at the requested limit (1 to 100). Delegated-authority traces carry `trace_agent_id` only when the agent id is not empty, since an index key may not be an empty string. The CDK stack and the demo tables define the index. Traces written before this change are not indexed.
+- `retrieval_validator` held its invisible-character class as 11 literal invisible characters, including the bidirectional marks U+200E and U+200F (bandit B613). The class is now written with escapes and matches the same code points, and CI no longer skips B613.
+
+### Build
+- CI: the workflow token is read-only (`permissions: contents: read`), actions are pinned to commit SHAs, and ruff, bandit, pip-audit, detect-secrets and the CDK CLI are pinned to exact versions.
+- The two `urlopen` calls in `tests/test_public_sector_demo_scenarios.py` carry `nosec B310`: they call the loopback demo server the fixture started.
+- `.ash/.ash.yaml` replaces `.ash-config.yml`, which ASH 3 does not read and which skipped B310 and B613 everywhere. Each suppression in the new file names one rule, the files it was reviewed in, and the reason; the AWS-internal ASH build's telemetry reporters are disabled so scan results stay local.
+
 ## Unreleased: CI runs the whole test suite
 
 ### Build

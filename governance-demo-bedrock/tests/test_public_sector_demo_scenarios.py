@@ -63,7 +63,8 @@ def _post(url, token=None, host=None):
     if host:
         req.add_header("Host", host)
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        # nosec B310: the URL is the loopback demo server this fixture started (http://127.0.0.1)
+        with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
             return resp.status, json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         return exc.code, None
@@ -72,7 +73,7 @@ def _post(url, token=None, host=None):
 class TestLocalUi:
     def test_page_embeds_token_and_security_headers(self, ui):
         app, base = ui
-        with urllib.request.urlopen(base + "/") as resp:
+        with urllib.request.urlopen(base + "/") as resp:  # nosec B310 (loopback demo server)
             page = resp.read().decode()
             assert app.TOKEN in page
             assert "frame-ancestors 'none'" in resp.headers["Content-Security-Policy"]

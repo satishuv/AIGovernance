@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from agent_registry import AgentRegistry, registry_table_definition
 from approval_workflow import ApprovalWorkflow
 from tool_execution_auth import tool_auth_table_definition
-from authority_control_plane import ControlPlaneConfig, DelegatedAuthorityControlPlane
+from authority_control_plane import ControlPlaneConfig, DelegatedAuthorityControlPlane, decision_trace_index_definition
 from authority_evidence import EvidenceLedger, S3EvidenceBackend
 from authority_identity import AuthenticatedCaller, RoleDirectory, resolve_caller
 from budget_governance import ApprovedCatalog, SpendLedger
@@ -142,6 +142,10 @@ def create_demo_tables(dynamodb, prefix: str = "dag-demo-") -> Dict[str, Any]:
             kwargs = registry_table_definition(prefix + name)
         if name == "tool_auth":
             kwargs = tool_auth_table_definition(prefix + name)
+        if name == "decisions":
+            index = decision_trace_index_definition()
+            kwargs["AttributeDefinitions"] = attrs + index["AttributeDefinitions"]
+            kwargs["GlobalSecondaryIndexes"] = index["GlobalSecondaryIndexes"]
         tables[name] = dynamodb.create_table(**kwargs)
     return tables
 

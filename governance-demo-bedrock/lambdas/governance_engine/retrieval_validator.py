@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,11 @@ class RetrievalContentValidator:
         re.IGNORECASE,
     )
 
-    # Invisible/zero-width characters used to hide instructions
-    _INVISIBLE_CHARS = re.compile(r"[​‌‍‎‏⁠⁡⁢⁣⁤﻿]")
+    # Invisible/zero-width characters used to hide instructions: U+200B to U+200F (zero-width
+    # space, non-joiner, joiner, left-to-right and right-to-left marks), U+2060 to U+2064 (word
+    # joiner and invisible operators) and U+FEFF (zero-width no-break space). Written as escapes so
+    # the pattern is reviewable; the characters themselves are invisible in an editor.
+    _INVISIBLE_CHARS = re.compile("[\u200b-\u200f\u2060-\u2064\ufeff]")
 
     def validate(self, content: str, source: str = "",
                  content_type: str = "text") -> RetrievalValidationResult:

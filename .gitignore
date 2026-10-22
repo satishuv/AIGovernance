@@ -51,4 +51,6 @@ governance-demo-bedrock/demo_report.html
 holmes_upload/
 bedrock_security_report.csv
 aiml-security-assessment.yaml
-.ash/
+# ASH scan output; the ASH configuration (.ash/.ash.yaml) is tracked
+.ash/*
+!.ash/.ash.yaml

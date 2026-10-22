@@ -67,6 +67,24 @@ RISK_TIER = {"low": 0, "medium": 5, "high": 15, "critical": 25}
 PASS, FAIL, FLAG, STEP, NA = "pass", "fail", "flag", "step_up", "na"
 AARM = {"allow": "ALLOW", "escalate": "STEP_UP", "deny": "DENY"}
 
+# Sparse index on the decision trace table for per-agent reads (guardian inspection). Only
+# delegated-authority traces carry the key, so the engine pipeline's own traces are not indexed.
+DECISION_TRACE_AGENT_INDEX = "ByTraceAgent"
+DECISION_TRACE_AGENT_KEY = "trace_agent_id"
+
+
+def decision_trace_index_definition() -> Dict[str, Any]:
+    """The ByTraceAgent index as boto3 create_table arguments (demo tables and tests)."""
+    return {
+        "AttributeDefinitions": [{"AttributeName": DECISION_TRACE_AGENT_KEY, "AttributeType": "S"},
+                                 {"AttributeName": "timestamp", "AttributeType": "S"}],
+        "GlobalSecondaryIndexes": [{
+            "IndexName": DECISION_TRACE_AGENT_INDEX,
+            "KeySchema": [{"AttributeName": DECISION_TRACE_AGENT_KEY, "KeyType": "HASH"},
+                          {"AttributeName": "timestamp", "KeyType": "RANGE"}],
+            "Projection": {"ProjectionType": "ALL"}}],
+    }
+
 
 @dataclass
 class Stage:
@@ -190,35 +208,47 @@ class DelegatedAuthorityControlPlane:
         canonical = canonical_json(to_json_safe(body))
         trace_hash = sha256_hex(canonical)
         signer = self.evidence.signer
-        self.decision_table.put_item(Item={
+        item = {
             "decision_id": decision.decision_id, "agent_id": decision.agent_id,
             "verdict": decision.verdict, "timestamp": decision.timestamp,
             "canonical_body": canonical, "trace_hash": trace_hash,
             "signature": signer.sign(trace_hash), "signing_key_id": signer.key_id,
-            "signing_algorithm": signer.algorithm, "trace_type": "delegated_authority"})
+            "signing_algorithm": signer.algorithm, "trace_type": "delegated_authority"}
+        if decision.agent_id:
+            # Key of the sparse ByTraceAgent index; an index key may never be an empty string.
+            item[DECISION_TRACE_AGENT_KEY] = decision.agent_id
+        self.decision_table.put_item(Item=item)
 
     def decision_summaries(self, agent_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Signed decision traces for one agent (guardian inspection)."""
-        if self.decision_table is None:
+        """Signed decision traces for one agent, newest first (guardian inspection).
+
+        Reads the ByTraceAgent index with a key query instead of scanning the whole trace table,
+        so the cost of an inspection no longer grows with all agents' traffic. The index is
+        sparse: only delegated-authority traces carry trace_agent_id (_store_decision).
+        """
+        if self.decision_table is None or not agent_id:
             return []
-        from boto3.dynamodb.conditions import Attr
-        # The trace table is shared with the governance engine, whose traces
-        # have a different body; read only delegated-authority traces.
-        flt = Attr("agent_id").eq(agent_id) & Attr("trace_type").eq("delegated_authority")
-        resp = self.decision_table.scan(FilterExpression=flt)
-        items = list(resp.get("Items", []))
-        while "LastEvaluatedKey" in resp:
-            resp = self.decision_table.scan(FilterExpression=flt, ExclusiveStartKey=resp["LastEvaluatedKey"])
-            items.extend(resp.get("Items", []))
+        from boto3.dynamodb.conditions import Key
+        limit = max(1, min(int(limit), 100))
+        kwargs: Dict[str, Any] = {"IndexName": DECISION_TRACE_AGENT_INDEX,
+                                  "KeyConditionExpression": Key(DECISION_TRACE_AGENT_KEY).eq(agent_id),
+                                  "ScanIndexForward": False, "Limit": limit}
+        items: List[Dict[str, Any]] = []
+        while len(items) < limit:
+            resp = self.decision_table.query(**kwargs)
+            items.extend(i for i in resp.get("Items", []) if i.get("trace_type") == "delegated_authority")
+            if "LastEvaluatedKey" not in resp:
+                break
+            kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
         rows = []
-        for item in items:
+        for item in items[:limit]:
             body = json.loads(item["canonical_body"])
             rows.append({"decision_id": body["decision_id"], "operation_id": body["operation_id"],
                          "verdict": body["verdict"], "risk_score": body["risk_score"],
                          "decisive_stage": body["decisive_stage"], "timestamp": body["timestamp"],
                          "signature_verified": self.evidence.signer.verify(item["trace_hash"], item["signature"])
                          and sha256_hex(item["canonical_body"]) == item["trace_hash"]})
-        return sorted(rows, key=lambda r: r["timestamp"], reverse=True)[:limit]
+        return sorted(rows, key=lambda r: r["timestamp"], reverse=True)
 
     # ============================================================= evaluation
     def evaluate(self, request: Dict[str, Any], caller: Optional[AuthenticatedCaller]) -> Evaluation:
