@@ -1,7 +1,9 @@
 import os
 
 from aws_cdk import (
+    Duration,
     RemovalPolicy,
+    Stack,
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
     aws_dynamodb as dynamodb,
@@ -17,15 +19,64 @@ class StorageConstruct(Construct):
 
     def __init__(self, scope: Construct, construct_id: str, *, retention_days: int = 365, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        stack = Stack.of(self)
+
+        # --- Customer managed key ---
+        # Encrypts the operator alert topic, the Lambda environments, the log groups and the trail.
+        # Tables keep DynamoDB's default encryption at rest (an AWS owned key), so the agent scope
+        # permission boundaries need no KMS action.
+        self.data_key = kms.Key(
+            self,
+            "DataKey",
+            description="Encrypts operator alerts, Lambda environments, log groups and the trail",
+            enable_key_rotation=True,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+        # CloudWatch Logs may use the key only for this account's log groups in this Region.
+        self.data_key.add_to_resource_policy(iam.PolicyStatement(
+            actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
+            principals=[iam.ServicePrincipal(f"logs.{stack.region}.amazonaws.com")],
+            resources=["*"],
+            conditions={"ArnLike": {"kms:EncryptionContext:aws:logs:arn":
+                                    f"arn:{stack.partition}:logs:{stack.region}:{stack.account}:log-group:*"}},
+        ))
+        # CloudWatch alarms publish to the encrypted operator topic; without this statement every
+        # alarm action fails. Limited to this account's topics in this Region.
+        self.data_key.add_to_resource_policy(iam.PolicyStatement(
+            actions=["kms:Decrypt", "kms:GenerateDataKey*"],
+            principals=[iam.ServicePrincipal("cloudwatch.amazonaws.com")],
+            resources=["*"],
+            conditions={"ArnLike": {"kms:EncryptionContext:aws:sns:topicArn":
+                                    f"arn:{stack.partition}:sns:{stack.region}:{stack.account}:*"}},
+        ))
 
         # --- S3 Buckets ---
+
+        # Server access logs for every bucket below. A log destination supports only SSE-S3, and
+        # logs are delivered through its bucket policy (serverAccessLogsUseBucketPolicy, set by
+        # GovernanceBedrockStack).
+        self.access_log_bucket = s3.Bucket(
+            self,
+            "AccessLogBucket",
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            enforce_ssl=True,
+            versioned=True,
+            object_ownership=s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+            lifecycle_rules=[s3.LifecycleRule(expiration=Duration.days(retention_days))],
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+        )
 
         self.data_bucket = s3.Bucket(
             self,
             "DataBucket",
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            enforce_ssl=True,
             versioned=True,
+            server_access_logs_bucket=self.access_log_bucket,
+            server_access_logs_prefix="data-bucket/",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
@@ -35,7 +86,10 @@ class StorageConstruct(Construct):
             "PolicyBucket",
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            enforce_ssl=True,
             versioned=True,
+            server_access_logs_bucket=self.access_log_bucket,
+            server_access_logs_prefix="policy-bucket/",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
@@ -45,7 +99,10 @@ class StorageConstruct(Construct):
             "EvidenceBucket",
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            enforce_ssl=True,
             versioned=True,
+            server_access_logs_bucket=self.access_log_bucket,
+            server_access_logs_prefix="evidence-bucket/",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
@@ -60,7 +117,10 @@ class StorageConstruct(Construct):
             "ImmutableEvidenceBucket",
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            enforce_ssl=True,
             versioned=True,
+            server_access_logs_bucket=self.access_log_bucket,
+            server_access_logs_prefix="immutable-evidence-bucket/",
             object_lock_enabled=True,
             removal_policy=RemovalPolicy.RETAIN,
             auto_delete_objects=False,
@@ -160,6 +220,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="agent_id", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -169,6 +230,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="request_id", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -178,6 +240,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="policy_id", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             sort_key=dynamodb.Attribute(
                 name="version", type=dynamodb.AttributeType.NUMBER
             ),
@@ -190,6 +253,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="config_key", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -199,6 +263,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="action_type", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -489,6 +554,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="agent_id", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             sort_key=dynamodb.Attribute(
                 name="record_type", type=dynamodb.AttributeType.STRING
             ),
@@ -502,6 +568,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="agent_id", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             sort_key=dynamodb.Attribute(
                 name="record_type", type=dynamodb.AttributeType.STRING
             ),
@@ -515,6 +582,7 @@ class StorageConstruct(Construct):
             partition_key=dynamodb.Attribute(
                 name="pk", type=dynamodb.AttributeType.STRING
             ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             sort_key=dynamodb.Attribute(
                 name="sk", type=dynamodb.AttributeType.STRING
             ),
@@ -619,11 +687,20 @@ class StorageConstruct(Construct):
                         "logs:DescribeLogStreams",
                     ],
                     resources=[
-                        "arn:aws:logs:*:*:log-group:/governance-demo-bedrock/*",
+                        f"arn:{stack.partition}:logs:{stack.region}:{stack.account}"
+                        ":log-group:/governance-demo-bedrock/*",
                     ],
                 ),
             ],
         )
+
+        # Point-in-time recovery on every table: governance records (scopes, approvals, grants,
+        # decisions, evidence indexes) can be restored to any second of the last 35 days.
+        for child in self.node.children:
+            if isinstance(child, dynamodb.Table):
+                child.node.default_child.point_in_time_recovery_specification = (
+                    dynamodb.CfnTable.PointInTimeRecoverySpecificationProperty(
+                        point_in_time_recovery_enabled=True))
 
         # --- SNS Topic ---
 
@@ -631,6 +708,8 @@ class StorageConstruct(Construct):
             self,
             "OperatorAlertsTopic",
             display_name="Governance Operator Alerts",
+            master_key=self.data_key,
+            enforce_ssl=True,
         )
 
         # --- S3 Deployments ---
@@ -669,3 +748,22 @@ class StorageConstruct(Construct):
             destination_bucket=self.evidence_bucket,
             destination_key_prefix="compliance/",
         )
+
+    @staticmethod
+    def grant_objects(grantee: iam.IGrantable, bucket: s3.IBucket, *, write: bool = False,
+                      tagging: bool = False, keys: str = "*", list_bucket: bool = True) -> None:
+        """Read, and optionally write, the objects of one bucket. Never delete.
+
+        ``bucket.grant_read_write`` also grants ``s3:DeleteObject*``. Object Lock does not stop a
+        simple DELETE: it adds a delete marker, which is not WORM-protected and makes the evidence
+        look deleted to every reader. No function here deletes objects, so none may.
+        """
+        actions = ["s3:GetObject"]
+        if write:
+            actions.append("s3:PutObject")
+        if tagging:
+            actions.append("s3:PutObjectTagging")
+        iam.Grant.add_to_principal(grantee=grantee, actions=actions, resource_arns=[bucket.arn_for_objects(keys)])
+        if list_bucket:
+            iam.Grant.add_to_principal(grantee=grantee, actions=["s3:ListBucket"],
+                                       resource_arns=[bucket.bucket_arn])

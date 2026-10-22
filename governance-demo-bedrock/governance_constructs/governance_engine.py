@@ -4,8 +4,13 @@ import os
 from aws_cdk import (
     Annotations,
     Duration,
+    RemovalPolicy,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cw_actions,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
+    aws_sqs as sqs,
     aws_stepfunctions as sfn,
     aws_events as events,
     aws_events_targets as targets,
@@ -36,6 +41,32 @@ class GovernanceEngineConstruct(Construct):
                 "layer is skipped. Deploy with -c bedrock_guardrail_id=<id> to enable it.",
             )
 
+        # --- Dead-letter queue for asynchronous invocations ---
+        # EventBridge invokes the post-decision function (decision events) and this engine function
+        # (the monthly report) asynchronously. After Lambda's retries a failed event would be
+        # dropped, and a decision's evidence never written; it lands here instead, and alarms.
+        self.async_dead_letter_queue = sqs.Queue(
+            self,
+            "AsyncInvocationDeadLetterQueue",
+            encryption=sqs.QueueEncryption.KMS,
+            encryption_master_key=storage.data_key,
+            enforce_ssl=True,
+            retention_period=Duration.days(14),
+        )
+        cloudwatch.Alarm(
+            self,
+            "AsyncInvocationDeadLetterAlarm",
+            metric=self.async_dead_letter_queue.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(5)),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarm_description="An asynchronous invocation (decision event or monthly report) failed after "
+                              "Lambda's retries; a decision's evidence may be missing. Replay it from the "
+                              "dead-letter queue.",
+        ).add_alarm_action(cw_actions.SnsAction(storage.operator_alerts_topic))
+
         # --- Main Governance Engine Lambda ---
 
         self.governance_engine_lambda = _lambda.Function(
@@ -49,6 +80,7 @@ class GovernanceEngineConstruct(Construct):
             timeout=Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
+            dead_letter_queue=self.async_dead_letter_queue,
             environment={
                 "POLICY_BUCKET_NAME": storage.policy_bucket.bucket_name,
                 "POLICY_PREFIX": "policies/",
@@ -87,8 +119,9 @@ class GovernanceEngineConstruct(Construct):
         )
 
         # Grant access to all tables
-        storage.policy_bucket.grant_read(self.governance_engine_lambda)
-        storage.evidence_bucket.grant_read_write(self.governance_engine_lambda)
+        storage.grant_objects(self.governance_engine_lambda, storage.policy_bucket)
+        # The approval workflow tags the approval evidence it writes (framework_mapping).
+        storage.grant_objects(self.governance_engine_lambda, storage.evidence_bucket, write=True, tagging=True)
         storage.scope_table.grant_read_write_data(self.governance_engine_lambda)
         storage.policy_metadata_table.grant_read_data(self.governance_engine_lambda)
         storage.risk_config_table.grant_read_data(self.governance_engine_lambda)
@@ -100,7 +133,7 @@ class GovernanceEngineConstruct(Construct):
         storage.control_trace_table.grant_read_write_data(self.governance_engine_lambda)
         storage.threat_patterns_table.grant_read_write_data(self.governance_engine_lambda)
         storage.control_mapping_table.grant_read_write_data(self.governance_engine_lambda)
-        storage.immutable_evidence_bucket.grant_read_write(self.governance_engine_lambda)
+        storage.grant_objects(self.governance_engine_lambda, storage.immutable_evidence_bucket, write=True)
         storage.pending_approval_table.grant_read_write_data(self.governance_engine_lambda)
         storage.change_log_table.grant_read_write_data(self.governance_engine_lambda)
         storage.decision_history_table.grant_read_write_data(self.governance_engine_lambda)
@@ -159,7 +192,7 @@ class GovernanceEngineConstruct(Construct):
         storage.spend_ledger_table.grant_read_write_data(self.authority_lambda)
         storage.decision_trace_table.grant_read_write_data(self.authority_lambda)
         storage.governance_roles_table.grant_read_data(self.authority_lambda)
-        storage.evidence_bucket.grant_read_write(self.authority_lambda)
+        storage.grant_objects(self.authority_lambda, storage.evidence_bucket, write=True)
         storage.evidence_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify")
         storage.grant_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify", "kms:GetPublicKey")
 
@@ -192,7 +225,8 @@ class GovernanceEngineConstruct(Construct):
                     principals=[iam.ArnPrincipal(demo_operator)],
                 )
             )
-        storage.data_bucket.grant_read(self.delegated_execution_role, "reports/approved/*")
+        storage.grant_objects(self.delegated_execution_role, storage.data_bucket, keys="reports/approved/*",
+                              list_bucket=False)
         self.authority_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["sts:AssumeRole", "sts:TagSession", "sts:SetSourceIdentity"],
@@ -212,12 +246,15 @@ class GovernanceEngineConstruct(Construct):
             )
         )
 
-        self.governance_engine_lambda.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["bedrock:ApplyGuardrail"],
-                resources=[f"arn:aws:bedrock:{stack.region}:{stack.account}:guardrail/*"],
+        # Only the configured guardrail, and only when one is configured.
+        if guardrail_id:
+            self.governance_engine_lambda.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["bedrock:ApplyGuardrail"],
+                    resources=[f"arn:{stack.partition}:bedrock:{stack.region}:{stack.account}"
+                               f":guardrail/{guardrail_id}"],
+                )
             )
-        )
         # cloudwatch:PutMetricData requires Resource: "*" per AWS IAM documentation.
         # This action does not support resource-level permissions. See:
         # https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatch.html
@@ -283,8 +320,8 @@ class GovernanceEngineConstruct(Construct):
         )
 
         storage.control_mapping_table.grant_read_data(self.compliance_refresh_lambda)
-        storage.evidence_bucket.grant_read_write(self.compliance_refresh_lambda)
-        storage.immutable_evidence_bucket.grant_read_write(self.compliance_refresh_lambda)
+        storage.grant_objects(self.compliance_refresh_lambda, storage.evidence_bucket, write=True)
+        storage.grant_objects(self.compliance_refresh_lambda, storage.immutable_evidence_bucket, write=True)
 
         self.compliance_refresh_trigger = cr.AwsCustomResource(
             self,
@@ -384,7 +421,7 @@ class GovernanceEngineConstruct(Construct):
                 "OPA_ENDPOINT": "",
             },
         )
-        storage.policy_bucket.grant_read(self.policy_risk_lambda)
+        storage.grant_objects(self.policy_risk_lambda, storage.policy_bucket)
         storage.risk_config_table.grant_read_data(self.policy_risk_lambda)
         storage.framework_mapping_table.grant_read_data(self.policy_risk_lambda)
         storage.runtime_drift_table.grant_read_data(self.policy_risk_lambda)
@@ -409,9 +446,10 @@ class GovernanceEngineConstruct(Construct):
                 "CONTROL_TRACE_TABLE_NAME": storage.control_trace_table.table_name,
                 "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
             },
+            dead_letter_queue=self.async_dead_letter_queue,
         )
-        storage.evidence_bucket.grant_read_write(self.post_decision_lambda)
-        storage.immutable_evidence_bucket.grant_read_write(self.post_decision_lambda)
+        storage.grant_objects(self.post_decision_lambda, storage.evidence_bucket, write=True)
+        storage.grant_objects(self.post_decision_lambda, storage.immutable_evidence_bucket, write=True)
         storage.agent_health_table.grant_read_write_data(self.post_decision_lambda)
         storage.decision_history_table.grant_read_write_data(self.post_decision_lambda)
         storage.runtime_drift_table.grant_read_write_data(self.post_decision_lambda)
@@ -447,9 +485,34 @@ class GovernanceEngineConstruct(Construct):
                                 f"arn:aws:events:{stack.region}:{stack.account}:event-bus/default",
                             ],
                         ),
+                        # Execution logging (below). Step Functions documents these log delivery
+                        # actions with Resource "*": they have no resource-level permissions.
+                        iam.PolicyStatement(
+                            actions=[
+                                "logs:CreateLogDelivery",
+                                "logs:GetLogDelivery",
+                                "logs:UpdateLogDelivery",
+                                "logs:DeleteLogDelivery",
+                                "logs:ListLogDeliveries",
+                                "logs:PutResourcePolicy",
+                                "logs:DescribeResourcePolicies",
+                                "logs:DescribeLogGroups",
+                            ],
+                            resources=["*"],
+                        ),
                     ]
                 ),
             },
+        )
+        # An Express workflow keeps no execution history: without logs a governance pipeline run
+        # leaves no record. Every event is logged, without execution data (inputs and outputs carry
+        # tool arguments).
+        self.pipeline_log_group = logs.LogGroup(
+            self,
+            "GovernancePipelineLogs",
+            retention=logs.RetentionDays.ONE_YEAR,
+            encryption_key=storage.data_key,
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
         _state_machine_path = os.path.join(
@@ -483,6 +546,13 @@ class GovernanceEngineConstruct(Construct):
             role_arn=self.sfn_pipeline_role.role_arn,
             tracing_configuration=sfn.CfnStateMachine.TracingConfigurationProperty(
                 enabled=True,
+            ),
+            logging_configuration=sfn.CfnStateMachine.LoggingConfigurationProperty(
+                level="ALL",
+                include_execution_data=False,
+                destinations=[sfn.CfnStateMachine.LogDestinationProperty(
+                    cloud_watch_logs_log_group=sfn.CfnStateMachine.CloudWatchLogsLogGroupProperty(
+                        log_group_arn=self.pipeline_log_group.log_group_arn))],
             ),
         )
 

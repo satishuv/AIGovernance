@@ -1,4 +1,5 @@
 from aws_cdk import Stack, CfnOutput
+from aws_cdk import aws_lambda as _lambda
 from constructs import Construct
 
 from governance_constructs import (
@@ -9,11 +10,17 @@ from governance_constructs import (
     ApiConstruct,
     SeedDataConstruct,
 )
+from governance_constructs import scanner_exceptions
+
+# S3 server access logs are delivered through the log bucket's policy, not an ACL, so the log
+# bucket can keep BucketOwnerEnforced object ownership.
+S3_ACCESS_LOGS_USE_BUCKET_POLICY = "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy"
 
 
 class GovernanceBedrockStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        self.node.set_context(S3_ACCESS_LOGS_USE_BUCKET_POLICY, True)
 
         skip_cloudtrail = self.node.try_get_context("skip_cloudtrail")
         environment = self.node.try_get_context("environment") or "demo"
@@ -42,6 +49,7 @@ class GovernanceBedrockStack(Stack):
         self.api = ApiConstruct(
             self, "Api",
             governance_engine=self.governance_engine,
+            storage=self.storage,
         )
 
         self.seed_data = SeedDataConstruct(
@@ -88,3 +96,22 @@ class GovernanceBedrockStack(Stack):
         CfnOutput(self, "DelegatedAuthorityFunctionName",
                   value=self.governance_engine.authority_lambda.function_name)
         CfnOutput(self, "DataBucketName", value=self.storage.data_bucket.bucket_name)
+
+        self._encrypt_function_environments()
+        scanner_exceptions.apply(self)
+
+    def _encrypt_function_environments(self) -> None:
+        """Encrypt every function's environment with the data key.
+
+        The action group function is left out: its role is capped by an agent scope permission
+        boundary that grants no KMS action, so it could not decrypt its own environment.
+        """
+        capped = {self.bedrock_agent.action_group_lambda}
+        for function in self.node.find_all():
+            if not isinstance(function, _lambda.Function) or function in capped:
+                continue
+            cfn = function.node.default_child
+            if cfn.environment is None:
+                continue
+            cfn.kms_key_arn = self.storage.data_key.key_arn
+            self.storage.data_key.grant_decrypt(function)

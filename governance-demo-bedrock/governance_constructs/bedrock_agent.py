@@ -41,6 +41,7 @@ class BedrockAgentConstruct(Construct):
             "AgentActionsLogGroup",
             log_group_name="/governance-demo-bedrock/agent-actions",
             retention=logs.RetentionDays.ONE_MONTH,
+            encryption_key=storage.data_key,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -63,7 +64,7 @@ class BedrockAgentConstruct(Construct):
             },
         )
 
-        storage.data_bucket.grant_read_write(self.action_group_lambda)
+        storage.grant_objects(self.action_group_lambda, storage.data_bucket, write=True)
         storage.pending_table.grant_read_write_data(self.action_group_lambda)
         self.agent_log_group.grant_write(self.action_group_lambda)
 
@@ -234,13 +235,10 @@ class BedrockAgentConstruct(Construct):
         )
         self.scope_enforcer_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=[
-                    "bedrock:InvokeAgent",
-                    "bedrock:InvokeModel",
-                    "bedrock-agent-runtime:InvokeAgent",
-                    "bedrock-agent:InvokeAgent",
-                ],
-                resources=["*"],
+                # The enforcer invokes this deployment's agent through its alias, and nothing else
+                # (bedrock-agent-runtime InvokeAgent is authorized as bedrock:InvokeAgent on the alias).
+                actions=["bedrock:InvokeAgent"],
+                resources=[self.bedrock_agent_alias.attr_agent_alias_arn],
             )
         )
 

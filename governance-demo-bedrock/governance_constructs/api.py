@@ -1,5 +1,7 @@
 from aws_cdk import (
+    RemovalPolicy,
     aws_apigateway as apigw,
+    aws_logs as logs,
 )
 from constructs import Construct
 
@@ -8,9 +10,23 @@ class ApiConstruct(Construct):
     """API Gateway endpoints for kill switch and approval workflow."""
 
     def __init__(
-        self, scope: Construct, construct_id: str, *, governance_engine, **kwargs
+        self, scope: Construct, construct_id: str, *, governance_engine, storage, **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        def stage(name: str) -> apigw.StageOptions:
+            """Stage "prod" with JSON access logs (caller, source IP, method, path, status) to a
+            log group encrypted with the data key and kept one year."""
+            access_logs = logs.LogGroup(self, f"{name}AccessLogs", retention=logs.RetentionDays.ONE_YEAR,
+                                        encryption_key=storage.data_key, removal_policy=RemovalPolicy.DESTROY)
+            return apigw.StageOptions(
+                stage_name="prod",
+                tracing_enabled=True,
+                access_log_destination=apigw.LogGroupLogDestination(access_logs),
+                access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
+                    caller=True, http_method=True, ip=True, protocol=True, request_time=True,
+                    resource_path=True, response_length=True, status=True, user=True),
+            )
 
         # --- Kill Switch API ---
 
@@ -19,10 +35,7 @@ class ApiConstruct(Construct):
             "KillSwitchApi",
             rest_api_name="GovernanceKillSwitchAPI",
             description="API Gateway for Kill Switch activate/deactivate",
-            deploy_options=apigw.StageOptions(
-                stage_name="prod",
-                tracing_enabled=True,
-            ),
+            deploy_options=stage("KillSwitchApi"),
         )
 
         kill_switch_resource = self.kill_switch_api.root.add_resource("kill-switch")
@@ -52,10 +65,7 @@ class ApiConstruct(Construct):
             "ApprovalApi",
             rest_api_name="GovernanceApprovalAPI",
             description="API Gateway for approval workflow and decision history",
-            deploy_options=apigw.StageOptions(
-                stage_name="prod",
-                tracing_enabled=True,
-            ),
+            deploy_options=stage("ApprovalApi"),
         )
 
         governance_integration = apigw.LambdaIntegration(
