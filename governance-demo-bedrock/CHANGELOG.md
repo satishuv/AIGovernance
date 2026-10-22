@@ -1,9 +1,29 @@
 # Changelog
 
+## Unreleased: infrastructure findings from the ASH container scan (2026-10-22)
+
+ASH 3.7.1 ran in its container with every scanner, offline. cdk-nag, cfn-nag and checkov evaluated the synthesized stack for the first time (on Windows cdk-nag and cfn-nag had not run). Every fix is asserted on the synthesized template in `tests/test_scanner_exceptions.py`; each of those tests fails on the code before this change. Nothing was deployed.
+
+### Security fixes
+- Every function that wrote evidence held `s3:DeleteObject*` on the evidence buckets, from `grant_read_write`. Object Lock does not stop a simple DELETE: it adds a delete marker, which is not WORM-protected and makes the object look deleted to every reader. `StorageConstruct.grant_objects` now grants only `s3:GetObject`, `s3:PutObject` (and `s3:PutObjectTagging` where approval evidence is tagged) and `s3:ListBucket`, and no function can delete or hide evidence. The data and policy buckets use the same grant.
+- The scope enforcer could call `bedrock:InvokeAgent` and `bedrock:InvokeModel` on every resource; it may now invoke only this deployment's agent alias. `bedrock:ApplyGuardrail` covered every guardrail in the account and was granted even with no guardrail configured; it is now granted only with `-c bedrock_guardrail_id`, for that guardrail.
+- Buckets did not require TLS (`enforce_ssl`) and none logged access; all now require TLS and deliver server access logs to a new SSE-S3 access log bucket. The trail bucket is versioned.
+- The operator alert topic was not encrypted and accepted publishes without TLS. It is now encrypted with a new customer managed key (`DataKey`, rotation on) and requires TLS. The key policy lets CloudWatch alarms publish to it; without that statement every alarm action would fail.
+- The data key also encrypts the Lambda environments (except the action group function, whose scope permission boundary grants no KMS action), the log groups and the trail. The key policy lets only this trail use it.
+
+### Reliability and logging
+- Eight tables (scope, pending, policy metadata, risk config, framework mapping, runtime drift, agent health, tool authorization) were provisioned at 5 read and 5 write units, including the scope and tool authorization tables on the decision path. All 26 tables are now on-demand with point-in-time recovery.
+- EventBridge invokes the post-decision function (decision events) and the engine function (the monthly report) asynchronously, with no dead-letter queue, so a failed decision event and its evidence were dropped after Lambda's retries. Both now send failures to an encrypted dead-letter queue that alarms.
+- The Express state machine keeps no execution history and logged nothing; it now logs every event, without execution data, to an encrypted log group. Both API stages write JSON access logs.
+
+### Build
+- `governance_constructs/scanner_exceptions.py` records the remaining findings as reviewed exceptions, each with its reason: cdk-nag acknowledgements, and `cfn_nag` and `checkov` metadata in the template. `tests/test_scanner_exceptions.py` runs cdk-nag (`cdk-nag==3.0.2`, added to `requirements.txt`) and fails on any finding without an acknowledgement, on any exception without a reason, and on any `Resource: "*"` statement outside the actions those reasons name.
+- `.ash/.ash.yaml` suppresses the detect-secrets matches the container scan found, by rule and file, with reasons: AWS documentation example keys, PEM headers without key material, a sample JWT, placeholder account numbers, generated resource names and encoded test inputs. It also turns off ASH's cdk-nag for repository scans: no template is committed, ASH's cdk-nag wrapper stops on JSON files that are not templates, and the test above checks the stack. `.ruff_cache/` is ignored.
+
 ## Unreleased: fixes from the 2026-10-21 security audit
 
 ### Security fixes
-- Separation of duties on approvals compared IAM principal strings only, so an agent's owner who also held an approver role could approve their own agent's requests under that role. `check_approver_eligibility` now also compares the person behind each principal (`human_identity`: the session name of an STS assumed-role session, the user name of an IAM user), casefolded, and refuses a match. With IAM Identity Center the session name is the user's sign-in name, set by AWS; for IAM users assuming a role, the role's trust policy must require the session name to be the user name.
+- Separation of duties on approvals compared IAM principal strings only, so an agent's owner who also held an approver role could approve their own agent's requests under that role. `check_approver_eligibility` now also compares the person behind each principal (`human_identity`: the session name of an STS assumed-role session, the user name of an IAM user), casefolded, and refuses a match. With IAM Identity Center, AWS sets the session name of a permission-set session; check the value in a CloudTrail event before relying on it. For IAM users assuming a role, the role's trust policy must require the session name to be the user name.
 - Guardian inspection (`decision_summaries`) scanned the whole decision trace table on every call, so its cost grew with every agent's traffic. It now reads a sparse `ByTraceAgent` index (`trace_agent_id`, `timestamp`) newest first and stops at the requested limit (1 to 100). Delegated-authority traces carry `trace_agent_id` only when the agent id is not empty, since an index key may not be an empty string. The CDK stack and the demo tables define the index. Traces written before this change are not indexed.
 - `retrieval_validator` held its invisible-character class as 11 literal invisible characters, including the bidirectional marks U+200E and U+200F (bandit B613). The class is now written with escapes and matches the same code points, and CI no longer skips B613.
 

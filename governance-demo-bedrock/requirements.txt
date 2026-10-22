@@ -29,3 +29,6 @@ boto3-stubs[dynamodb,s3,sns,cloudwatch,lambda,stepfunctions]>=1.28.0,<2.0.0
 bandit>=1.7.0,<2.0.0
 pip-audit>=2.7.0,<3.0.0
 detect-secrets>=1.5.0,<2.0.0
+# AWS Solutions rules on the synthesized stack (tests/test_scanner_exceptions.py). Pinned exactly:
+# a new release can add rules, which should be reviewed rather than picked up by CI.
+cdk-nag==3.0.2

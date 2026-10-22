@@ -236,9 +236,10 @@ _IAM_USER_RE = re.compile(r"^arn:aws[a-z-]*:iam::\d{12}:user/(?:.*/)?([^/]+)$")
 def human_identity(principal: str) -> str:
     """The person behind a principal, for separation-of-duties comparisons.
 
-    An STS assumed-role session ARN names its session (with IAM Identity Center the session
-    name is the user's sign-in name, set by AWS; for an IAM user assuming a role, the role's
-    trust policy can require the session name to be the user name). An IAM user ARN names the
+    An STS assumed-role session ARN names its session. IAM Identity Center sets the session name of
+    a permission-set session itself (check the value in a CloudTrail event before relying on it);
+    for an IAM user assuming a role, the role's trust policy can require the session name to be the
+    user name (sts:RoleSessionName = ${aws:username}). An IAM user ARN names the
     user. Anything else (a role ARN, a team name) is returned as given. Compared casefolded.
     """
     value = principal or ""

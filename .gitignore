@@ -27,8 +27,9 @@ governance-demo/payload.json
 governance-demo/kill_payload.json
 governance-demo/kill_output.json
 
-# Pytest cache and Hypothesis
+# Pytest, ruff and Hypothesis caches
 .pytest_cache/
+.ruff_cache/
 governance-demo/.pytest_cache/
 .hypothesis/
 

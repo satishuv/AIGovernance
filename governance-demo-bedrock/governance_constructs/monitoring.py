@@ -1,6 +1,8 @@
 from aws_cdk import (
     Duration,
     RemovalPolicy,
+    Stack,
+    aws_iam as iam,
     aws_s3 as s3,
     aws_cloudtrail as cloudtrail,
     aws_cloudwatch as cloudwatch,
@@ -25,6 +27,10 @@ class MonitoringConstruct(Construct):
                 "TrailBucket",
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+                enforce_ssl=True,
+                versioned=True,
+                server_access_logs_bucket=storage.access_log_bucket,
+                server_access_logs_prefix="trail-bucket/",
                 removal_policy=RemovalPolicy.DESTROY,
                 auto_delete_objects=True,
             )
@@ -35,7 +41,31 @@ class MonitoringConstruct(Construct):
                 bucket=self.trail_bucket,
                 trail_name="governance-demo-bedrock-trail",
                 is_multi_region_trail=False,
+                encryption_key=storage.data_key,
             )
+            # CloudTrail encrypts the log files with the data key; its key policy must let this
+            # trail, and only this trail, generate data keys and describe the key.
+            stack = Stack.of(self)
+            trail_arn = (f"arn:{stack.partition}:cloudtrail:{stack.region}:{stack.account}"
+                         ":trail/governance-demo-bedrock-trail")
+            storage.data_key.add_to_resource_policy(iam.PolicyStatement(
+                sid="AllowTheGovernanceTrailToEncryptLogs",
+                actions=["kms:GenerateDataKey*"],
+                principals=[iam.ServicePrincipal("cloudtrail.amazonaws.com")],
+                resources=["*"],
+                conditions={
+                    "StringEquals": {"aws:SourceArn": trail_arn},
+                    "StringLike": {"kms:EncryptionContext:aws:cloudtrail:arn":
+                                   f"arn:{stack.partition}:cloudtrail:*:{stack.account}:trail/*"},
+                },
+            ))
+            storage.data_key.add_to_resource_policy(iam.PolicyStatement(
+                sid="AllowTheGovernanceTrailToDescribeTheKey",
+                actions=["kms:DescribeKey"],
+                principals=[iam.ServicePrincipal("cloudtrail.amazonaws.com")],
+                resources=["*"],
+                conditions={"StringEquals": {"aws:SourceArn": trail_arn}},
+            ))
 
             self.governance_trail.add_s3_event_selector(
                 [cloudtrail.S3EventSelector(bucket=storage.data_bucket)],

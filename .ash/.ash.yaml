@@ -111,11 +111,59 @@ global_settings:
   - rule_id: B603
     path: scripts/pre_push_check.py
     reason: Runs git with a fixed argument list
+  # detect-secrets, reviewed 2026-10-22 in the ASH 3.7.1 container scan. None holds a credential:
+  # AWS keys are the AWS documentation example key, the PEM blocks are headers without key
+  # material, the JWT is a sample with sub "user", and the account is the 111122223333 placeholder.
+  - rule_id: SECRET-AWS-ACCESS-KEY
+    path: scripts/pre_push_check.py
+    reason: The pre-push scanner's allowlist of known fake values (the AWS documentation example key)
+  - rule_id: SECRET-*
+    path: governance-demo-bedrock/tests/test_a008_secrets_detection.py
+    reason: Fixtures for the secrets-detection control (documentation example key, PEM headers without key material)
+  - rule_id: SECRET-*
+    path: governance-demo-bedrock/tests/test_tool_response_validator.py
+    reason: Fixtures for the response validator (sample JWT with sub "user", documentation example key)
+  - rule_id: SECRET-SECRET-KEYWORD
+    path: governance-demo-bedrock/tests/test_approval_api_identity.py
+    reason: Dummy values for moto
+  - rule_id: SECRET-SECRET-KEYWORD
+    path: governance-demo-bedrock/tests/test_p0_11_verified_delegation.py
+    reason: Dummy values for moto
+  - rule_id: SECRET-SECRET-KEYWORD
+    path: governance-demo-bedrock/lambdas/governance_engine/data_sensitivity.py
+    reason: Data classification labels for the credentials and secrets data types, not secret values
+  - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/evidence_packages/**
+    reason: Generated evidence snapshots of CloudFormation physical resource names
+  - rule_id: SECRET-TELEGRAM-BOT-TOKEN
+    path: governance-demo-bedrock/evidence_packages/**
+    reason: An SNS topic ARN in the 111122223333 placeholder account, not a bot token
+  - rule_id: SECRET-*-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/test_datasets/**
+    reason: Test datasets; the matched values are hex- and base64-encoded injection test inputs
+  - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/paper/bench/*.json
+    reason: Benchmark results naming CloudFormation physical resources (role and table names)
+  - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/scripts/*
+    reason: Benchmark and seeding scripts naming CloudFormation physical resources, and a base64-encoded injection test input
+  - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/docs/*.md
+    reason: A base64-encoded injection test input shown in the presentation material
+  - rule_id: SECRET-HEX-HIGH-ENTROPY-STRING
+    path: governance-demo-bedrock/sample_data/builds/*.json
+    reason: Sample build records with made-up commit hashes
 fail_on_findings: true
 # opengrep runs where semgrep cannot (ASH skips semgrep on Windows).
+# cdk-nag: a repository scan holds no CloudFormation template (cdk.out is not committed), and ASH's
+# cdk-nag wrapper stops on JSON files that are not templates. tests/test_scanner_exceptions.py runs
+# cdk-nag 3.0.2 on the synthesized stack instead; ASH's cfn-nag and checkov still scan cdk.out when it
+# is present.
 scanners:
   opengrep:
     enabled: true
+  cdk-nag:
+    enabled: false
 # The AWS-internal ASH build adds reporters that send results off the machine (ash-telemetry posts the
 # aggregated results, including file paths and code snippets, to an external endpoint). Results of
 # this repository stay local.
