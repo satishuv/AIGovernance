@@ -900,15 +900,18 @@ class DelegatedAuthorityControlPlane:
                      changed_by=caller.principal_id, human_authorized=True, reason=reason)
         return {"status": "updated", "agent_id": agent_id, "previous_scope": previous, "scope_level": new_scope}
 
-    # Registry fields that decide who may approve an agent's requests and whether a principal is an
-    # agent at all. They change only through admin_update_registry: a governance administrator, a
-    # reason and a signed evidence record. The stack denies RegistryCuratorRole any write to them
-    # (audit 2026-10-23, run-2, the high: curator-writable owner and runtime_principal).
-    REGISTRY_AUTHORITY_FIELDS = ("owner", "business_owner", "technical_owner", "runtime_principal")
+    # Registry fields that decide who may approve an agent's requests, whether a principal is an
+    # agent at all, and whether the agent may act. They change only through admin_update_registry: a
+    # governance administrator, a reason and a signed evidence record. The stack denies
+    # RegistryCuratorRole any write to them, and any PutItem (a put replaces the whole item); new
+    # agents are registered with admin_register_agent (audit 2026-10-23, run-2, the high:
+    # curator-writable owner and runtime_principal).
+    REGISTRY_AUTHORITY_FIELDS = ("owner", "business_owner", "technical_owner", "runtime_principal", "status")
 
     def admin_update_registry(self, agent_id: str, updates: Dict[str, Any], caller: AuthenticatedCaller,
                               reason: str) -> Dict[str, Any]:
         from authority_identity import owner_is_resolvable
+        from models import AgentRegistryEntry
         ok, why = check_admin(caller, ADMIN_ROLES)
         if not ok:
             return {"status": "denied", "reason": why}
@@ -923,7 +926,11 @@ class DelegatedAuthorityControlPlane:
         for name, value in updates.items():
             if not isinstance(value, str) or not value.strip() or value != value.strip():
                 return {"status": "denied", "reason": f"{name} must be a non-empty string without surrounding space"}
-            if name != "runtime_principal" and not owner_is_resolvable(value):
+            if name == "status":
+                if value not in AgentRegistryEntry.VALID_STATUSES:
+                    return {"status": "denied",
+                            "reason": f"status must be one of {list(AgentRegistryEntry.VALID_STATUSES)}"}
+            elif name != "runtime_principal" and not owner_is_resolvable(value):
                 return {"status": "denied", "reason": (f"{name} must be an IAM user, role or session ARN or a "
                                                        "gateway principal, so separation of duties can compare it")}
         agent = self.registry.get_agent(agent_id)
@@ -935,6 +942,52 @@ class DelegatedAuthorityControlPlane:
                      previous=previous, updates=dict(updates), reason=str(reason)[:500], human_authorized=True)
         self.registry.update_agent(agent_id, dict(updates), requester_id=caller.principal_id)
         return {"status": "updated", "agent_id": agent_id, "fields": sorted(updates)}
+
+    def admin_register_agent(self, entry: Dict[str, Any], caller: AuthenticatedCaller,
+                             reason: str) -> Dict[str, Any]:
+        """Register a new agent: a governance administrator, a reason, owners that name principals,
+        signed evidence first, and a create-only write that can never replace an existing entry."""
+        from authority_identity import owner_is_resolvable
+        from models import AgentRegistryEntry
+        ok, why = check_admin(caller, ADMIN_ROLES)
+        if not ok:
+            return {"status": "denied", "reason": why}
+        if not str(reason or "").strip():
+            return {"status": "denied", "reason": "a reason is required to register an agent"}
+        if not isinstance(entry, dict):
+            return {"status": "denied", "reason": "the agent entry must be a JSON object"}
+        try:
+            agent = AgentRegistryEntry.from_dict(dict(entry))
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            return {"status": "denied", "reason": f"the agent entry is invalid ({type(exc).__name__}: {exc})"}
+        errors = list(agent.validate_governance_fields())
+        if not isinstance(agent.agent_id, str) or not agent.agent_id.strip() or agent.agent_id != agent.agent_id.strip():
+            errors.append("agent_id must be a non-empty string without surrounding space")
+        for name in self.SOD_FIELDS:
+            value = getattr(agent, name, "")
+            if name == "owner" or value:
+                if not isinstance(value, str) or not owner_is_resolvable(value):
+                    errors.append(f"{name} must be an IAM user, role or session ARN or a gateway principal")
+        if errors:
+            return {"status": "denied", "reason": f"the agent entry is invalid: {errors}"}
+        if self.registry.get_agent(agent.agent_id) is not None:
+            return {"status": "denied", "reason": (f"agent '{agent.agent_id}' is already registered; change its "
+                                                   "authority fields with admin_update_registry")}
+        chain = f"registry-{agent.agent_id}"
+        registered = to_json_safe(agent.to_dict())
+        # Evidence first: if it cannot be written, nothing is registered.
+        self._record(agent.agent_id, chain, "registry_agent_registered", registered_by=caller.principal_id,
+                     reason=str(reason)[:500], human_authorized=True,
+                     authority={name: registered.get(name, "") for name in self.REGISTRY_AUTHORITY_FIELDS},
+                     entry_sha256=sha256_hex(canonical_json(registered)))
+        try:
+            self.registry.register_agent(agent, requester_id=caller.principal_id, create_only=True)
+        except ValueError as exc:
+            # A concurrent registration won the create-only write: the chain says this one did not land.
+            self._record(agent.agent_id, chain, "registry_agent_registration_failed",
+                         registered_by=caller.principal_id, reason=str(exc)[:500])
+            return {"status": "denied", "reason": str(exc)}
+        return {"status": "registered", "agent_id": agent.agent_id}
 
     def describe_agent(self, agent_id: str) -> Dict[str, Any]:
         agent = self.registry.get_agent(agent_id)
