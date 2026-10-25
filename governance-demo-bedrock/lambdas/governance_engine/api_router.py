@@ -197,7 +197,10 @@ def _handle_approvals(dynamodb, resource, http_method, path_params, body, event=
             return _api_response(403, {"error": reason})
 
         agent_owner_id = reg_entry.owner if reg_entry else ""
-        result = aw.approve(approval_id, caller.principal_id, agent_owner_id, conditions)
+        # A non-empty condition is refused (ValueError -> 400): nothing on the grant path could enforce
+        # it. reviewed_digest, when sent, approves only the record whose request_digest matches.
+        result = aw.approve(approval_id, caller.principal_id, agent_owner_id, conditions,
+                            reviewed_digest=body.get("reviewed_digest"))
 
         evidence_bucket = IMMUTABLE_EVIDENCE_BUCKET_NAME or EVIDENCE_BUCKET_NAME
         if evidence_bucket and result:

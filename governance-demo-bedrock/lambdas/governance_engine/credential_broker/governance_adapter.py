@@ -4,11 +4,22 @@ Guardian agents use the same request -> decision -> grant -> credential path
 as workers. Their operations only READ decisions and evidence or WRITE
 recommendations and alerts for humans. None of them changes any agent's
 authority; suspension, scope changes and policy changes stay human-only.
+
+Recommendations and alerts are human-review records. They are written to a
+durable oversight table and announced through notify (an alarm metric)
+before the guardian is told they await review; a failed write is a failed
+execution, never a silent drop. Inside a deployed function the adapter
+refuses to run without the table (audit 2026-10-23, run-2:
+memory-only-human-review-signal).
+
+Oversight table keys: pk = "<kind>#<observed agent>", sk = the record id.
 """
 
 import secrets
 import uuid
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
+
+from durable_state import require_durable
 
 from .base import (
     CredentialHandle,
@@ -20,16 +31,44 @@ from .base import (
 )
 
 
+def oversight_table_definition(table_name: str) -> Dict[str, Any]:
+    """create_table arguments matching the deployed oversight (recommendation) table."""
+    return {
+        "TableName": table_name,
+        "KeySchema": [{"AttributeName": "pk", "KeyType": "HASH"},
+                      {"AttributeName": "sk", "KeyType": "RANGE"}],
+        "AttributeDefinitions": [{"AttributeName": "pk", "AttributeType": "S"},
+                                 {"AttributeName": "sk", "AttributeType": "S"}],
+        "BillingMode": "PAY_PER_REQUEST",
+    }
+
+
 class GovernanceAdapter(CredentialProvider):
     name = "governance"
     mode = "internal"
 
     def __init__(self, decision_reader: Callable[[str, int], List[Dict[str, Any]]],
-                 evidence_reader: Callable[[str], List[Dict[str, Any]]]):
+                 evidence_reader: Callable[[str], List[Dict[str, Any]]],
+                 oversight_table: Any = None,
+                 notify: Optional[Callable[[str, Dict[str, Any]], None]] = None):
+        # Human-review records are authoritative oversight state (V4 invariant 40, P0-12).
+        require_durable("GovernanceAdapter", oversight_table)
         self._decisions = decision_reader
         self._evidence = evidence_reader
+        self._table = oversight_table
+        self._notify = notify or (lambda kind, item: None)
+        # Local runs and tests only; with a table, the table is the record.
         self.recommendations: List[Dict[str, Any]] = []
         self.alerts: List[Dict[str, Any]] = []
+
+    def _store(self, kind: str, item: Dict[str, Any]) -> None:
+        if self._table is not None:
+            self._table.put_item(
+                Item={"pk": f"{kind}#{item['observed_agent']}", "sk": item[f"{kind}_id"],
+                      "created_at": utc_now().isoformat(), **item},
+                ConditionExpression="attribute_not_exists(pk)")
+        (self.recommendations if kind == "recommendation" else self.alerts).append(item)
+        self._notify(kind, item)
 
     def exchange(self, verified, spec) -> CredentialHandle:
         grant = verified.grant
@@ -60,12 +99,20 @@ class GovernanceAdapter(CredentialProvider):
             rec = {"recommendation_id": "rec-" + uuid.uuid4().hex[:12], "observed_agent": observed,
                    "recommended_by": grant.agent_id, "reason": params["reason"],
                    "status": "awaiting_human_review", "effect_on_authority": "none"}
-            self.recommendations.append(rec)
+            try:
+                self._store("recommendation", rec)
+            except Exception as exc:
+                return ExecutionResult(self.name, spec.operation_id, "failed", {},
+                                       f"recommendation was not recorded for human review ({type(exc).__name__})")
             return ExecutionResult(self.name, spec.operation_id, "success", rec)
         if spec.operation_id == "Governance.CreateAlert":
             alert = {"alert_id": "alert-" + uuid.uuid4().hex[:12], "observed_agent": observed,
                      "raised_by": grant.agent_id, "severity": params["severity"], "summary": params["summary"]}
-            self.alerts.append(alert)
+            try:
+                self._store("alert", alert)
+            except Exception as exc:
+                return ExecutionResult(self.name, spec.operation_id, "failed", {},
+                                       f"alert was not recorded for human review ({type(exc).__name__})")
             return ExecutionResult(self.name, spec.operation_id, "success", alert)
         return ExecutionResult(self.name, spec.operation_id, "failed", {},
                                f"governance adapter does not implement {spec.operation_id}")

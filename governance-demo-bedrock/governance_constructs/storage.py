@@ -212,6 +212,17 @@ class StorageConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # Guardian recommendations and alerts awaiting human review (P0-12): the
+        # governance adapter refuses to run memory-only in a deployed function.
+        self.governance_recommendation_table = dynamodb.Table(
+            self,
+            "GovernanceRecommendationTable",
+            partition_key=dynamodb.Attribute(name="pk", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="sk", type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         # --- DynamoDB Tables ---
 
         self.scope_table = dynamodb.Table(

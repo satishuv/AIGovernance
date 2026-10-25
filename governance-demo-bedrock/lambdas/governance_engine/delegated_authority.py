@@ -27,7 +27,10 @@ import hashlib
 import hmac
 import json
 import logging
+import threading
+import time
 import uuid
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -73,16 +76,51 @@ class GrantSigningError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 class KmsGrantSigner:
-    """Signs grant digests with an asymmetric AWS KMS key (ECC_NIST_P256)."""
+    """Signs grant digests with an asymmetric AWS KMS key (ECC_NIST_P256).
+
+    Verification:
+      * check() returns True or False when the signature was checked and None when it could not
+        be (KMS refused the call, throttled it, or was unreachable). verify() is check() is True,
+        so every caller that only asks "valid?" still fails closed; a reader that needs to tell a
+        forged record from a check it was not allowed to make uses check() (audit 2026-10-23,
+        run-2, AuditorReadOnlyRole).
+      * a signature this signer produced, or one it already verified, is remembered in a bounded
+        cache, so re-reading the same records does not call KMS again. The cache is derived from
+        KMS answers; losing it costs only time.
+      * when the cryptography package is importable and kms:GetPublicKey is allowed, signatures
+        are verified locally with the key's public key; KMS Verify stays the fallback (and the
+        authority) whenever the local check does not say valid.
+    """
 
     algorithm = SIGNING_ALGORITHM
     demo_only = False
+    _CACHE_SIZE = 8192
+    _PUBLIC_KEY_RETRY_SECONDS = 300
 
-    def __init__(self, kms_client, key_id: str):
+    def __init__(self, kms_client, key_id: str, verify_locally: bool = True):
         if kms_client is None or not key_id:
             raise GrantSigningError("a KMS client and signing key id are required")
         self._kms = kms_client
         self.key_id = key_id
+        self._verify_locally = verify_locally
+        self._public_key = None
+        self._public_key_retry_at = 0.0
+        self._checked = OrderedDict()
+        self._lock = threading.Lock()
+
+    def _cache_key(self, hex_digest: str, signature_b64: str) -> str:
+        return hashlib.sha256(f"{self.key_id}|{hex_digest}|{signature_b64}".encode("utf-8")).hexdigest()
+
+    def _remember(self, hex_digest: str, signature_b64: str, valid: bool) -> None:
+        with self._lock:
+            self._checked[self._cache_key(hex_digest, signature_b64)] = valid
+            self._checked.move_to_end(self._cache_key(hex_digest, signature_b64))
+            while len(self._checked) > self._CACHE_SIZE:
+                self._checked.popitem(last=False)
+
+    def _recalled(self, hex_digest: str, signature_b64: str) -> Optional[bool]:
+        with self._lock:
+            return self._checked.get(self._cache_key(hex_digest, signature_b64))
 
     def sign(self, hex_digest: str) -> str:
         try:
@@ -90,16 +128,72 @@ class KmsGrantSigner:
                                   MessageType="DIGEST", SigningAlgorithm=self.algorithm)
         except Exception as exc:
             raise GrantSigningError(f"KMS signing failed: {type(exc).__name__}") from exc
-        return base64.b64encode(resp["Signature"]).decode("ascii")
+        signature = base64.b64encode(resp["Signature"]).decode("ascii")
+        # KMS produced this signature over this digest with this key.
+        self._remember(hex_digest, signature, True)
+        return signature
+
+    def _local_public_key(self):
+        if not self._verify_locally or self._public_key is not None:
+            return self._public_key
+        if time.monotonic() < self._public_key_retry_at:
+            return None
+        try:
+            from cryptography.hazmat.primitives import serialization
+            resp = self._kms.get_public_key(KeyId=self.key_id)
+            self._public_key = serialization.load_der_public_key(resp["PublicKey"])
+        except Exception:
+            # No cryptography package, no kms:GetPublicKey, or KMS unavailable: verify remotely.
+            self._public_key_retry_at = time.monotonic() + self._PUBLIC_KEY_RETRY_SECONDS
+            return None
+        return self._public_key
+
+    def _verify_local(self, digest: bytes, signature: bytes) -> bool:
+        key = self._local_public_key()
+        if key is None:
+            return False
+        try:
+            from cryptography.exceptions import InvalidSignature
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.asymmetric import ec, utils
+        except ImportError:
+            return False
+        try:
+            key.verify(signature, digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+            return True
+        except (InvalidSignature, ValueError, TypeError):
+            return False
+
+    def check(self, hex_digest: str, signature_b64: str) -> Optional[bool]:
+        """True (valid), False (checked, not valid) or None (the check could not be made)."""
+        recalled = self._recalled(hex_digest, signature_b64)
+        if recalled is not None:
+            return recalled
+        try:
+            digest = bytes.fromhex(hex_digest)
+            signature = base64.b64decode(signature_b64, validate=True)
+        except (ValueError, TypeError):
+            return False                       # malformed digest or signature: not valid
+        if not signature:
+            return False
+        if self._verify_local(digest, signature):
+            self._remember(hex_digest, signature_b64, True)
+            return True
+        try:
+            resp = self._kms.verify(KeyId=self.key_id, Message=digest, MessageType="DIGEST",
+                                    Signature=signature, SigningAlgorithm=self.algorithm)
+        except Exception as exc:
+            code = str((getattr(exc, "response", None) or {}).get("Error", {}).get("Code", ""))
+            if code == "KMSInvalidSignatureException":
+                self._remember(hex_digest, signature_b64, False)
+                return False
+            return None                        # refused, throttled or unavailable: not checked
+        valid = bool(resp.get("SignatureValid", False))
+        self._remember(hex_digest, signature_b64, valid)
+        return valid
 
     def verify(self, hex_digest: str, signature_b64: str) -> bool:
-        try:
-            resp = self._kms.verify(KeyId=self.key_id, Message=bytes.fromhex(hex_digest),
-                                    MessageType="DIGEST", Signature=base64.b64decode(signature_b64),
-                                    SigningAlgorithm=self.algorithm)
-            return bool(resp.get("SignatureValid", False))
-        except Exception:
-            return False
+        return self.check(hex_digest, signature_b64) is True
 
 
 class LocalDemoSigner:

@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased: fixes from the 2026-10-23 security audit (run-2)
+
+The security-audit skill's second run on AIGovernance-AgentCore (this engine pinned at 53949cc) confirmed 16 findings and left 28 needing deployment validation. This change fixes every engine-side root cause of both groups. `tests/test_run2_evidence_fixes.py` and `tests/test_run2_engine_fixes.py` guard each one: run against the code before this change, 98 of their tests fail and 16 pass (8 guard behaviour that must not change). Nothing was deployed.
+
+### Approval plane
+- `deny_request` denies a pending approval, or withdraws an approved one no grant has consumed, with a required reason and a signed `approval_denied` or `approval_withdrawn` record on the decision chain. Any eligible approver may refuse, the owner included: refusing only narrows authority.
+- `describe_approval` shows an eligible approver the exact bound request and its `request_digest`. `approve_request(reviewed_digest=...)` approves only the record whose digest equals the one reviewed, checked in the conditional write, so a different request cannot be approved under that review. In-process callers that pass no digest approve the record as stored; the platform API always requires it.
+- Conditional approvals are refused instead of being stored beside an unconditional approval: grants are built from the exact request, so nothing could enforce a narrowing condition. `ApprovalWorkflow.approve` refuses them as well.
+- The owner, business owner and technical owner are part of the policy version hash, and `approve_request` refuses an approval whose agent entry or policy changed after the request, so a rewrite-then-restore of an owner field cannot pass a stale separation-of-duties operand.
+- Refused approvals are recorded on the approval's own chain, never on the decision chain that the grant and `execute` read back and verify, so an ineligible caller cannot grow it. A presented approval id names a chain only when it is this agent's existing approval; any other id goes to one chain per agent and UTC day (`approval-unresolved-<day>`) and is recorded as data, capped at 128 characters. `approval_chain_id` hashes any id that is not a canonical UUID.
+
+### Registry and identity
+- `admin_update_registry` is the only path for the fields that decide separation of duties and caller classification (`owner`, `business_owner`, `technical_owner`, `runtime_principal`): a governance administrator, a reason, values that name principals, and a signed `registry_authority_changed` record written before the change.
+- Separation of duties fails closed when an owner value names no principal it can compare (an email address, a team name, free text). IAM user, role, assumed-role session and federated-user ARNs and gateway JWT principals are accepted; a role owner excludes every session of the role. The demo fleet records its teams as IAM role ARNs.
+- `resolve_caller(bound_human_roles=...)`: when a deployment names the roles whose session names are bound to a person, any other IAM principal that is not an agent is classified unknown, so every plane denies it. Without the setting the earlier rule applies.
+- Role assignments and registry entries are read strongly consistent, so a removed role or a suspension applies at the next request.
+- List fields (`allowed_operations`, `allowed_resource_patterns`, `guardian_agent_ids` and the others) are never split into characters: a String is rejected at registration, on update and when a stored entry is validated, a string set is read as a sorted list, and the guardian assignment and data-class checks test membership only on a list.
+
+### Evidence
+- One object per sequence number (`<seq:010d>.json`), written with `IfNoneMatch='*'`, so concurrent appends never share a sequence number and no record is overwritten; contention retries chain onto the record that won. Every fallible step runs before that one write.
+- An append reads the chain tail (a bounded per-process cache, then an O(log n) existence probe), not the whole chain. Chains in the earlier `<seq:04d>-<event_type>.json` layout keep verifying and appending; sequence numbers past 9999 stay unique and sort numerically.
+- Agent and chain ids must be fixed-shape key segments (no `/`); the control plane hashes any other value, so evidence is always written and no value nests one chain under another.
+- Secret-shaped values are masked with their SHA-256 prefix and credential-named fields dropped, instead of refusing the record, so a caller cannot suppress its own denial evidence. Strings longer than 4096 characters are capped with their digest. The credential patterns scan in linear time.
+- `verify_chain` checks contiguous sequence numbers and, given the location read, that every record names that agent and chain; guardian decision summaries check that a trace body names the key and agent it was read from.
+- Writers still hold no `s3:PutObjectRetention`, so every record gets the bucket's default Object Lock retention and no writer can shorten it.
+
+### Signing
+- `KmsGrantSigner.check` returns None when a signature could not be checked (KMS refused, throttled or unreachable), so a reader without `kms:Verify` sees "could not be checked", not "invalid". `verify` still fails closed.
+- Signatures are verified locally with the key's public key (`kms:GetPublicKey`, granted to the authority function) when `cryptography` is available, and every checked signature is remembered in a bounded cache, so re-reading records does not call KMS again.
+
+### Tool authorization
+- The effective rule for an agent is the `*` and `CONFIG` rows plus that agent's own row; another agent's row never changes it, and a `*` row admits every agent only when no applicable row sets `allowed_agents`.
+- Rates are enforced in both documented forms (`rate_limit_per_minute`, or `rate_limit` with `rate_window_seconds` up to 3600), and any rate that cannot be enforced, or a rate count that cannot be read, denies. RATE records are kept for 3600 seconds; the chain and data-flow checks still read 5 minutes of history.
+- Rule rows are validated before evaluation: unknown fields, a String allowlist, non-boolean flags, a status other than `active`, and a chain sequence that is not an ordered list deny instead of failing open. A String Set allowlist is read as a list.
+- `OperationRegistry.tool_auth_rules` gives every generated rule a per-agent `rate_limit_per_minute` (an operation's own value, else a default by risk category), so the rate check is never skipped.
+
+### Other
+- `GovernanceAdapter` writes guardian recommendations and alerts to a durable oversight table (conditional put) and announces them before the guardian is answered; a failed write is a failed execution, and a deployed function refuses to run memory-only. The stack adds `GovernanceRecommendationTable` (27 tables now) and grants the authority function `PutItem` on it.
+- `InputSanitizer` blocks input longer than 20000 characters without scanning it, and its override-pattern pass deduplicates with a set instead of a list.
+- `scripts/inventory_in_memory_state.py` scans subpackages (`credential_broker/` was skipped).
+- The implementation guide's tool rule example uses the validated format; the blocked seed rule no longer carries a zero rate.
+
 ## Unreleased: infrastructure findings from the ASH container scan (2026-10-22)
 
 ASH 3.7.1 ran in its container with every scanner, offline. cdk-nag, cfn-nag and checkov evaluated the synthesized stack for the first time (on Windows cdk-nag and cfn-nag had not run). Every fix is asserted on the synthesized template in `tests/test_scanner_exceptions.py`; each of those tests fails on the code before this change. Nothing was deployed.

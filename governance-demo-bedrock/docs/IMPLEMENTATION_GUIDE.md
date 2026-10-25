@@ -455,17 +455,32 @@ aws dynamodb put-item \
   --item '{
     "pk": {"S": "RULE#deployToProduction"},
     "sk": {"S": "*"},
+    "tool_name": {"S": "deployToProduction"},
+    "allowed_agents": {"L": [{"S": "release-agent"}]},
     "min_scope": {"N": "4"},
-    "required_params": {"L": [{"S": "environment"}, {"S": "build_id"}]},
-    "param_validation": {"M": {
-      "environment": {"M": {"pattern": {"S": "^(us-east-1|us-west-2|eu-west-1)$"}}},
-      "build_id": {"M": {"pattern": {"S": "^build-[0-9]+$"}}}
+    "parameter_constraints": {"M": {
+      "environment": {"M": {"required": {"BOOL": true},
+                            "pattern": {"S": "^(us-east-1|us-west-2|eu-west-1)$"}}},
+      "build_id": {"M": {"required": {"BOOL": true}, "pattern": {"S": "^build-[0-9]+$"}}}
     }},
     "rate_limit": {"N": "5"},
     "rate_window_seconds": {"N": "3600"},
     "description": {"S": "Production deployment requires scope 4, valid region, valid build ID, max 5/hour"}
   }'
 ```
+
+Rule rows are validated before they are evaluated, and a row the evaluator cannot read denies the
+tool (it fails closed):
+
+- Sort keys: `*` and `CONFIG` rows apply to every agent; a row whose sort key is an agent id applies
+  to that agent only. A `*` row admits every agent only when no applicable row sets `allowed_agents`.
+- `allowed_agents` is a list (or string set) of agent ids; `blocked` and `revoked` are booleans;
+  `status` is `active` or absent (any other word denies); `parameter_constraints` is a map of
+  `required`, `pattern`, `allowed_values` and `max_length` per parameter.
+- Rate: `rate_limit_per_minute`, or `rate_limit` with an optional `rate_window_seconds` of at most
+  3600, each a whole number of at least 1. Fractions, zero, negatives, strings, both forms together or
+  a window without a limit deny.
+- Any other field (for example `required_params`, `param_validation`, `enabled`) denies.
 
 ---
 

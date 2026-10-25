@@ -18,7 +18,7 @@ from .base import (
 from .broker import CredentialBroker
 from .entra_adapter import EntraAdapter
 from .google_adapter import GoogleAdapter
-from .governance_adapter import GovernanceAdapter
+from .governance_adapter import GovernanceAdapter, oversight_table_definition
 from .mock_adapter import MockProvider
 from .servicenow_adapter import ServiceNowAdapter
 
@@ -26,5 +26,5 @@ __all__ = [
     "MODE_LIVE", "MODE_MOCK", "AwsStsAdapter", "BrokerRefusal", "CredentialBroker",
     "CredentialHandle", "CredentialProvider", "EntraAdapter", "ExecutionResult",
     "GoogleAdapter", "GovernanceAdapter", "MockProvider", "ProviderNotConfigured",
-    "ServiceNowAdapter", "build_session_policy", "resource_arn_for",
+    "ServiceNowAdapter", "build_session_policy", "oversight_table_definition", "resource_arn_for",
 ]

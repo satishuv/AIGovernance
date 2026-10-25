@@ -39,6 +39,8 @@ def handler():
             BillingMode="PAY_PER_REQUEST")
         roles.put_item(Item={"user_id": ADMIN, "role": "governance_admin"})
         s3.create_bucket(Bucket="wired-evidence", CreateBucketConfiguration={"LocationConstraint": REGION})
+        from credential_broker import oversight_table_definition
+        ddb.create_table(**oversight_table_definition("wired-oversight"))
         def key():
             return kms.create_key(KeyUsage="SIGN_VERIFY", KeySpec="ECC_NIST_P256")["KeyMetadata"]["KeyId"]
 
@@ -47,6 +49,7 @@ def handler():
             "PENDING_APPROVAL_TABLE_NAME": "wired-approvals", "TOOL_AUTH_TABLE_NAME": "wired-tool_auth",
             "AUTHORITY_GRANT_TABLE_NAME": "wired-grants", "SPEND_LEDGER_TABLE_NAME": "wired-ledger",
             "DECISION_TRACE_TABLE_NAME": "wired-decisions", "GOVERNANCE_ROLES_TABLE_NAME": "wired-roles",
+            "GOVERNANCE_RECOMMENDATION_TABLE_NAME": "wired-oversight",
             "EVIDENCE_BUCKET_NAME": "wired-evidence", "GRANT_SIGNING_KEY_ID": key(),
             "EVIDENCE_SIGNING_KEY_ID": key(), "PROVIDER_MODE": "mock", "AWS_PROVIDER_MODE": "mock",
         }

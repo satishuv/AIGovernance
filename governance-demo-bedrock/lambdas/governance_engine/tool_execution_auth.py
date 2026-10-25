@@ -16,6 +16,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,12 @@ logger = logging.getLogger(__name__)
 # Rate limit window in seconds
 RATE_LIMIT_WINDOW_SECONDS = 60
 
-# Rate record TTL: 5 minutes
+# Window of call history the chain and data-flow checks read: 5 minutes
 RATE_TTL_SECONDS = 5 * 60
+
+# How long RATE records are kept (their DynamoDB TTL), and so the longest rate window a rule can
+# set: the engine guide and seed data use per-hour limits (rate_window_seconds 3600).
+RATE_RECORD_RETENTION_SECONDS = 3600
 
 # One sparse global secondary index on the ToolAuthTable serves both request
 # path lookups (P0-18). CloudFormation adds at most one index per table update,
@@ -160,7 +165,7 @@ class ToolExecutionAuthManager:
 
         # Step 1: Load rule. Fail closed: an unregistered tool, or a rule that
         # cannot be loaded (table error), is never authorized.
-        rule, load_error = self._load_rule_checked(tool_name, tool_auth_table)
+        rule, load_error = self._load_rule_checked(tool_name, tool_auth_table, agent_id)
         if rule is None:
             reason_code = "rule_load_failed" if load_error else "no_rule_found"
             logger.warning(json.dumps({
@@ -259,12 +264,25 @@ class ToolExecutionAuthManager:
                 )
         checks_performed["parameter_validation"] = "pass"
 
-        # Step 4: Check rate limit
-        rate_limit = int(rule.get("rate_limit_per_minute", 0))
+        # Step 4: Check rate limit. A rate the rule sets is enforced or makes the rule deny
+        # (audit 2026-10-23, run-2: rate_limit_per_minute-only).
+        try:
+            rate_limit, rate_window = self._rate_rule(rule)
+        except ValueError as exc:
+            checks_performed["rate_limit"] = "fail"
+            return ToolAuthResult(
+                authorized=False,
+                tool_name=tool_name,
+                agent_id=agent_id,
+                denial_reason=f"Rate rule for tool {tool_name} cannot be enforced: {exc}; failing closed",
+                checks_performed=checks_performed,
+                rate_limit_remaining=-1,
+                timestamp=timestamp,
+            )
         rate_limit_remaining = -1
         if rate_limit > 0:
             within_limit, current_count = self._check_rate_limit(
-                agent_id, tool_name, tool_auth_table, rate_limit
+                agent_id, tool_name, tool_auth_table, rate_limit, rate_window
             )
             rate_limit_remaining = max(0, rate_limit - current_count)
             if not within_limit:
@@ -275,16 +293,18 @@ class ToolExecutionAuthManager:
                     "tool_name": tool_name,
                     "current_count": current_count,
                     "limit": rate_limit,
+                    "window_seconds": rate_window,
                     "timestamp": timestamp,
                 }))
                 checks_performed["rate_limit"] = "fail"
+                window = "minute" if rate_window == RATE_LIMIT_WINDOW_SECONDS else f"{rate_window} s"
                 return ToolAuthResult(
                     authorized=False,
                     tool_name=tool_name,
                     agent_id=agent_id,
                     denial_reason=(
                         f"Rate limit exceeded for tool {tool_name}: "
-                        f"{current_count}/{rate_limit} per minute"
+                        f"{current_count}/{rate_limit} per {window}"
                     ),
                     checks_performed=checks_performed,
                     rate_limit_remaining=0,
@@ -372,7 +392,7 @@ class ToolExecutionAuthManager:
     ) -> None:
         """Record a tool call for rate limiting and chain tracking.
 
-        Writes a RATE record with a 5-minute TTL.
+        Writes a RATE record kept for RATE_RECORD_RETENTION_SECONDS (its DynamoDB TTL).
 
         Args:
             agent_id: Identifier of the agent.
@@ -381,7 +401,7 @@ class ToolExecutionAuthManager:
         """
         now = datetime.now(timezone.utc)
         timestamp = now.isoformat()
-        ttl_epoch = int((now + timedelta(seconds=RATE_TTL_SECONDS)).timestamp())
+        ttl_epoch = int((now + timedelta(seconds=RATE_RECORD_RETENTION_SECONDS)).timestamp())
 
         item = {
             "pk": f"RATE#{agent_id}#{tool_name}",
@@ -476,22 +496,58 @@ class ToolExecutionAuthManager:
 
         return True, ""
 
+    @staticmethod
+    def _positive_whole(value, name):
+        # A rate field must be a DynamoDB Number holding a whole number of at least 1.
+        if (isinstance(value, bool) or not isinstance(value, (int, Decimal))
+                or value != int(value) or int(value) < 1):
+            raise ValueError(f"{name} must be a whole number of at least 1, not {value!r}")
+        return int(value)
+
+    def _rate_rule(self, rule):
+        """(limit, window_seconds), or (0, 0) when the rule sets no rate.
+
+        Accepts rate_limit_per_minute (60 s window), or rate_limit with an optional
+        rate_window_seconds (the engine guide's format). Raises ValueError for any rate it
+        cannot enforce, so authorize_tool denies.
+        """
+        if "rate_limit_per_minute" in rule:
+            if "rate_limit" in rule or "rate_window_seconds" in rule:
+                raise ValueError("set rate_limit_per_minute, or rate_limit with rate_window_seconds, not both")
+            return (self._positive_whole(rule["rate_limit_per_minute"], "rate_limit_per_minute"),
+                    RATE_LIMIT_WINDOW_SECONDS)
+        if "rate_limit" in rule:
+            limit = self._positive_whole(rule["rate_limit"], "rate_limit")
+            window = (self._positive_whole(rule["rate_window_seconds"], "rate_window_seconds")
+                      if "rate_window_seconds" in rule else RATE_LIMIT_WINDOW_SECONDS)
+            if window > RATE_RECORD_RETENTION_SECONDS:
+                raise ValueError(f"rate_window_seconds {window} is longer than the "
+                                 f"{RATE_RECORD_RETENTION_SECONDS} s the call records are kept")
+            return limit, window
+        if "rate_window_seconds" in rule:
+            raise ValueError("rate_window_seconds is set without rate_limit")
+        return 0, 0
+
     def _check_rate_limit(
         self,
         agent_id: str,
         tool_name: str,
         tool_auth_table,
         limit: int,
+        window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
     ) -> Tuple[bool, int]:
         """Check rate limit for a tool invocation.
 
-        Queries RATE records in the last 60 seconds and compares count against limit.
+        Counts RATE records in the window and compares the count against limit. A count
+        that cannot be read denies (fail closed): a rate the deployer configured is not
+        dropped because the table could not answer.
 
         Args:
             agent_id: Identifier of the agent.
             tool_name: Name of the tool.
             tool_auth_table: DynamoDB Table resource.
-            limit: Maximum allowed invocations per minute.
+            limit: Maximum allowed invocations per window.
+            window_seconds: Length of the window.
 
         Returns:
             Tuple of (within_limit, current_count).
@@ -499,17 +555,20 @@ class ToolExecutionAuthManager:
         from boto3.dynamodb.conditions import Key
 
         now = datetime.now(timezone.utc)
-        window_start = (now - timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS)).isoformat()
+        window_start = (now - timedelta(seconds=window_seconds)).isoformat()
         pk = f"RATE#{agent_id}#{tool_name}"
 
         try:
-            response = tool_auth_table.query(
-                KeyConditionExpression=(
-                    Key("pk").eq(pk) & Key("sk").gte(window_start)
-                ),
-                Select="COUNT",
-            )
-            count = response.get("Count", 0)
+            kwargs: Dict[str, Any] = {
+                "KeyConditionExpression": Key("pk").eq(pk) & Key("sk").gte(window_start),
+                "Select": "COUNT"}
+            count = 0
+            while True:
+                response = tool_auth_table.query(**kwargs)
+                count += int(response.get("Count", 0))
+                if "LastEvaluatedKey" not in response:
+                    break
+                kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         except Exception as exc:
             logger.error(json.dumps({
                 "event": "rate_limit_check_failed",
@@ -518,8 +577,7 @@ class ToolExecutionAuthManager:
                 "error": str(exc),
                 "timestamp": now.isoformat(),
             }))
-            # Fail open on query error to avoid blocking legitimate requests
-            return True, 0
+            return False, limit
 
         within_limit = count < limit
         return within_limit, count
@@ -558,9 +616,18 @@ class ToolExecutionAuthManager:
             # Seed data writes "sequence" and "chain_name"; older records use
             # "chain_sequence" and "chain_id". Reading only the older names left
             # the seeded exfiltration chain unchecked.
-            chain_sequence = list(chain.get("chain_sequence") or chain.get("sequence") or [])
+            raw_sequence = chain.get("chain_sequence") or chain.get("sequence") or []
             chain_id = chain.get("chain_id") or chain.get("chain_name") or "unknown"
             chain_desc = chain.get("description", f"Chain {chain_id}")
+            if not isinstance(raw_sequence, list) or not all(isinstance(s, str) for s in raw_sequence):
+                # A string or a set has no order to match. Fail closed for every tool it names
+                # instead of skipping the chain (audit 2026-10-23, run-2: untyped-rule-fields).
+                named = raw_sequence if isinstance(raw_sequence, (set, frozenset)) else str(raw_sequence)
+                if tool_name in named:
+                    return False, (f"tool chain {chain_id} is malformed: its sequence must be an "
+                                   "ordered list of tool names")
+                continue
+            chain_sequence = raw_sequence
 
             if not chain_sequence or tool_name not in chain_sequence:
                 continue
@@ -637,7 +704,7 @@ class ToolExecutionAuthManager:
         potential exfiltration chain that no single call would reveal.
         """
         _rd_now, wr_now = self._classify_tool(
-            tool_name, self._load_rule(tool_name, tool_auth_table))
+            tool_name, self._load_rule(tool_name, tool_auth_table, agent_id))
         if not wr_now:
             return True, ""  # current call is not an external write; nothing to gate
 
@@ -647,7 +714,7 @@ class ToolExecutionAuthManager:
             if prior == tool_name:
                 continue
             prior_rd, _prior_wr = self._classify_tool(
-                prior, self._load_rule(prior, tool_auth_table))
+                prior, self._load_rule(prior, tool_auth_table, agent_id))
             if prior_rd:
                 logger.warning(json.dumps({
                     "event": "dataflow_exfiltration_chain_detected",
@@ -662,32 +729,70 @@ class ToolExecutionAuthManager:
                     f"'{tool_name}' (potential exfiltration chain).")
         return True, ""
 
-    # Registration states that must never authorize execution.
-    _INACTIVE_STATUSES = frozenset({"revoked", "disabled", "suspended", "blocked", "retired"})
+    # Every field a RULE row may carry. A row with any other field (for example enabled, active,
+    # required_params or param_validation) is refused, so _load_rule_checked fails closed instead of
+    # evaluating the rule as if the field were absent (audit 2026-10-23, run-2: untyped-rule-fields).
+    _RULE_FIELDS = frozenset({
+        "pk", "sk", "tool_name", "allowed_agents", "status", "blocked", "block_reason",
+        "revoked", "revoke_reason", "parameter_constraints", "rate_limit_per_minute",
+        "rate_limit", "rate_window_seconds", "reads_sensitive", "writes_external",
+        "min_scope", "source", "description", "updated_at"})
+    _RULE_FLAGS = ("blocked", "revoked", "reads_sensitive", "writes_external")
+    # Sort keys of rows that apply to every agent: "*" as documented, and "CONFIG" as the operation
+    # registry and the engine seed data write. Any other sort key is an override for the one agent
+    # it names (audit 2026-10-23, run-2: merge-ignores-requesting-agent).
+    _BASE_RULE_SORT_KEYS = ("*", "CONFIG")
+
+    def _validate_rule(self, rule: Dict[str, Any]) -> Dict[str, Any]:
+        """Refuse a merged RULE whose fields the evaluator does not implement.
+
+        Raises ValueError, which _load_rule_checked turns into a fail-closed denial.
+        """
+        unknown = sorted(set(rule) - self._RULE_FIELDS)
+        if unknown:
+            raise ValueError(f"rule fields {unknown} are not evaluated by tool authorization")
+        agents = rule.get("allowed_agents", [])
+        if isinstance(agents, (set, frozenset)):
+            agents = sorted(agents)
+        if not isinstance(agents, list) or not all(isinstance(a, str) and a for a in agents):
+            raise ValueError(f"allowed_agents must be a list of agent ids, not {type(agents).__name__}")
+        rule["allowed_agents"] = agents
+        for flag in self._RULE_FLAGS:
+            if flag in rule and not isinstance(rule[flag], bool):
+                raise ValueError(f"{flag} must be a boolean, not {rule[flag]!r}")
+        if not isinstance(rule.get("status", "active"), str):
+            raise ValueError(f"status must be a string, not {rule['status']!r}")
+        if "parameter_constraints" in rule and not isinstance(rule["parameter_constraints"], dict):
+            raise ValueError("parameter_constraints must be a map")
+        return rule
 
     def _rule_inactive_reason(self, rule: Dict[str, Any]) -> str:
-        """Return a reason string if the rule's registration is not active."""
+        """Return a reason string if the rule's registration is not active.
+
+        An allow-list, as at the registry stage: only "active" (or no status) authorizes.
+        """
         if rule.get("blocked") is True:
             return rule.get("block_reason") or "tool is blocked"
         if rule.get("revoked") is True:
             return rule.get("revoke_reason") or "tool registration revoked"
-        status = str(rule.get("status", "")).strip().lower()
-        if status in self._INACTIVE_STATUSES:
-            return f"registration status is {status}"
+        status = str(rule.get("status", "active")).strip().lower()
+        if status != "active":
+            return f"registration status is {status or 'empty'}"
         return ""
 
     def _load_rule_checked(
-        self, tool_name: str, tool_auth_table
+        self, tool_name: str, tool_auth_table, agent_id: Optional[str] = None
     ) -> Tuple[Optional[Dict[str, Any]], bool]:
-        """Load a rule and report whether a load error occurred.
+        """Load the rule that applies to agent_id and report whether a load error occurred.
 
         Returns (rule_or_None, load_error). Callers treat both a missing rule and
-        a load error as a denial; the flag only changes the denial reason.
+        a load error (including a rule whose fields are not valid) as a denial; the
+        flag only changes the denial reason.
         """
         if tool_auth_table is None:
             return None, True
         try:
-            return self._load_rule_raw(tool_name, tool_auth_table), False
+            return self._load_rule_raw(tool_name, tool_auth_table, agent_id), False
         except Exception as exc:
             logger.error(json.dumps({
                 "event": "load_rule_failed",
@@ -698,51 +803,48 @@ class ToolExecutionAuthManager:
             return None, True
 
     def _load_rule(
-        self, tool_name: str, tool_auth_table
+        self, tool_name: str, tool_auth_table, agent_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """Load the authorization rule for a tool.
-
-        Attempts to load the rule with pk "RULE#<tool_name>".
-        Checks both wildcard (*) and specific agent rules.
+        """Load the authorization rule for a tool as it applies to agent_id.
 
         Returns:
             Rule dict or None if not found (or if the load failed).
         """
-        rule, _ = self._load_rule_checked(tool_name, tool_auth_table)
+        rule, _ = self._load_rule_checked(tool_name, tool_auth_table, agent_id)
         return rule
 
     def _load_rule_raw(
-        self, tool_name: str, tool_auth_table
+        self, tool_name: str, tool_auth_table, agent_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """Query and merge rule items. Raises on table errors."""
+        """Query and merge the rule rows that apply to agent_id. Raises on table errors."""
         from boto3.dynamodb.conditions import Key
 
         pk = f"RULE#{tool_name}"
-        response = tool_auth_table.query(
-            KeyConditionExpression=Key("pk").eq(pk)
-        )
-        items = response.get("Items", [])
-        if not items:
+        kwargs: Dict[str, Any] = {"KeyConditionExpression": Key("pk").eq(pk)}
+        items: List[Dict[str, Any]] = []
+        while True:
+            response = tool_auth_table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        rows = sorted((item for item in items if item.get("sk") in self._BASE_RULE_SORT_KEYS),
+                      key=lambda item: self._BASE_RULE_SORT_KEYS.index(item["sk"]))
+        if agent_id and agent_id not in self._BASE_RULE_SORT_KEYS:
+            rows += [item for item in items if item.get("sk") == agent_id]
+        if not rows:
             return None
 
-        # Merge rules: wildcard provides defaults, specific overrides
+        # Base rows first ("*", then CONFIG), then the requesting agent's own row.
         merged_rule: Dict[str, Any] = {}
-        for item in items:
-            if item.get("sk") == "*":
-                # Base rule (wildcard)
-                merged_rule = {**item, **merged_rule}
-            else:
-                # Agent-specific override
-                merged_rule.update(item)
+        for row in rows:
+            merged_rule.update(row)
 
-        # Ensure allowed_agents includes wildcard if present
-        if any(item.get("sk") == "*" for item in items):
-            allowed = merged_rule.get("allowed_agents", [])
-            if "*" not in allowed:
-                allowed.append("*")
-            merged_rule["allowed_agents"] = allowed
-
-        return merged_rule if merged_rule else None
+        # A "*" row admits every agent only when no applicable row lists the agents.
+        if (any(row.get("sk") == "*" for row in rows)
+                and not any("allowed_agents" in row for row in rows)):
+            merged_rule["allowed_agents"] = ["*"]
+        return self._validate_rule(merged_rule)
 
     def _load_chains(self, tool_auth_table) -> List[Dict[str, Any]]:
         """Load all tool chain definitions from the table.

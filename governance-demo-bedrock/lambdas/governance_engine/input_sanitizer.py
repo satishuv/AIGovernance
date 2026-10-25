@@ -371,6 +371,9 @@ class InputSanitizer:
     threat patterns cannot detect.
     """
 
+    # Four times the context-stuffing threshold (5000): longer input is blocked unscanned.
+    HARD_LENGTH_LIMIT = 20_000
+
     def sanitize(self, input_text: str) -> SanitizationResult:
         """Main entry point. Run all sanitization checks and return results.
 
@@ -390,6 +393,21 @@ class InputSanitizer:
         """
         timestamp = datetime.now(timezone.utc).isoformat()
         threats_detected: List[str] = []
+
+        # An input far past the context-stuffing threshold is blocked without running the
+        # pattern passes: their cost grows faster than the input, and the outcome (blocked) is
+        # already decided (audit 2026-10-23, run-2: input-sanitizer.sanitize.superlinear-cost).
+        if len(input_text) > self.HARD_LENGTH_LIMIT:
+            reason = (f"Input length ({len(input_text)} chars) exceeds the hard limit of "
+                      f"{self.HARD_LENGTH_LIMIT}; not scanned")
+            logger.warning(json.dumps({"audit_event": "input_sanitization", "blocked": True,
+                                       "context_stuffing": True, "input_length": len(input_text),
+                                       "block_reason": reason, "timestamp": timestamp}))
+            return SanitizationResult(
+                original_text=input_text, sanitized_text=input_text, decoded_payloads=[],
+                threats_detected=[f"Context stuffing: input length {len(input_text)} exceeds maximum"],
+                delimiter_injections=[], context_stuffing=True, instruction_patterns=[], blocked=True,
+                block_reason=reason, timestamp=timestamp, secrets_detected=[])
 
         # Step 1: Normalize unicode
         sanitized_text = self._normalize_unicode(input_text)
@@ -701,6 +719,9 @@ class InputSanitizer:
         # (previous/your/all/...) strengthens the match but is not required when
         # the object itself is instruction-like, since "delete your instructions"
         # and "ignore your techniques" are overrides regardless of target token.
+        # Deduplicated with a set: a membership test on the growing list made this
+        # pass quadratic in the number of windows (audit 2026-10-23, run-2).
+        seen_patterns = set(detected)
         for i, word in enumerate(words):
             if word in _OVERRIDE_VERBS:
                 window = words[i:i + 6]
@@ -708,7 +729,8 @@ class InputSanitizer:
                 if found_object:
                     context = " ".join(words[max(0, i - 1):i + 6])
                     pattern_desc = f"override pattern: '{context[:80]}'"
-                    if pattern_desc not in detected:
+                    if pattern_desc not in seen_patterns:
+                        seen_patterns.add(pattern_desc)
                         detected.append(pattern_desc)
 
         # Pattern 2: Roleplay prefixes

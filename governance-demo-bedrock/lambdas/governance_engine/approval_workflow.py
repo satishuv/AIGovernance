@@ -386,26 +386,36 @@ class ApprovalWorkflow:
         approver_id: str,
         agent_owner_id: str,
         conditions: str = "",
+        reviewed_digest: Optional[str] = None,
     ) -> PendingApproval:
         """Approve a pending approval with separation of duties enforcement.
 
-        The approver must not be the agent owner (separation of duties).
+        The approver must not be the agent owner (separation of duties). An approval authorizes the
+        exact request bound by request_digest and nothing narrower: grants are built from that
+        request, so a condition could never be enforced, and a non-empty condition is refused
+        instead of being stored beside an unconditional approval. When reviewed_digest is given,
+        only the record whose request_digest equals it is approved, so a different pending request
+        cannot be approved under that review.
 
         Args:
             approval_id: The approval to resolve.
             approver_id: Identity of the person approving.
             agent_owner_id: Identity of the agent's owner.
-            conditions: Optional conditions attached to the approval.
+            conditions: Must be empty; kept for API compatibility.
+            reviewed_digest: The request_digest the approver reviewed (optional).
 
         Returns:
             The updated PendingApproval record.
 
         Raises:
-            ValueError: If approver_id equals agent_owner_id.
-            KeyError: If approval_id is not found.
+            ValueError: If approver_id equals agent_owner_id, a condition is given, or the record
+                is not pending (or does not match reviewed_digest).
         """
         if not approver_id or not str(approver_id).strip():
             raise ValueError("Approver identity is required to approve a request.")
+        if str(conditions or "").strip():
+            raise ValueError("Conditional approval is not supported: an approval authorizes the exact "
+                             "pending request; let it expire and have the agent submit the narrower request.")
 
         if approver_id == agent_owner_id:
             logger.warning(
@@ -428,6 +438,17 @@ class ApprovalWorkflow:
         # Only an existing, still-pending approval can be approved. Without the
         # condition, update_item would create a brand-new "approved" record for
         # an unknown id, or re-approve a denied or timed-out one.
+        condition = "attribute_exists(approval_id) AND #s = :pending"
+        values = {
+            ":status": "approved",
+            ":approver": approver_id,
+            ":conditions": "",
+            ":resolved": now,
+            ":pending": "pending",
+        }
+        if reviewed_digest is not None:
+            condition += " AND request_digest = :reviewed"
+            values[":reviewed"] = str(reviewed_digest)
         try:
             self._table.update_item(
                 Key={"approval_id": approval_id},
@@ -435,20 +456,15 @@ class ApprovalWorkflow:
                     "SET #s = :status, approver_id = :approver, "
                     "approval_conditions = :conditions, resolved_at = :resolved"
                 ),
-                ConditionExpression="attribute_exists(approval_id) AND #s = :pending",
+                ConditionExpression=condition,
                 ExpressionAttributeNames={"#s": "status"},
-                ExpressionAttributeValues={
-                    ":status": "approved",
-                    ":approver": approver_id,
-                    ":conditions": conditions,
-                    ":resolved": now,
-                    ":pending": "pending",
-                },
+                ExpressionAttributeValues=values,
             )
         except Exception as exc:
             if "ConditionalCheckFailed" in type(exc).__name__ or "ConditionalCheckFailed" in str(exc):
                 raise ValueError(
-                    f"Approval {approval_id} does not exist or is no longer pending."
+                    f"Approval {approval_id} does not exist, is no longer pending, or is not the "
+                    "request that was reviewed."
                 ) from exc
             raise
 
@@ -458,7 +474,6 @@ class ApprovalWorkflow:
                     "audit_event": "approval_approved",
                     "approval_id": approval_id,
                     "approver_id": approver_id,
-                    "conditions": conditions,
                     "timestamp": now,
                 }
             )

@@ -131,7 +131,9 @@ def test_no_function_can_delete_or_hide_evidence(resources):
 # ----------------------------------------------------------------------------------- data
 def test_every_table_is_on_demand_with_point_in_time_recovery(resources):
     tables = _of_type(resources, "AWS::DynamoDB::Table")
-    assert len(tables) == 26
+    # 27 since the 2026-10-23 audit (run-2): GovernanceRecommendationTable holds guardian
+    # recommendations and alerts for human review.
+    assert len(tables) == 27
     for lid, table in tables.items():
         props = table["Properties"]
         assert props.get("BillingMode") == "PAY_PER_REQUEST", lid
