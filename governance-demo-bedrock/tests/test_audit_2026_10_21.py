@@ -31,7 +31,10 @@ def _approver(principal: str) -> AuthenticatedCaller:
                                roles={"policy_approver"}, source="iam")
 
 
-def _agent(owner: str = OWNER, business_owner: str = "", technical_owner: str = "platform-team"):
+def _agent(owner: str = OWNER, business_owner: str = "",
+           technical_owner: str = f"arn:aws:iam::{ACCOUNT}:role/platform-team"):
+    # Owners are principals: since the 2026-10-23 audit (run-2) a team name, which names no
+    # principal, makes separation of duties fail closed (test_run2_engine_fixes covers that).
     return types.SimpleNamespace(owner=owner, business_owner=business_owner or owner,
                                  technical_owner=technical_owner)
 

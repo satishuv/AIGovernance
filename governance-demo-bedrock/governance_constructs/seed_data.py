@@ -454,8 +454,6 @@ class SeedDataConstruct(Construct):
                             "pk": "RULE#SensitiveDataExport",
                             "sk": "CONFIG",
                             "tool_name": "SensitiveDataExport",
-                            "rate_limit": 0,
-                            "rate_window_seconds": 60,
                             "allowed_agents": [],
                             "min_scope": 99,
                             "blocked": True,

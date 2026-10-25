@@ -63,6 +63,9 @@ def evaluate_role_boundary(agent: Any, spec: Any, target_resource: str,
             observed = lookup_agent(subject) if subject else None
             if observed is None:
                 return DENY, f"observed agent '{subject}' is not registered"
-            if agent_type == "guardian" and agent.agent_id not in (observed.guardian_agent_ids or []):
+            # The observed agent's entry is not validated on this path: membership is tested only on a
+            # list, never as a substring of a stored String.
+            assigned = observed.guardian_agent_ids if isinstance(observed.guardian_agent_ids, list) else []
+            if agent_type == "guardian" and agent.agent_id not in assigned:
                 return DENY, (f"guardian '{agent.agent_id}' is not assigned to observe '{subject}'")
     return PASS, f"{agent_type} agent may request {spec.operation_id} on {target_resource}"

@@ -283,6 +283,21 @@ def _decimalize(obj: Any) -> Any:
     return obj
 
 
+def _as_list(value: Any) -> Any:
+    """A List or string set as a list; any other value unchanged so validation rejects it.
+
+    A str is never iterated into characters (audit 2026-10-23, run-2:
+    scalar-list-field-coerced-to-characters). A missing value is an empty list.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (set, frozenset)):
+        return sorted(value, key=str)
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return value
+
+
 @dataclass
 class LatencyMetric:
     """Latency tracking for a governance decision pipeline execution.
@@ -429,14 +444,22 @@ class AgentRegistryEntry:
     VALID_AGENT_TYPES = ("worker", "guardian", "governance")
     VALID_RISK_TIERS = ("low", "medium", "high", "critical")
     VALID_STATUSES = ("active", "suspended", "retired")
+    # Authority boundaries stored as lists. A DynamoDB String in one of them must be rejected, never
+    # iterated into characters ('agent/*' would become ['a', 'g', ..., '*']) (audit 2026-10-23, run-2).
+    LIST_FIELDS = ("data_classes", "tools", "allowed_providers", "allowed_operations",
+                   "allowed_resource_patterns", "guardian_agent_ids", "requires_human_for")
 
     @property
     def approved_data_classes(self) -> List[str]:
-        return list(self.data_classes)
+        return list(self.data_classes) if isinstance(self.data_classes, list) else []
 
     def validate_governance_fields(self) -> List[str]:
         """Return a list of validation errors for the delegated-authority fields."""
-        errors: List[str] = []
+        errors: List[str] = [f"{name} must be a list of non-empty strings" for name in self.LIST_FIELDS
+                             if not isinstance(getattr(self, name), list)
+                             or not all(isinstance(v, str) and v for v in getattr(self, name))]
+        if errors:
+            return errors
         if self.agent_type not in self.VALID_AGENT_TYPES:
             errors.append(f"agent_type must be one of {list(self.VALID_AGENT_TYPES)}")
         if self.risk_tier not in self.VALID_RISK_TIERS:
@@ -477,8 +500,8 @@ class AgentRegistryEntry:
             "agent_id": self.agent_id,
             "purpose": self.purpose,
             "owner": self.owner,
-            "data_classes": list(self.data_classes),
-            "tools": list(self.tools),
+            "data_classes": _as_list(self.data_classes),
+            "tools": _as_list(self.tools),
             "approved_scope": self.approved_scope,
             "environment": self.environment,
             "agent_type": self.agent_type,
@@ -487,14 +510,14 @@ class AgentRegistryEntry:
             "runtime_provider": self.runtime_provider,
             "model_provider": self.model_provider,
             "runtime_principal": self.runtime_principal,
-            "allowed_providers": list(self.allowed_providers),
-            "allowed_operations": list(self.allowed_operations),
-            "allowed_resource_patterns": list(self.allowed_resource_patterns),
+            "allowed_providers": _as_list(self.allowed_providers),
+            "allowed_operations": _as_list(self.allowed_operations),
+            "allowed_resource_patterns": _as_list(self.allowed_resource_patterns),
             "spend_policy": _decimalize(dict(self.spend_policy or {})),
             "credential_ttl_seconds": self.credential_ttl_seconds,
-            "guardian_agent_ids": list(self.guardian_agent_ids),
+            "guardian_agent_ids": _as_list(self.guardian_agent_ids),
             "requires_guardian": self.requires_guardian,
-            "requires_human_for": list(self.requires_human_for),
+            "requires_human_for": _as_list(self.requires_human_for),
             "risk_tier": self.risk_tier,
             "policy_bundle": self.policy_bundle,
             "status": self.status,
@@ -514,8 +537,8 @@ class AgentRegistryEntry:
             agent_id=data["agent_id"],
             purpose=data["purpose"],
             owner=data["owner"],
-            data_classes=data.get("data_classes", []),
-            tools=data.get("tools", []),
+            data_classes=_as_list(data.get("data_classes")),
+            tools=_as_list(data.get("tools")),
             approved_scope=data.get("approved_scope", 1),
             environment=data["environment"],
             agent_type=data.get("agent_type", "worker") or "worker",
@@ -524,14 +547,14 @@ class AgentRegistryEntry:
             runtime_provider=data.get("runtime_provider", "") or "",
             model_provider=data.get("model_provider", "") or "",
             runtime_principal=data.get("runtime_principal", "") or "",
-            allowed_providers=list(data.get("allowed_providers", []) or []),
-            allowed_operations=list(data.get("allowed_operations", []) or []),
-            allowed_resource_patterns=list(data.get("allowed_resource_patterns", []) or []),
+            allowed_providers=_as_list(data.get("allowed_providers")),
+            allowed_operations=_as_list(data.get("allowed_operations")),
+            allowed_resource_patterns=_as_list(data.get("allowed_resource_patterns")),
             spend_policy=dict(data.get("spend_policy", {}) or {}),
             credential_ttl_seconds=int(data.get("credential_ttl_seconds", 300) or 300),
-            guardian_agent_ids=list(data.get("guardian_agent_ids", []) or []),
+            guardian_agent_ids=_as_list(data.get("guardian_agent_ids")),
             requires_guardian=bool(data.get("requires_guardian", False)),
-            requires_human_for=list(data.get("requires_human_for", []) or []),
+            requires_human_for=_as_list(data.get("requires_human_for")),
             risk_tier=data.get("risk_tier", "medium") or "medium",
             policy_bundle=data.get("policy_bundle", "default") or "default",
             status=data.get("status", "active") or "active",

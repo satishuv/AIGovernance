@@ -21,14 +21,18 @@ DynamoDB/KMS/S3/STS and offline against moto for the customer demo.
 """
 
 import fnmatch
+import hashlib
+import hmac
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent_role_boundaries import evaluate_role_boundary
+from authority_evidence import safe_key_segment
 from authority_identity import ADMIN_ROLES, REVOKER_ROLES, AuthenticatedCaller, check_admin
 from budget_governance import NOT_APPLICABLE, STEP_UP, SpendPolicy, evaluate_budget
 from budget_governance import DENY as BUDGET_DENY
@@ -137,6 +141,34 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _utc_day() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
+def approval_chain_id(approval_id: str) -> str:
+    """Evidence chain id for an approval reference.
+
+    A canonical UUID (what create_pending_approval issues) keeps the readable
+    'approval-<uuid>' chain. Any other value is hashed, so a caller-supplied
+    string never adds '/' or other structure to an S3 key or listing prefix
+    (audit 2026-10-23, run-2: approval-id-unsanitized-evidence-chain-key).
+    """
+    try:
+        if isinstance(approval_id, str) and str(uuid.UUID(approval_id)) == approval_id:
+            return f"approval-{approval_id}"
+    except (AttributeError, TypeError, ValueError):
+        pass
+    digest = hashlib.sha256(str(approval_id).encode("utf-8", "surrogatepass")).hexdigest()
+    return f"approval-unrecognized-{digest}"
+
+
+def unresolved_approval_chain_id() -> str:
+    """One chain per agent and UTC day for presentations of approvals that do not exist (or are not
+    the presenting agent's). The approval id a caller presents never names a chain, so a caller
+    cannot create chains at will."""
+    return f"approval-unresolved-{_utc_day()}"
+
+
 def _data_class_rank(label: str) -> int:
     return DATA_CLASS_ORDER.index(label) if label in DATA_CLASS_ORDER else len(DATA_CLASS_ORDER)
 
@@ -166,21 +198,33 @@ class DelegatedAuthorityControlPlane:
         item = self.scope_table.get_item(Key={"agent_id": agent_id}, ConsistentRead=True).get("Item") or {}
         return int(item.get("scope_level", 0) or 0)
 
+    # Registry fields that decide separation of duties for an approval. They are part of the policy
+    # version hash, so a registry change around a request (rewrite-then-restore) invalidates the
+    # approval instead of passing a stale separation-of-duties operand (audit 2026-10-23, run-2).
+    SOD_FIELDS = ("owner", "business_owner", "technical_owner")
+
     def policy_version_hash(self, agent) -> str:
         """Every input that can change an outcome for this agent."""
         relevant = {k: getattr(agent, k) for k in (
             "approved_scope", "environment", "data_classes", "agent_type", "allowed_providers",
             "allowed_operations", "allowed_resource_patterns", "spend_policy", "requires_human_for",
-            "risk_tier", "policy_bundle", "credential_ttl_seconds")} if agent else {}
+            "risk_tier", "policy_bundle", "credential_ttl_seconds") + self.SOD_FIELDS} if agent else {}
         return compute_policy_version_hash([
             self.operations.fingerprint(), self.opa.policy_fingerprint(),
             to_json_safe(relevant), self.catalog.to_policy_input(),
             {"escalation_threshold": self.config.escalation_threshold},
         ])
 
+    @staticmethod
+    def _evidence_keys(agent_id: str, chain_id: str) -> Tuple[str, str]:
+        """Fixed-shape key segments: a value that is not a valid segment is hashed, so evidence is
+        always written (never refused for its key) and no value adds structure to an S3 key."""
+        return (safe_key_segment(agent_id or "unknown", "agent-h-"),
+                safe_key_segment(chain_id or "unknown", "chain-h-"))
+
     def _record(self, agent_id: str, chain_id: str, event_type: str, **fields) -> Dict[str, Any]:
-        rec = self.evidence.record(agent_id=agent_id or "unknown", chain_id=chain_id,
-                                   event_type=event_type, **fields)
+        agent_key, chain_key = self._evidence_keys(agent_id, chain_id)
+        rec = self.evidence.record(agent_id=agent_key, chain_id=chain_key, event_type=event_type, **fields)
         if self._on_event:
             self._on_event(event_type, rec)
         return rec
@@ -243,11 +287,20 @@ class DelegatedAuthorityControlPlane:
         rows = []
         for item in items[:limit]:
             body = json.loads(item["canonical_body"])
+            # The signature covers the body. A trace item copied under another decision id or agent
+            # still carries its own body, so the row is verified only when the body names the key it
+            # was read from and the agent that was asked for (audit 2026-10-23, run-2).
+            bound = (body.get("decision_id") == item.get("decision_id")
+                     and body.get("agent_id") == agent_id == item.get(DECISION_TRACE_AGENT_KEY))
+            intact = sha256_hex(item["canonical_body"]) == item["trace_hash"]
+            check = getattr(self.evidence.signer, "check", None)
+            signature = (check(item["trace_hash"], item["signature"]) if check is not None
+                         else self.evidence.signer.verify(item["trace_hash"], item["signature"]))
             rows.append({"decision_id": body["decision_id"], "operation_id": body["operation_id"],
                          "verdict": body["verdict"], "risk_score": body["risk_score"],
                          "decisive_stage": body["decisive_stage"], "timestamp": body["timestamp"],
-                         "signature_verified": self.evidence.signer.verify(item["trace_hash"], item["signature"])
-                         and sha256_hex(item["canonical_body"]) == item["trace_hash"]})
+                         "signature_verified": bool(signature is True and intact and bound),
+                         "signature_checked": signature is not None})
         return sorted(rows, key=lambda r: r["timestamp"], reverse=True)
 
     # ============================================================= evaluation
@@ -475,6 +528,9 @@ class DelegatedAuthorityControlPlane:
             policy_version_hash=ev.policy_version_hash,
             policy_bundle_id=self._policy_bundle_id(ev.agent),
             policy_version=self.opa.bundle_version())
+        # The shared DecisionEngine reads Bedrock action groups; a control-plane request names its
+        # operation, so the approval record shows what is being approved (not "unknown").
+        decision.action_requested = ev.canonical.get("operation_id") or decision.action_requested
         if ev.hard_failures:
             decision.verdict = "deny"
             decision.explanation = "; ".join(f"{s.name}: {s.detail}" for s in ev.hard_failures)
@@ -549,25 +605,41 @@ class DelegatedAuthorityControlPlane:
             response["grant"] = self._grant_payload(grant)
         return to_json_safe(response)
 
+    def _approval_chain(self, approval_id: str, agent_id: str) -> str:
+        """The chain a presentation of approval_id is recorded on.
+
+        Only an existing approval of this agent names its own chain; any other id (unknown, not a
+        platform UUID, or another agent's) goes to the agent's bounded per-day unresolved chain.
+        """
+        try:
+            item = self.approvals.get_record(approval_id) if approval_id else {}
+        except Exception:
+            item = {}
+        if item and str(item.get("agent_id", "")) == agent_id:
+            return approval_chain_id(approval_id)
+        return unresolved_approval_chain_id()
+
     def mint_after_approval(self, approval_id: str, request: Dict[str, Any],
                             caller: Optional[AuthenticatedCaller]) -> Dict[str, Any]:
         """Exchange a human-approved request for a grant (exact request only)."""
         ev = self.evaluate(request, caller)
         agent_id = ev.canonical.get("agent_id", "")
-        chain = f"approval-{approval_id}"
+        chain = self._approval_chain(approval_id, agent_id)
+        # A presented id is a caller value: it is recorded capped, never used as a key.
+        presented = str(approval_id)[:128]
         if ev.agent is None or ev.spec is None:
             reason = "; ".join(f"{s.name}: {s.detail}" for s in ev.hard_failures)
-            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
+            self._record(agent_id, chain, "mint_denied", approval_id=presented, reason=reason)
             return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason,
                     "stages": [s.to_dict() for s in ev.stages]}
         ok, reason, item = self.approvals.check_binding(approval_id, ev.canonical, ev.policy_version_hash)
         if not ok:
-            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
+            self._record(agent_id, chain, "mint_denied", approval_id=presented, reason=reason)
             return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason, "approval_id": approval_id}
         if ev.hard_failures:
             reason = "approval cannot override a failed gate: " + "; ".join(
                 f"{s.name}: {s.detail}" for s in ev.hard_failures)
-            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
+            self._record(agent_id, chain, "mint_denied", approval_id=presented, reason=reason)
             return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason,
                     "stages": [s.to_dict() for s in ev.stages]}
         # `item` is the approval record check_binding returned above.
@@ -584,7 +656,7 @@ class DelegatedAuthorityControlPlane:
         except Exception as exc:
             reason = ("approval consumed concurrently (replay attempt)" if _transaction_cancelled(exc)
                       else f"approval could not be consumed: {type(exc).__name__}")
-            self._record(agent_id, chain, "mint_denied", approval_id=approval_id, reason=reason)
+            self._record(agent_id, chain, "mint_denied", approval_id=presented, reason=reason)
             return {"verdict": "deny", "aarm_decision": "DENY", "reason": reason, "approval_id": approval_id}
         self._record(agent_id, decision_id, "approval_consumed", approval_id=approval_id,
                      decision_id=decision_id, approver_id=approver)
@@ -662,7 +734,9 @@ class DelegatedAuthorityControlPlane:
                              credential_expires_at=handle.expires_at, execution_status=result.status,
                              execution_result_hash=result.result_hash,
                              grant_status_after=after.status if after else "MISSING")
-        chain_ok, chain_detail = self.evidence.verify_chain(self.evidence.chain(agent_id, chain))
+        agent_key, chain_key = self._evidence_keys(agent_id, chain)
+        chain_ok, chain_detail = self.evidence.verify_chain(self.evidence.chain(agent_key, chain_key),
+                                                            agent_id=agent_key, chain_id=chain_key)
         return to_json_safe({
             "status": "executed" if result.status == "success" else "failed",
             "grant_id": grant_id, "decision_id": grant.decision_id,
@@ -672,9 +746,13 @@ class DelegatedAuthorityControlPlane:
             "evidence_chain_verified": chain_ok, "evidence_chain_detail": chain_detail})
 
     # ========================================================= approval plane
-    def approve_request(self, approval_id: str, caller: AuthenticatedCaller,
-                        conditions: str = "") -> Dict[str, Any]:
-        """Human approval with the same separation-of-duties rules as the API."""
+    def describe_approval(self, approval_id: str, caller: AuthenticatedCaller) -> Dict[str, Any]:
+        """The exact request an approval is bound to, for an eligible approver to review.
+
+        The approver reviews this view and approves by naming its request_digest, so the approval
+        authorizes exactly what was reviewed (audit 2026-10-23, run-2:
+        approve-route-binds-opaque-id-without-request-view).
+        """
         from authority_identity import check_approver_eligibility
         item = self.approvals.get_record(approval_id)
         if not item:
@@ -682,12 +760,59 @@ class DelegatedAuthorityControlPlane:
         agent = self.registry.get_agent(item.get("agent_id", ""))
         ok, why = check_approver_eligibility(caller, item, agent)
         if not ok:
-            self._record(item.get("agent_id", ""), item.get("decision_id", ""), "approval_rejected",
-                         approval_id=approval_id, principal=caller.principal_id if caller else "", reason=why)
             return {"status": "denied", "reason": why}
+        return to_json_safe({
+            "status": item.get("status"), "approval_id": approval_id, "agent_id": item.get("agent_id"),
+            "decision_id": item.get("decision_id"), "operation_id": item.get("action_requested"),
+            "request": item.get("action_request") or {}, "risk_score": item.get("risk_score"),
+            "escalation_reason": item.get("escalation_reason", ""), "created_at": item.get("created_at"),
+            "expires_at": item.get("expires_at"), "consumed": bool(item.get("consumed")),
+            "request_digest": item.get("request_digest", "")})
+
+    def _approval_refusal(self, item: Dict[str, Any], approval_id: str, caller, reason: str) -> Dict[str, Any]:
+        # Refusals are recorded on the approval's own chain, never on the decision chain that the
+        # grant and execute() later read and verify, so an ineligible caller cannot grow it
+        # (audit 2026-10-23, run-2: whole-chain-reread on post-commit consumers).
+        self._record(item.get("agent_id", ""), approval_chain_id(approval_id), "approval_rejected",
+                     approval_id=approval_id, principal=caller.principal_id if caller else "", reason=reason)
+        return {"status": "denied", "reason": reason}
+
+    def approve_request(self, approval_id: str, caller: AuthenticatedCaller, conditions: str = "",
+                        reviewed_digest: Optional[str] = None) -> Dict[str, Any]:
+        """Human approval of the exact request the approver reviewed.
+
+        reviewed_digest is the request_digest from describe_approval. The platform API always
+        requires it; an in-process caller that passes None approves the record as stored (the
+        engine demo and its tests).
+
+        Conditions are refused: an approval authorizes exactly the pending request, and nothing on
+        the authority path could enforce a narrowing condition (audit 2026-10-23, run-2:
+        approve-route-conditions-not-bound-to-grant).
+        """
+        from authority_identity import check_approver_eligibility
+        if str(conditions or "").strip():
+            return {"status": "denied", "reason": (
+                "conditional approval is not supported: an approval authorizes the exact pending request; "
+                "let it expire or deny it, and have the agent submit the narrower request")}
+        item = self.approvals.get_record(approval_id)
+        if not item:
+            return {"status": "denied", "reason": f"approval {approval_id} not found"}
+        agent = self.registry.get_agent(item.get("agent_id", ""))
+        ok, why = check_approver_eligibility(caller, item, agent)
+        if not ok:
+            return self._approval_refusal(item, approval_id, caller, why)
+        if reviewed_digest is not None and not hmac.compare_digest(
+                str(reviewed_digest), str(item.get("request_digest", ""))):
+            return self._approval_refusal(item, approval_id, caller,
+                                          "the reviewed request does not match this approval; review it again")
+        if agent is None or self.policy_version_hash(agent) != item.get("policy_version_hash", ""):
+            # The registry entry (including the owner fields separation of duties compares) or the
+            # policy changed after the request: approving now would pass a stale binding.
+            return self._approval_refusal(item, approval_id, caller, (
+                "the agent's registry entry or policy changed after this request; the agent must request again"))
         try:
-            result = self.approvals.approve(approval_id, caller.principal_id, agent.owner if agent else "",
-                                            conditions)
+            result = self.approvals.approve(approval_id, caller.principal_id, agent.owner,
+                                            reviewed_digest=reviewed_digest)
         except ValueError as exc:
             return {"status": "denied", "reason": str(exc)}
         self._record(item.get("agent_id", ""), item.get("decision_id", ""), "approval_granted",
@@ -695,6 +820,35 @@ class DelegatedAuthorityControlPlane:
                      request_digest=item.get("request_digest", ""))
         return {"status": "approved", "approval_id": approval_id, "approver_id": caller.principal_id,
                 "decision_id": result.decision_id if result else item.get("decision_id", "")}
+
+    def deny_request(self, approval_id: str, caller: AuthenticatedCaller, reason: str) -> Dict[str, Any]:
+        """Deny a pending approval, or withdraw an approved one that no grant has consumed.
+
+        Any eligible approver may refuse (refusing only narrows authority). The refusal is final for
+        this approval id and is recorded in signed evidence on the decision chain. A consumed approval
+        has executed and cannot be denied; a withdrawal racing the agent's mint is decided by the mint
+        transaction's status = approved condition (audit 2026-10-23, run-2: ApprovalWorkflow.deny unwired).
+        """
+        from authority_identity import check_approver_eligibility
+        if not str(reason or "").strip():
+            return {"status": "denied", "reason": "a reason is required to deny or withdraw an approval"}
+        item = self.approvals.get_record(approval_id)
+        if not item:
+            return {"status": "denied", "reason": f"approval {approval_id} not found"}
+        ok, why = check_approver_eligibility(caller, item, None)
+        if not ok:
+            return self._approval_refusal(item, approval_id, caller, why)
+        try:
+            self.approvals.deny(approval_id, caller.principal_id, str(reason)[:500])
+        except ValueError as exc:
+            return {"status": "denied", "reason": str(exc)}
+        previous = item.get("status", "")
+        self._record(item.get("agent_id", ""), item.get("decision_id", "") or approval_chain_id(approval_id),
+                     "approval_denied" if previous == "pending" else "approval_withdrawn",
+                     approval_id=approval_id, denied_by=caller.principal_id, previous_status=previous,
+                     reason=str(reason)[:500])
+        return {"status": "approval_denied" if previous == "pending" else "approval_withdrawn",
+                "approval_id": approval_id, "denied_by": caller.principal_id}
 
     # ============================================================ admin plane
     def revoke_grant(self, grant_id: str, caller: AuthenticatedCaller, reason: str) -> Dict[str, Any]:
@@ -745,6 +899,42 @@ class DelegatedAuthorityControlPlane:
         self._record(agent_id, chain, "scope_changed", previous_scope=previous, new_scope=new_scope,
                      changed_by=caller.principal_id, human_authorized=True, reason=reason)
         return {"status": "updated", "agent_id": agent_id, "previous_scope": previous, "scope_level": new_scope}
+
+    # Registry fields that decide who may approve an agent's requests and whether a principal is an
+    # agent at all. They change only through admin_update_registry: a governance administrator, a
+    # reason and a signed evidence record. The stack denies RegistryCuratorRole any write to them
+    # (audit 2026-10-23, run-2, the high: curator-writable owner and runtime_principal).
+    REGISTRY_AUTHORITY_FIELDS = ("owner", "business_owner", "technical_owner", "runtime_principal")
+
+    def admin_update_registry(self, agent_id: str, updates: Dict[str, Any], caller: AuthenticatedCaller,
+                              reason: str) -> Dict[str, Any]:
+        from authority_identity import owner_is_resolvable
+        ok, why = check_admin(caller, ADMIN_ROLES)
+        if not ok:
+            return {"status": "denied", "reason": why}
+        if not str(reason or "").strip():
+            return {"status": "denied", "reason": "a reason is required for a registry authority change"}
+        if not isinstance(updates, dict) or not updates:
+            return {"status": "denied", "reason": f"name at least one of {list(self.REGISTRY_AUTHORITY_FIELDS)}"}
+        unknown = sorted(set(updates) - set(self.REGISTRY_AUTHORITY_FIELDS))
+        if unknown:
+            return {"status": "denied", "reason": (f"{unknown} are not registry authority fields; the registry "
+                                                   "curator maintains the other fields")}
+        for name, value in updates.items():
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                return {"status": "denied", "reason": f"{name} must be a non-empty string without surrounding space"}
+            if name != "runtime_principal" and not owner_is_resolvable(value):
+                return {"status": "denied", "reason": (f"{name} must be an IAM user, role or session ARN or a "
+                                                       "gateway principal, so separation of duties can compare it")}
+        agent = self.registry.get_agent(agent_id)
+        if agent is None:
+            return {"status": "denied", "reason": f"agent '{agent_id}' is not registered"}
+        previous = {name: getattr(agent, name, "") for name in updates}
+        # Evidence first: if it cannot be written, nothing changes.
+        self._record(agent_id, f"registry-{agent_id}", "registry_authority_changed", changed_by=caller.principal_id,
+                     previous=previous, updates=dict(updates), reason=str(reason)[:500], human_authorized=True)
+        self.registry.update_agent(agent_id, dict(updates), requester_id=caller.principal_id)
+        return {"status": "updated", "agent_id": agent_id, "fields": sorted(updates)}
 
     def describe_agent(self, agent_id: str) -> Dict[str, Any]:
         agent = self.registry.get_agent(agent_id)

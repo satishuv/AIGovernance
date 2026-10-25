@@ -178,6 +178,7 @@ class GovernanceEngineConstruct(Construct):
                 "EVIDENCE_BUCKET_NAME": storage.evidence_bucket.bucket_name,
                 "EVIDENCE_SIGNING_KEY_ID": storage.evidence_signing_key.key_id,
                 "GRANT_SIGNING_KEY_ID": storage.grant_signing_key.key_id,
+                "GOVERNANCE_RECOMMENDATION_TABLE_NAME": storage.governance_recommendation_table.table_name,
                 "AWS_ACCOUNT_ID": stack.account,
                 "PROVIDER_MODE": "mock",
                 "AWS_PROVIDER_MODE": "live",
@@ -192,8 +193,9 @@ class GovernanceEngineConstruct(Construct):
         storage.spend_ledger_table.grant_read_write_data(self.authority_lambda)
         storage.decision_trace_table.grant_read_write_data(self.authority_lambda)
         storage.governance_roles_table.grant_read_data(self.authority_lambda)
+        storage.governance_recommendation_table.grant(self.authority_lambda, "dynamodb:PutItem")
         storage.grant_objects(self.authority_lambda, storage.evidence_bucket, write=True)
-        storage.evidence_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify")
+        storage.evidence_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify", "kms:GetPublicKey")
         storage.grant_signing_key.grant(self.authority_lambda, "kms:Sign", "kms:Verify", "kms:GetPublicKey")
 
         # Per-grant AWS enforcement: the credential broker assumes this role

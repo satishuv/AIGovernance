@@ -147,7 +147,10 @@ class RoleDirectory:
         from boto3.dynamodb.conditions import Key
         try:
             for user in {principal_id, normalize_principal_arn(principal_id)} - {""}:
-                kwargs: Dict[str, Any] = {"KeyConditionExpression": Key("user_id").eq(user)}
+                # Strongly consistent: a removed or deactivated role assignment must stop applying at
+                # the next request, as the runbook states (audit 2026-10-23, run-2).
+                kwargs: Dict[str, Any] = {"KeyConditionExpression": Key("user_id").eq(user),
+                                          "ConsistentRead": True}
                 while True:
                     resp = table.query(**kwargs)
                     for item in resp.get("Items", []):
@@ -185,8 +188,23 @@ def _agent_id_for(principal_id: str, agent_principals: AgentPrincipals) -> str:
     return agent_principals.get(principal_id) or agent_principals.get(normalized) or ""
 
 
+def is_bound_human_principal(principal_id: str, bound_human_roles: Iterable[str]) -> bool:
+    """True for an IAM user, or a session of a role whose session name is bound to a person.
+
+    A role's session name is chosen by whoever calls AssumeRole unless the role's trust policy binds
+    it (sts:RoleSessionName = ${aws:username}, the stack's human roles, backlog HARD-09) or IAM
+    Identity Center sets it. Separation of duties compares session names, so only those sessions may
+    count as a person (audit 2026-10-23, run-2: unbound-assumed-role-session-name-as-human-identity).
+    """
+    if _IAM_USER_RE.match(principal_id or ""):
+        return True
+    role = normalize_principal_arn(principal_id)
+    return role != (principal_id or "") and role in set(bound_human_roles)
+
+
 def resolve_caller(principal_id: str, source: str, role_directory: RoleDirectory,
-                   agent_principals: AgentPrincipals) -> AuthenticatedCaller:
+                   agent_principals: AgentPrincipals,
+                   bound_human_roles: Optional[Iterable[str]] = None) -> AuthenticatedCaller:
     """Classify an authenticated principal as an agent or a human.
 
     agent_principals maps runtime principal ARNs (role ARNs) to agent ids, as
@@ -195,6 +213,11 @@ def resolve_caller(principal_id: str, source: str, role_directory: RoleDirectory
     is a registered agent runtime principal is an agent, regardless of roles
     recorded for it. A principal claimed by more than one agent is classified
     as unknown, so every plane denies it.
+
+    bound_human_roles, when given, is the set of IAM role ARNs whose sessions name a person. An IAM
+    principal that is not an agent is then a human only if it is an IAM user or a session of one of
+    those roles; any other IAM principal is unknown, so every plane denies it. None keeps the earlier
+    rule (every non-agent principal is a human) for callers that do not configure it.
     """
     if not principal_id:
         return AuthenticatedCaller(principal_id="", principal_type="unknown", source=source)
@@ -207,6 +230,10 @@ def resolve_caller(principal_id: str, source: str, role_directory: RoleDirectory
     if agent_id:
         return AuthenticatedCaller(principal_id=principal_id, principal_type="agent",
                                    agent_id=agent_id, roles=set(), source=source)
+    if (bound_human_roles is not None and source == "iam"
+            and not is_bound_human_principal(principal_id, bound_human_roles)):
+        logger.warning(json.dumps({"event": "unbound_human_principal", "principal_id": principal_id}))
+        return AuthenticatedCaller(principal_id=principal_id, principal_type="unknown", source=source)
     return AuthenticatedCaller(principal_id=principal_id, principal_type="human",
                                roles=role_directory.roles_for(principal_id), source=source)
 
@@ -231,6 +258,9 @@ def _owners(registry_entry: Any) -> Iterable[str]:
 
 
 _IAM_USER_RE = re.compile(r"^arn:aws[a-z-]*:iam::\d{12}:user/(?:.*/)?([^/]+)$")
+_IAM_ROLE_RE = re.compile(r"^arn:aws[a-z-]*:iam::\d{12}:role/(?:.*/)?[^/]+$")
+_FEDERATED_RE = re.compile(r"^arn:aws[a-z-]*:sts::\d{12}:federated-user/([^/]+)$")
+_JWT_PRINCIPAL_RE = re.compile(r"^https://[^#\s]+#\S+$")
 
 
 def human_identity(principal: str) -> str:
@@ -243,10 +273,22 @@ def human_identity(principal: str) -> str:
     user. Anything else (a role ARN, a team name) is returned as given. Compared casefolded.
     """
     value = principal or ""
-    match = _ASSUMED_ROLE_RE.match(value) or _IAM_USER_RE.match(value)
+    match = _ASSUMED_ROLE_RE.match(value) or _IAM_USER_RE.match(value) or _FEDERATED_RE.match(value)
     if match:
         value = match.groups()[-1]
     return value.casefold()
+
+
+def owner_is_resolvable(owner: str) -> bool:
+    """True when an owner value names principals separation of duties can compare.
+
+    IAM user, role, assumed-role session and federated-user ARNs, and gateway JWT principals
+    (<issuer>#<subject>). A team name, an email address or free text names no principal: whether an
+    approver belongs to it cannot be checked (audit 2026-10-23, run-2: sod-owner-identity-compared-verbatim).
+    """
+    value = owner or ""
+    return bool(_ASSUMED_ROLE_RE.match(value) or _IAM_USER_RE.match(value) or _IAM_ROLE_RE.match(value)
+                or _FEDERATED_RE.match(value) or _JWT_PRINCIPAL_RE.match(value))
 
 
 def check_approver_eligibility(caller: AuthenticatedCaller, approval_item: Dict[str, Any],
@@ -258,6 +300,9 @@ def check_approver_eligibility(caller: AuthenticatedCaller, approval_item: Dict[
         type, worker or guardian, can approve anything, including itself)
       * the caller holds an approver role
       * the caller is not the agent itself and not one of its owners
+      * every recorded owner is a principal the check can compare (fails closed otherwise)
+
+    registry_entry None skips the owner checks: refusing (deny, withdraw) only narrows authority.
     """
     if not caller.principal_id:
         return False, "approval requires an authenticated principal"
@@ -277,9 +322,14 @@ def check_approver_eligibility(caller: AuthenticatedCaller, approval_item: Dict[
     for owner in _owners(registry_entry):
         if owner in candidates:
             return False, "separation of duties: the agent's owner cannot approve its requests"
+        if not owner_is_resolvable(owner):
+            return False, (f"separation of duties cannot be checked: the agent's owner {owner!r} is not an IAM "
+                           "user, role or session ARN or a gateway principal; record owners as principals")
         # The same person under another role: an owner who also holds an approver role must not
         # approve their own agent's requests (audit 2026-10-21, approval/sod-compares-iam-principal-
         # strings-not-human-identity).
+        if _IAM_ROLE_RE.match(owner) or _JWT_PRINCIPAL_RE.match(owner):
+            continue  # a role owns every session of it, covered by the candidates check above
         if person and human_identity(owner) == person:
             return False, ("separation of duties: the approver is the same person as the agent's owner "
                            "(same session or user name under another role)")

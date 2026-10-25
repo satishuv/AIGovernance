@@ -123,6 +123,9 @@ global_settings:
   - rule_id: SECRET-*
     path: governance-demo-bedrock/tests/test_tool_response_validator.py
     reason: Fixtures for the response validator (sample JWT with sub "user", documentation example key)
+  - rule_id: SECRET-*
+    path: governance-demo-bedrock/tests/test_run2_evidence_fixes.py
+    reason: Fixtures for evidence masking (a sample JWT, an AKIA-shaped value built by concatenation) and KMS test doubles; no key material
   - rule_id: SECRET-SECRET-KEYWORD
     path: governance-demo-bedrock/tests/test_approval_api_identity.py
     reason: Dummy values for moto

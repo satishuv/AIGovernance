@@ -38,7 +38,9 @@ def _is_empty_container(node) -> bool:
 
 def findings():
     found = {}
-    for path in sorted(ENGINE.glob("*.py")):
+    # Recursive: credential_broker/ and any future subpackage hold in-memory state too (audit
+    # 2026-10-23, run-2: the guardian's human-review records lived in a subpackage the glob skipped).
+    for path in sorted(ENGINE.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in tree.body:
             # module-level mutable containers (lower-case names; constants are UPPER)

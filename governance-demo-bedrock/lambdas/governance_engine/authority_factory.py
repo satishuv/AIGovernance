@@ -28,6 +28,7 @@ from credential_broker import (
     GoogleAdapter,
     GovernanceAdapter,
     ServiceNowAdapter,
+    oversight_table_definition,
 )
 from delegated_authority import GrantStore, KmsGrantSigner
 from models import AgentRegistryEntry
@@ -48,6 +49,12 @@ AGENT_ROLE = {
     "procurement-agent": f"arn:aws:iam::{ACCOUNT}:role/procurement-agent-runtime",
     "guardian-agent": f"arn:aws:iam::{ACCOUNT}:role/guardian-agent-runtime",
     "records-agent": f"arn:aws:iam::{ACCOUNT}:role/records-agent-runtime",
+}
+# Teams own agents as IAM roles: every session of the role is an owner, so separation of duties
+# can compare an approver against it (a bare team name names no principal).
+TEAM_ROLE = {
+    "digital-services-platform-team": f"arn:aws:iam::{ACCOUNT}:role/digital-services-platform-team",
+    "security-operations-team": f"arn:aws:iam::{ACCOUNT}:role/security-operations-team",
 }
 DEMO_ROLES = {
     HUMAN["finance_approver"]: {"policy_approver"},
@@ -74,7 +81,7 @@ def demo_agents(now_iso: str = "2026-10-01T00:00:00+00:00") -> List[AgentRegistr
             agent_id="procurement-agent", purpose="Buys approved software subscriptions for teams",
             owner=HUMAN["service_owner"], data_classes=["Public", "Internal"], tools=[],
             approved_scope=3, environment="prod", agent_type="worker",
-            business_owner=HUMAN["service_owner"], technical_owner="digital-services-platform-team",
+            business_owner=HUMAN["service_owner"], technical_owner=TEAM_ROLE["digital-services-platform-team"],
             runtime_provider="aws-lambda", model_provider="amazon-bedrock",
             runtime_principal=AGENT_ROLE["procurement-agent"],
             allowed_providers=["servicenow", "aws"],
@@ -92,7 +99,7 @@ def demo_agents(now_iso: str = "2026-10-01T00:00:00+00:00") -> List[AgentRegistr
             agent_id="guardian-agent", purpose="Observes worker agents and recommends action to humans",
             owner=HUMAN["security_operator"], data_classes=["Public", "Internal"], tools=[],
             approved_scope=1, environment="prod", agent_type="guardian",
-            business_owner=HUMAN["security_operator"], technical_owner="security-operations-team",
+            business_owner=HUMAN["security_operator"], technical_owner=TEAM_ROLE["security-operations-team"],
             runtime_provider="aws-lambda", model_provider="amazon-bedrock",
             runtime_principal=AGENT_ROLE["guardian-agent"], allowed_providers=["governance"],
             allowed_operations=["Governance.InspectDecisionHistory", "Governance.InspectEvidence",
@@ -104,7 +111,7 @@ def demo_agents(now_iso: str = "2026-10-01T00:00:00+00:00") -> List[AgentRegistr
             agent_id="records-agent", purpose="Looks up directory and document metadata for case workers",
             owner=HUMAN["service_owner"], data_classes=["Public", "Internal", "Protected-A"], tools=[],
             approved_scope=1, environment="prod", agent_type="worker",
-            business_owner=HUMAN["service_owner"], technical_owner="digital-services-platform-team",
+            business_owner=HUMAN["service_owner"], technical_owner=TEAM_ROLE["digital-services-platform-team"],
             runtime_provider="external-agent-runtime", model_provider="any",
             runtime_principal=AGENT_ROLE["records-agent"], allowed_providers=["entra", "google"],
             allowed_operations=["Entra.GetUser", "Google.ReadDriveFile"],
@@ -218,6 +225,8 @@ def build_offline(*, dynamodb, s3, kms, sts=None, region: str = "ca-central-1",
 
     grants = GrantStore(tables["grants"], grant_signer)
     evidence = EvidenceLedger(evidence_signer, S3EvidenceBackend(s3, bucket))
+    oversight = dynamodb.create_table(**oversight_table_definition(prefix + "oversight"))
+    tables["oversight"] = oversight
     holder: Dict[str, Any] = {}
     adapters = {
         "servicenow": ServiceNowAdapter("mock", catalog=DEMO_CATALOG),
@@ -228,7 +237,8 @@ def build_offline(*, dynamodb, s3, kms, sts=None, region: str = "ca-central-1",
                              client_factory=(lambda svc, secret: s3) if aws_mode == "live" else None,
                              mock_objects={f"{bucket}/{report_key}": b"item,list_price\nproductivity-suite,42.00\n"}),
         "governance": GovernanceAdapter(lambda agent_id, limit: holder["cp"].decision_summaries(agent_id, limit),
-                                        lambda agent_id: holder["cp"].evidence.for_agent(agent_id)),
+                                        lambda agent_id: holder["cp"].evidence.for_agent(agent_id),
+                                        oversight_table=oversight),
     }
     control_plane = DelegatedAuthorityControlPlane(
         registry=AgentRegistry(tables["registry"]), scope_table=tables["scope"],
@@ -249,7 +259,7 @@ def from_environment(boto3_module=None) -> DelegatedAuthorityControlPlane:
     required = ("SCOPE_TABLE_NAME", "AGENT_REGISTRY_TABLE_NAME", "PENDING_APPROVAL_TABLE_NAME",
                 "TOOL_AUTH_TABLE_NAME", "AUTHORITY_GRANT_TABLE_NAME", "SPEND_LEDGER_TABLE_NAME",
                 "GRANT_SIGNING_KEY_ID", "EVIDENCE_SIGNING_KEY_ID", "EVIDENCE_BUCKET_NAME",
-                "DECISION_TRACE_TABLE_NAME")
+                "DECISION_TRACE_TABLE_NAME", "GOVERNANCE_RECOMMENDATION_TABLE_NAME")
     missing = [k for k in required if not env.get(k)]
     if missing:
         raise RuntimeError(f"delegated authority is not configured: missing {missing}")
@@ -269,7 +279,8 @@ def from_environment(boto3_module=None) -> DelegatedAuthorityControlPlane:
                              role_arn=env.get("DELEGATED_EXECUTION_ROLE_ARN", ""),
                              region=env.get("AWS_REGION", ""), account=env.get("AWS_ACCOUNT_ID", "")),
         "governance": GovernanceAdapter(lambda a, n: holder["cp"].decision_summaries(a, n),
-                                        lambda a: holder["cp"].evidence.for_agent(a)),
+                                        lambda a: holder["cp"].evidence.for_agent(a),
+                                        oversight_table=t(env["GOVERNANCE_RECOMMENDATION_TABLE_NAME"])),
     }
     cp = DelegatedAuthorityControlPlane(
         registry=AgentRegistry(t(env["AGENT_REGISTRY_TABLE_NAME"])), scope_table=t(env["SCOPE_TABLE_NAME"]),

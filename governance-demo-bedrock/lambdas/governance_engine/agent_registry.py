@@ -24,6 +24,14 @@ VALID_ENVIRONMENTS = {"dev", "staging", "prod"}
 RUNTIME_PRINCIPAL_INDEX = "ByRuntimePrincipal"
 
 
+def _check_list_fields(values: Dict[str, Any]) -> None:
+    """Authority boundaries must be lists of non-empty strings (a str would split into characters)."""
+    bad = sorted(name for name, value in values.items()
+                 if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value))
+    if bad:
+        raise ValueError(f"registry fields {bad} must be lists of non-empty strings")
+
+
 def registry_table_definition(table_name: str) -> Dict[str, Any]:
     """create_table arguments matching the deployed AgentRegistryTable.
 
@@ -91,6 +99,7 @@ class AgentRegistry:
                 f"Invalid environment '{entry.environment}'. "
                 f"Must be one of {sorted(VALID_ENVIRONMENTS)}."
             )
+        _check_list_fields({name: getattr(entry, name) for name in AgentRegistryEntry.LIST_FIELDS})
 
         self._table.put_item(Item=entry.to_dict())
 
@@ -123,7 +132,9 @@ class AgentRegistry:
         Returns:
             AgentRegistryEntry if found, None otherwise.
         """
-        response = self._table.get_item(Key={"agent_id": agent_id})
+        # Strongly consistent: a suspension or a removed operation must apply at the next decision and
+        # execution, as the runbook states (audit 2026-10-23, run-2: eventually-consistent-read).
+        response = self._table.get_item(Key={"agent_id": agent_id}, ConsistentRead=True)
         item = response.get("Item")
         if item is None:
             return None
@@ -147,6 +158,7 @@ class AgentRegistry:
         """
         if not updates:
             raise ValueError("Updates dict must not be empty.")
+        _check_list_fields({k: v for k, v in updates.items() if k in AgentRegistryEntry.LIST_FIELDS})
 
         agent = self.get_agent(agent_id)
         if agent is None:
@@ -212,7 +224,9 @@ class AgentRegistry:
         agent = self.get_agent(agent_id)
         if agent is None:
             return False
-        return data_class in agent.data_classes
+        # approved_data_classes is [] unless data_classes is a list: a mistyped String must never be
+        # substring-matched (audit 2026-10-23, run-2: scalar-list-field-coerced-to-characters).
+        return data_class in agent.approved_data_classes
 
     def find_by_runtime_principal(self, principal_id: str) -> Optional[AgentRegistryEntry]:
         """The agent whose runtime principal is principal_id, by index query.
@@ -287,9 +301,9 @@ class AgentRegistry:
         for entry in entries:
             if "owner" in filters and entry.owner != filters["owner"]:
                 continue
-            if "data_class" in filters and filters["data_class"] not in entry.data_classes:
+            if "data_class" in filters and filters["data_class"] not in entry.approved_data_classes:
                 continue
-            if "tool" in filters and filters["tool"] not in entry.tools:
+            if "tool" in filters and filters["tool"] not in (entry.tools if isinstance(entry.tools, list) else []):
                 continue
             if "scope_level" in filters and entry.approved_scope != filters["scope_level"]:
                 continue

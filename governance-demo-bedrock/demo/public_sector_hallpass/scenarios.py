@@ -153,7 +153,12 @@ class ScenarioRunner:
         r.decision = self._decision_panel(resp)
         owner = self.cp.approve_request(resp["approval_id"], self.demo.human("service_owner"))
         r.step("Agent owner tries to approve", owner["status"].upper(), owner.get("reason", ""))
-        approver = self.cp.approve_request(resp["approval_id"], self.demo.human("finance_approver"))
+        # The approver reviews the bound request, then approves by naming the digest they reviewed.
+        reviewed = self.cp.describe_approval(resp["approval_id"], self.demo.human("finance_approver"))
+        r.step("Finance approver reviews the exact request", reviewed.get("status", "").upper(),
+               f"{reviewed.get('operation_id', '')} digest {str(reviewed.get('request_digest', ''))[:12]}")
+        approver = self.cp.approve_request(resp["approval_id"], self.demo.human("finance_approver"),
+                                           reviewed_digest=reviewed.get("request_digest", ""))
         r.step("Finance approver approves", approver["status"].upper(), approver.get("approver_id", ""))
         mint = self.cp.mint_after_approval(resp["approval_id"], req, self.demo.agent("procurement-agent"))
         r.step("Exact request verified against approval digest", mint["verdict"].upper(),
@@ -182,7 +187,9 @@ class ScenarioRunner:
                         "After the CAD 1,800 approval, the request is changed to CAD 18,000 (40 seats).",
                         "DENY: approved request digest does not match", "procurement-agent", tampered)
         r.decision = self._decision_panel(resp)
-        self.cp.approve_request(resp["approval_id"], self.demo.human("finance_approver"))
+        reviewed = self.cp.describe_approval(resp["approval_id"], self.demo.human("finance_approver"))
+        self.cp.approve_request(resp["approval_id"], self.demo.human("finance_approver"),
+                                reviewed_digest=reviewed.get("request_digest", ""))
         r.step("Finance approver approves CAD 1,800", "APPROVED", resp["approval_id"])
         mint = self.cp.mint_after_approval(resp["approval_id"], tampered, self.demo.agent("procurement-agent"))
         r.step("Agent presents CAD 18,000 against the approval", mint["verdict"].upper(), mint.get("reason", ""))

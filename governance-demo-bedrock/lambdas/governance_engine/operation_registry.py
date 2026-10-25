@@ -54,6 +54,7 @@ class OperationSpec:
     credential_ttl_seconds: int = 300
     max_uses: int = 1
     amount_derivation: Dict[str, Any] = field(default_factory=dict, hash=False, compare=False)
+    rate_limit_per_minute: int = 0
 
     def resource_allowed(self, target_resource: str) -> bool:
         return any(fnmatch.fnmatchcase(target_resource, p) for p in self.resource_patterns)
@@ -127,6 +128,7 @@ class OperationRegistry:
                     credential_ttl_seconds=int(gov.get("credential_ttl_seconds", 300)),
                     max_uses=int(gov.get("max_uses", 1)),
                     amount_derivation=dict(gov.get("amount_derivation") or {}),
+                    rate_limit_per_minute=int(gov.get("rate_limit_per_minute", 0)),
                 )
         return cls(operations, sha256_hex(canonical_json(document)))
 
@@ -144,6 +146,13 @@ class OperationRegistry:
     def fingerprint(self) -> str:
         return self._fingerprint
 
+    # Per-agent executions per minute when the operation declares no rate_limit_per_minute of its
+    # own. Without a bound the engine's per-agent rate check was skipped for every generated rule, so
+    # one agent's call volume could exhaust capacity every agent shares (audit 2026-10-23, run-2:
+    # no-per-agent-admission-bound and per-returned-trace-kms-verify-fanout).
+    DEFAULT_RATE_LIMITS_PER_MINUTE = {"read": 300, "oversight": 60, "write": 60, "financial": 30,
+                                      "identity_admin": 30, "authority_change": 10}
+
     def tool_auth_rules(self, agents: List[Any]) -> List[Dict[str, Any]]:
         """ToolAuthTable items for every operation, allowing only agents whose
         registry entry lists the operation. Human-only operations get no agents."""
@@ -158,6 +167,8 @@ class OperationRegistry:
                 "min_scope": spec.min_scope, "status": "active",
                 "reads_sensitive": spec.data_class.startswith("Protected"),
                 "writes_external": False,
+                "rate_limit_per_minute": spec.rate_limit_per_minute or self.DEFAULT_RATE_LIMITS_PER_MINUTE.get(
+                    spec.risk_category, 30),
                 "source": "openapi_operation_registry",
             })
         return rules

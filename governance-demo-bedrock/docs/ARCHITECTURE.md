@@ -230,7 +230,7 @@ This architecture addresses the known GenAI security threat landscape. Every thr
 | Trust and Safety | Hallucinations | Evidence grounding + output guardrails (coherence check) |
 | Trust and Safety | Out of band response | Scope enforcement (agent limited to permitted action groups) |
 | Agent Threats | Autonomous tool-misuse loop | tool_execution_auth (rate limiting + chain detection) |
-| Agent Threats | Unbounded invocations | tool_execution_auth (rate_limit_per_minute) |
+| Agent Threats | Unbounded invocations | tool_execution_auth (rate_limit_per_minute, or rate_limit with rate_window_seconds up to 3600 s; generated rules always set a rate) |
 | Agent Threats | Decision drifts | runtime_drift_detection (behavioral baseline comparison) |
 | Agent Threats | Context manipulation | input_sanitizer (context stuffing >5000 chars = DENY) |
 | Agent Threats | Multi-agent collaborative compromise | multi_agent (cross-agent rules prevent one agent modifying another) |

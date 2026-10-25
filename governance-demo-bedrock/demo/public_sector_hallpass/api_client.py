@@ -135,5 +135,7 @@ class LiveApiClient:
     def kill_switch(self, agent_id, reason):
         return self.call("POST", f"admin/agents/{agent_id}/kill-switch", {"reason": reason})
 
-    def approve(self, approval_id, conditions=""):
-        return self.call("POST", f"approvals/{approval_id}/approve", {"conditions": conditions})
+    def approve(self, approval_id, reviewed_digest=None):
+        # Conditions are refused by the platform (an approval authorizes the exact request).
+        body = {"reviewed_digest": reviewed_digest} if reviewed_digest else {}
+        return self.call("POST", f"approvals/{approval_id}/approve", body)
