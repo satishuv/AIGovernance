@@ -7,7 +7,8 @@ Each section names the audit records it guards:
   approve-route-conditions-not-bound-to-grant               conditions are refused, not dropped
   approval-id-unsanitized-evidence-chain-key                a presented id never shapes a key
   whole-chain-reread-and-verify-fanout                      refusals stay off the decision chain
-  curator-writable-owner-and-runtime_principal (the high)   authority fields change only by admin
+  curator-writable-owner-and-runtime_principal (the high)   authority fields change only by admin;
+                                                            new agents register only by admin
   sod-owner-identity-compared-verbatim                      unresolvable owners fail closed
   unbound-assumed-role-session-name-as-human-identity       only bound sessions count as people
   eventually-consistent-read                                registry and role reads are consistent
@@ -261,6 +262,75 @@ class TestRegistryAuthorityFields:
         with pytest.raises(RuntimeError):
             cp.admin_update_registry(PROCUREMENT, {"owner": self.NEW_OWNER}, demo.human("governance_admin"), "x")
         assert cp.registry.get_agent(PROCUREMENT).owner == HUMAN["service_owner"]
+
+    def test_status_is_an_authority_field(self, demo):
+        cp = demo.control_plane
+        admin = demo.human("governance_admin")
+        assert cp.admin_update_registry(PROCUREMENT, {"status": "suspended"}, admin, "review")["status"] == "updated"
+        assert cp.registry.get_agent(PROCUREMENT).status == "suspended"
+        out = cp.admin_update_registry(PROCUREMENT, {"status": "paused"}, admin, "x")
+        assert out["status"] == "denied" and "status must be one of" in out["reason"]
+        chain = cp.evidence.chain(PROCUREMENT, f"registry-{PROCUREMENT}")
+        assert chain[-1]["updates"] == {"status": "suspended"} and chain[-1]["previous"] == {"status": "active"}
+
+
+def _new_agent(**overrides):
+    entry = demo_agents()[2].to_dict()
+    entry.update(agent_id="case-agent", runtime_principal=f"arn:aws:iam::{ACCOUNT}:role/case-agent-runtime")
+    entry.update(overrides)
+    return entry
+
+
+class TestAdminRegistration:
+    def test_a_governance_administrator_registers_with_evidence_first(self, demo):
+        cp = demo.control_plane
+        out = cp.admin_register_agent(_new_agent(), demo.human("governance_admin"), "new case-work agent")
+        assert out == {"status": "registered", "agent_id": "case-agent"}
+        assert cp.registry.get_agent("case-agent").owner == HUMAN["service_owner"]
+        chain = cp.evidence.chain("case-agent", "registry-case-agent")
+        assert [r["event_type"] for r in chain] == ["registry_agent_registered"]
+        assert chain[0]["authority"]["runtime_principal"].endswith(":role/case-agent-runtime")
+        assert len(chain[0]["entry_sha256"]) == 64
+
+    def test_only_a_governance_administrator_registers(self, demo):
+        cp = demo.control_plane
+        for caller in (demo.agent(PROCUREMENT), demo.human("finance_approver"), demo.human("security_operator")):
+            assert cp.admin_register_agent(_new_agent(), caller, "x")["status"] == "denied"
+        assert cp.registry.get_agent("case-agent") is None
+
+    @pytest.mark.parametrize("overrides,why", [
+        ({"owner": "case-team"}, "owner must be"),
+        ({"technical_owner": "case-platform-team"}, "technical_owner must be"),
+        ({"allowed_operations": "Entra.GetUser"}, "must be a list"),
+        ({"agent_id": " case-agent"}, "agent_id must be"),
+    ], ids=["team-owner", "team-technical-owner", "string-list", "padded-id"])
+    def test_an_invalid_entry_is_refused(self, demo, overrides, why):
+        out = demo.control_plane.admin_register_agent(_new_agent(**overrides), demo.human("governance_admin"), "x")
+        assert out["status"] == "denied" and why in out["reason"]
+
+    def test_an_existing_agent_is_never_replaced(self, demo):
+        cp = demo.control_plane
+        replacement = _new_agent(agent_id=PROCUREMENT, owner=f"arn:aws:iam::{ACCOUNT}:user/mallory",
+                                 business_owner=f"arn:aws:iam::{ACCOUNT}:user/mallory")
+        out = cp.admin_register_agent(replacement, demo.human("governance_admin"), "x")
+        assert out["status"] == "denied" and "already registered" in out["reason"]
+        assert cp.registry.get_agent(PROCUREMENT).owner == HUMAN["service_owner"]
+
+    def test_a_concurrent_registration_cannot_overwrite(self, demo):
+        registry = demo.control_plane.registry
+        agent = AgentRegistryEntry.from_dict(_new_agent())
+        registry.register_agent(agent, requester_id="admin", create_only=True)
+        with pytest.raises(ValueError, match="already registered"):
+            registry.register_agent(agent, requester_id="admin", create_only=True)
+
+    def test_a_lost_race_is_recorded(self, demo, monkeypatch):
+        cp = demo.control_plane
+        monkeypatch.setattr(cp.registry, "register_agent",
+                            MagicMock(side_effect=ValueError("agent 'case-agent' is already registered")))
+        out = cp.admin_register_agent(_new_agent(), demo.human("governance_admin"), "x")
+        assert out["status"] == "denied"
+        chain = cp.evidence.chain("case-agent", "registry-case-agent")
+        assert [r["event_type"] for r in chain] == ["registry_agent_registered", "registry_agent_registration_failed"]
 
 
 # ================================================================== identity

@@ -65,7 +65,7 @@ class AgentRegistry:
         self._table = table
 
     def register_agent(
-        self, entry: AgentRegistryEntry, requester_id: str
+        self, entry: AgentRegistryEntry, requester_id: str, create_only: bool = False
     ) -> AgentRegistryEntry:
         """Register a new agent in the registry.
 
@@ -75,13 +75,16 @@ class AgentRegistry:
         Args:
             entry: The AgentRegistryEntry to register.
             requester_id: Identity of the person requesting the registration.
+            create_only: Refuse (ValueError) when the agent id is already registered, with a
+                conditional write, so a registration can never replace an existing entry and its
+                owner fields (audit 2026-10-23, run-2).
 
         Returns:
             The registered AgentRegistryEntry.
 
         Raises:
             ValueError: If validation fails (empty purpose/owner/data_classes
-                        or invalid environment).
+                        or invalid environment), or create_only and the agent exists.
         """
         if not entry.purpose or not entry.purpose.strip():
             raise ValueError("Agent registry entry must have a non-empty purpose.")
@@ -101,7 +104,15 @@ class AgentRegistry:
             )
         _check_list_fields({name: getattr(entry, name) for name in AgentRegistryEntry.LIST_FIELDS})
 
-        self._table.put_item(Item=entry.to_dict())
+        if create_only:
+            try:
+                self._table.put_item(Item=entry.to_dict(), ConditionExpression="attribute_not_exists(agent_id)")
+            except Exception as exc:
+                if "ConditionalCheckFailed" in type(exc).__name__ or "ConditionalCheckFailed" in str(exc):
+                    raise ValueError(f"agent '{entry.agent_id}' is already registered") from exc
+                raise
+        else:
+            self._table.put_item(Item=entry.to_dict())
 
         now = datetime.now(timezone.utc).isoformat()
         logger.info(
